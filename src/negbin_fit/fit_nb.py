@@ -1,6 +1,6 @@
 """
 Usage:
-    negbin_fit <file> (-b <bad> | --bad <bad>) [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-r | --readable]
+    negbin_fit <file> (-b <bad> | --bad <bad>) [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-r | --readable] [-l | --line-fit]
     negbin_fit -h | --help
 
 Arguments:
@@ -19,7 +19,9 @@ Options:
                                             alt_read_count >= x. [default: 5]
     --visualize                             Perform visualization
     -r, --readable                          Save tsv files of fitted distributions
+    -l, --line-fit                          Fit all the data with line
 """
+import json
 import os
 import re
 import numpy as np
@@ -72,7 +74,7 @@ def make_scaled_counts(stats_pandas_dataframe, main_allele, max_cover_in_stats):
     return counts_array, nonzero_set
 
 
-def fit_negative_binom(n, counts_array, fix_c, BAD, q_left, left_most):
+def fit_negative_binom(n, counts_array, fix_c, BAD, left_most):
     try:
         x = optimize.minimize(fun=make_log_likelihood(n, counts_array, BAD, left_most),
                               x0=np.array([fix_c, 0.5]),
@@ -80,7 +82,7 @@ def fit_negative_binom(n, counts_array, fix_c, BAD, q_left, left_most):
     except ValueError:
         return 'NaN', 0
     r, w = x.x
-    return x, calculate_gof(counts_array, w, r, BAD, q_left, left_most)
+    return x, calculate_gof(counts_array, w, r, BAD, left_most)
 
 
 def make_log_likelihood(n, counts_array, BAD, left_most):
@@ -95,9 +97,9 @@ def make_log_likelihood(n, counts_array, BAD, left_most):
     return target
 
 
-def calculate_gof(counts_array, w, r, BAD, q_left, left_most):
+def calculate_gof(counts_array, w, r, BAD, left_most):
     observed = counts_array.copy()
-    observed[:q_left] = 0
+    observed[:left_most] = 0
     norm = observed.sum()
     expected = make_negative_binom_density(r, get_p(BAD), w, len(observed) - 1, left_most) * norm
 
@@ -118,30 +120,78 @@ def calculate_gof(counts_array, w, r, BAD, q_left, left_most):
     return score
 
 
-def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=200):
+def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5):
+    def target(x):
+        a = x[0]
+        b = x[1]
+        result = 0
+        for fix_c in range(allele_tr, upper_bound + 1):
+            stats_filtered, counts_array = preprocess_stats(stats, fix_c, N, main_allele, allele_tr)
+            if stats_filtered is None:
+                continue
+            neg_bin_dens = make_negative_binom_density(fix_c * a + b, 0.5, 0.5, N, allele_tr)
+            result += -1 * sum(counts_array[k] * (
+                    (np.log(neg_bin_dens[k])
+                     if neg_bin_dens[k] != 0 else 0) + 0)
+                               for k in range(allele_tr, N) if counts_array[k] != 0)
+        return result
+    return target
+
+
+def calculate_gof_as_line(counts_array, a, b, left_most):
+    return 0
+
+
+def fit_negative_binom_as_line(stats_df, main_allele, upper_bound, N, allele_tr):
+    try:
+        x = optimize.minimize(fun=make_likelihood_as_line(stats_df, main_allele,
+                                                          upper_bound=upper_bound,
+                                                          N=N,
+                                                          allele_tr=allele_tr),
+                              x0=np.array([1.5, 0]),
+                              bounds=[(0.5, 2), (-1, 5)])
+    except ValueError:
+        return 'NaN', 'Nan', 0
+    a, b = x.x
+    return a, b, calculate_gof_as_line(stats_df, a, b, allele_tr)
+
+
+def preprocess_stats(stats, fix_c, N, main_allele, allele_tr):
+    stats_filtered = stats[stats[alleles[main_allele]] == fix_c]
+    try:
+        counts, set_of_nonzero_n = make_scaled_counts(stats_filtered, main_allele, N)
+    except ValueError:
+        counts, set_of_nonzero_n = [], set()
+
+    if len(set_of_nonzero_n) == 0 or counts.sum() < max(set_of_nonzero_n) - allele_tr:
+        return None, None
+    return stats_filtered, counts
+
+
+def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=200, line_fit=False):
     print('Fitting {} distribution...'.format(main_allele.upper()))
-    fixed_allele = alleles[main_allele]
-    save_array = np.zeros((upper_bound + 1, 4), dtype=np.float_)
-    for fix_c in tqdm(range(allele_tr, upper_bound)):
-        stats_filtered = stats[stats[fixed_allele] == fix_c]
-        try:
-            max_cover = max(stats[main_allele].to_list())
-            counts, set_of_nonzero_n = make_scaled_counts(stats_filtered, main_allele, max_cover)
-        except ValueError:
-            counts, set_of_nonzero_n = [], set()
-
-        if len(set_of_nonzero_n) == 0 or counts.sum() < max(set_of_nonzero_n) - 5:
-            continue
-
-        left_most = 5
-        q_left = 5
-        right_most = len(counts) - 1
-
-        weights, gof = fit_negative_binom(right_most, counts, fix_c, BAD, q_left, left_most)
-        save_array[fix_c, :2] = weights.x
-        save_array[fix_c, 2] = weights.success
-        save_array[fix_c, 3] = gof
-    return save_array
+    N = max(stats[main_allele])
+    if not line_fit:
+        save_array = np.zeros((upper_bound + 1, 4), dtype=np.float_)
+        for fix_c in tqdm(range(allele_tr, upper_bound + 1)):
+            stats_filtered, counts = preprocess_stats(stats,
+                                                      fix_c, N,
+                                                      main_allele, allele_tr)
+            if stats_filtered is None:
+                continue
+            weights, gof = fit_negative_binom(N, counts, fix_c, BAD, allele_tr)
+            save_array[fix_c, :2] = weights.x
+            save_array[fix_c, 2] = weights.success
+            save_array[fix_c, 3] = gof
+        return save_array
+    else:
+        a, b, gof = fit_negative_binom_as_line(stats,
+                                               main_allele,
+                                               upper_bound=upper_bound,
+                                               N=N,
+                                               allele_tr=allele_tr
+                                               )
+        return {'a': a, 'b': b, 'gof': gof}
 
 
 def read_stats_df(filename):
@@ -162,17 +212,22 @@ def make_out_path(out, name):
     return directory
 
 
-def main(stats, out=None, BAD=1, allele_tr=5):
+def main(stats, out=None, BAD=1, allele_tr=5, line_fit=False):
     d = {}
     for main_allele in alleles:
         save_array = fit_neg_bin_for_allele(stats,
                                             main_allele,
                                             BAD=BAD,
+                                            line_fit=line_fit,
                                             upper_bound=200,
                                             allele_tr=allele_tr)
 
         d[main_allele] = save_array
-        np.save(make_np_array_path(out, main_allele), save_array)
+        if not line_fit:
+            np.save(make_np_array_path(out, main_allele), save_array)
+        else:
+            with open(make_np_array_path(out, main_allele, line_fit=line_fit), 'w') as f:
+                json.dump(save_array, f)
     return d
 
 
@@ -220,12 +275,16 @@ def start_fit():
     df, filename = args['<file>']
     allele_tr = args['--allele-reads-tr']
     BAD = args['--bad']
+    line_fit = args['--line-fit']
+    if line_fit and BAD != 1:
+        print('Line fit for BAD != 1 not implemented')
     out_path = make_out_path(args['--output'], filename)
     d = main(df,
              out=out_path,
              BAD=BAD,
+             line_fit=line_fit,
              allele_tr=allele_tr)
-    if args['--readable'] or args['--visualize']:
+    if not line_fit and (args['--readable'] or args['--visualize']):
         from negbin_fit.neg_bin_weights_to_df import main as convert_weights
         convert_weights(in_df=df,
                         np_weights_dict=d,
@@ -234,5 +293,7 @@ def start_fit():
         from negbin_fit.visualize import main as visualize
         visualize(
             stats=df,
-            np_weights_dict=d,
-            out=out_path, BAD=BAD, allele_tr=allele_tr)
+            weights_dict=d,
+            line_fit=line_fit,
+            out=out_path, BAD=BAD,
+            allele_tr=allele_tr)

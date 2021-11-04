@@ -15,10 +15,9 @@ plt.rcParams['axes.labelweight'] = 'medium'
 plt.rcParams['figure.titleweight'] = 'medium'
 plt.rcParams['axes.titleweight'] = 'medium'
 plt.rcParams['figure.figsize'] = 18, 5
-plt.rcParams["legend.framealpha"] = 1
 plt.rcParams['axes.xmargin'] = 0
 plt.rcParams['axes.ymargin'] = 0
-plt.rcParams["legend.framealpha"] = 1
+plt.rcParams["legend.framealpha"] = 0.8
 
 
 def local_read_weights(np_weights_dict, np_weights_path):
@@ -70,6 +69,49 @@ def r_ref_bias(df_ref, df_alt, BAD, out, allele_tr=5, to_show=False):
     plt.close(fig)
 
 
+def r_vs_count_scatter(df_ref, df_alt,
+                       out, BAD,
+                       allele_tr=5, to_show=False,
+                       weights_dict=None
+                       ):
+    fig, ax = plt.subplots(figsize=(6, 5))
+    fig.tight_layout(pad=2)
+
+    ax.set_xlim(allele_tr, 50)
+    y_max = max(max(df_ref['r']), max(df_alt['r']))
+    ax.set_ylim(0, y_max * 1.05)
+    ax.grid(True)
+
+    ax.plot([allele_tr, y_max], [allele_tr, y_max], c='grey', label='y=x', linestyle='dashed')
+    if weights_dict is not None:
+        line_plot_colors = {
+            'alt': 'orange',
+            'ref': 'red'
+        }
+        for allele in alleles:
+            a = weights_dict[allele]['a']
+            b = weights_dict[allele]['b']
+            ax.plot([allele_tr, 50], [a * allele_tr + b, a * 50 + b],
+                    c=line_plot_colors[allele], label='Line fit for {}'.format(allele.upper()))
+    # if BAD == 4 / 3:
+    #     ax.plot([10 * 4 / 3, y_max * 4 / 3], [10, y_max], label='y=3/4 x', c='black', linestyle='dashed')
+
+    ax.scatter(x=df_alt.index, y=df_alt["r"].tolist(), color='C1', label='Alt')
+    ax.scatter(x=df_ref.index, y=df_ref["r"].tolist(), color='C2', label='Ref')
+
+    ax.set_xlabel('Read count for the fixed allele')
+    ax.set_ylabel('Fitted r value')
+
+    ax.legend()
+
+    plt.title('BAD={}'.format(BAD))
+
+    plt.savefig(out)
+    if to_show:
+        plt.show()
+    plt.close(fig)
+
+
 def gof_scatter(df_ref, df_alt, BAD, out, allele_tr=5, to_show=False):
     # gof vs read cov
     df_ref = df_ref[(df_ref['gof'] > 0) & (df_ref.index <= 50)]
@@ -107,30 +149,15 @@ def gof_scatter(df_ref, df_alt, BAD, out, allele_tr=5, to_show=False):
 
 
 def read_dfs(out):
-    return [pd.read_table(get_nb_weight_path(out, allele)) for allele in alleles]
+    try:
+        result = [pd.read_table(get_nb_weight_path(out, allele)) for allele in alleles]
+    except Exception:
+        raise AssertionError("No weight dfs found")
+    return result
 
 
 def make_image_path(out, image_name, image_type):
     return os.path.join(out, image_name + '.' + image_type)
-
-
-def main(stats, out, BAD, np_weights_dict=None, allele_tr=5, image_type='svg', to_show=False):
-    df_ref, df_alt = read_dfs(out)
-    gof_scatter(df_ref, df_alt,
-                out=make_image_path(out, 'gof', image_type),
-                BAD=BAD,
-                allele_tr=allele_tr,
-                to_show=to_show)
-    r_ref_bias(df_ref, df_alt,
-               out=make_image_path(out, 'r_bias', image_type),
-               BAD=BAD,
-               allele_tr=allele_tr,
-               to_show=to_show)
-    slices(stats_df=stats, BAD=BAD,
-           allele_tr=allele_tr,
-           to_show=to_show,
-           np_weights_dict=np_weights_dict,
-           out=make_image_path(out, 'negbin_slices', image_type))
 
 
 def slices(stats_df, BAD, out, np_weights_dict=None,
@@ -139,7 +166,6 @@ def slices(stats_df, BAD, out, np_weights_dict=None,
            to_show=False):
     lw = 1.25
     cover_list = [10, 15, 20, 25, 30]
-    allele_tr = 5
     fixs = ['ref', 'alt']
     color_maxlog = 4
     r_dict, w_dict, gof_dict = local_read_weights(np_weights_dict, np_weights_path)
@@ -327,3 +353,41 @@ def slices(stats_df, BAD, out, np_weights_dict=None,
     #
     # plt.savefig(os.path.expanduser('~/AC_10/Figure_AS_10_r_scatter_ref_alt_{:.2f}.svg'.format(BAD)))
     # plt.close(fig)
+
+
+def main(stats, out, BAD,
+         weights_dict=None,
+         allele_tr=5,
+         image_type='svg',
+         to_show=False,
+         line_fit=False,
+         ):
+    df_ref, df_alt = read_dfs(out)
+    if not line_fit:
+        gof_scatter(df_ref, df_alt,
+                    out=make_image_path(out, 'gof', image_type),
+                    BAD=BAD,
+                    allele_tr=allele_tr,
+                    to_show=to_show)
+        r_ref_bias(df_ref, df_alt,
+                   out=make_image_path(out, 'r_bias', image_type),
+                   BAD=BAD,
+                   allele_tr=allele_tr,
+                   to_show=to_show)
+        r_vs_count_scatter(df_ref, df_alt,
+                           out=make_image_path(out, 'r_vs_counts', image_type),
+                           BAD=BAD,
+                           allele_tr=allele_tr,
+                           to_show=to_show)
+        slices(stats_df=stats, BAD=BAD,
+               allele_tr=allele_tr,
+               to_show=to_show,
+               np_weights_dict=weights_dict,
+               out=make_image_path(out, 'negbin_slices', image_type))
+    else:
+        r_vs_count_scatter(df_ref, df_alt,
+                           out=make_image_path(out, 'r_vs_counts.line_fit', image_type),
+                           BAD=BAD,
+                           allele_tr=allele_tr,
+                           weights_dict=weights_dict,
+                           to_show=to_show)

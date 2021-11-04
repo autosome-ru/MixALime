@@ -3,7 +3,7 @@ from negbin_fit.helpers import alleles, read_weights, get_nb_weight_path
 
 
 def main(out_path, in_file=None, in_df=None, np_weights_path=None,
-         np_weights_dict=None):
+         np_weights_dict=None, line_fit=False):
     column_names = ['r', 'w', 'status', 'gof']
     if in_file is not None:
         counts_df = pd.read_table(in_file)
@@ -15,6 +15,7 @@ def main(out_path, in_file=None, in_df=None, np_weights_path=None,
         np_weights = read_weights(
             np_weights_path=np_weights_path,
             np_weights_dict=np_weights_dict,
+            line_fit=line_fit,
             allele=allele)
         df = pd.DataFrame(columns=column_names)
         for i in range(len(column_names)):
