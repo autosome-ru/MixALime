@@ -5,7 +5,7 @@ Usage:
 
 Arguments:
     <file>            Path to input file in tsv format with columns:
-                      chr pos ID ref_base alt_base ref_read_count alt_read_count.
+                      alt ref counts.
     <bad>             BAD value (can be decimal)
     <int>             Non negative integer
 
@@ -15,8 +15,7 @@ Options:
     -q, --quiet                             Suppress log messages.
     -O <path>, --output <path>              Output directory for obtained fits. [default: ./]
     -b <bad>, --bad <bad>                   BAD value used in fit (can be decimal)
-    --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and
-                                            alt_read_count >= x. [default: 5]
+    --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and alt_read_count >= x. [default: 5]
     --visualize                             Perform visualization
     -r, --readable                          Save tsv files of fitted distributions
     -l, --line-fit                          Fit all the data with line
