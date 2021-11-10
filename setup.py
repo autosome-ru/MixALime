@@ -34,7 +34,7 @@ setup(
         'pandas>=1.0.4',
         'matplotlib>=3.2.1',
         'seaborn>=0.10.1',
-        'scipy>=1.6.2',
+        'scipy>=1.5.2',
         'tqdm>=4.62.3'
     ],
     extras_require={
