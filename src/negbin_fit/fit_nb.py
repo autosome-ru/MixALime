@@ -2,7 +2,7 @@
 Usage:
     negbin_fit <file> (-b <bad> | --bad <bad>) [-O <dir> |--output <dir>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-r | --readable] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
     negbin_fit -h | --help
-    negbin_fit visualize <file> (-b <bad> | --bad <bad>) [-w <dir> |--weights <dir>]  [--allele-reads-tr <int>] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
+    negbin_fit visualize <file> (-b <bad> | --bad <bad>) (-w <dir> |--weights <dir>)  [--allele-reads-tr <int>] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
 
 Arguments:
     <file>            Path to input file in tsv format with columns: alt ref counts.
@@ -259,9 +259,6 @@ def parse_cover_list(list_as_string):
 
 
 def check_weights_path(weights_path, line_fit):
-    print(read_weights(line_fit=line_fit,
-                       np_weights_path=weights_path,
-                       allele='alt'))
     return weights_path, {allele: read_weights(line_fit=line_fit,
                                                np_weights_path=weights_path,
                                                allele=allele) for allele in alleles}
@@ -297,7 +294,8 @@ def start_fit():
             And(
                 Const(os.path.exists),
                 Const(lambda x: os.access(x, os.W_OK), error='No write permissions'),
-                Use(lambda x: check_weights_path(x, args['--line-fit']), error='No weights found in directory')
+                Use(lambda x: check_weights_path(x, False if not args['--line-fit'] else True),
+                    error='No weights found in directory')
             )),
         str: bool
     })
@@ -312,6 +310,7 @@ def start_fit():
     line_fit = args['--line-fit']
     if line_fit and BAD != 1:
         print('Line fit for BAD != 1 not implemented')
+        exit(1)
 
     if not args['visualize']:
         out_path = make_out_path(args['--output'], filename)

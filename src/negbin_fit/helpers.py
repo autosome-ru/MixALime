@@ -16,10 +16,11 @@ def get_nb_weight_path(out, allele):
 
 def read_weights(allele, np_weights_path=None, np_weights_dict=None, line_fit=False):
     if np_weights_path:
+        path = make_np_array_path(np_weights_path, allele, line_fit=line_fit)
         if not line_fit:
-            np_weights = np.load(make_np_array_path(np_weights_path, allele))
+            np_weights = np.load(path)
         else:
-            with open(make_np_array_path(np_weights_path, allele, line_fit=line_fit)) as r:
+            with open(path) as r:
                 np_weights = json.load(r)
     elif np_weights_dict:
         np_weights = np_weights_dict[allele]
