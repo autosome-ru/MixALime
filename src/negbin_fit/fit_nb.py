@@ -1,24 +1,29 @@
 """
 Usage:
-    negbin_fit <file> (-b <bad> | --bad <bad>) [-O <path> |--output <path>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-r | --readable] [-l | --line-fit]
+    negbin_fit <file> (-b <bad> | --bad <bad>) [-O <dir> |--output <dir>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-r | --readable] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
     negbin_fit -h | --help
+    negbin_fit visualize <file> (-b <bad> | --bad <bad>) [-w <dir> |--weights <dir>]  [--allele-reads-tr <int>] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
 
 Arguments:
-    <file>            Path to input file in tsv format with columns:
-                      alt ref counts.
+    <file>            Path to input file in tsv format with columns: alt ref counts.
     <bad>             BAD value (can be decimal)
     <int>             Non negative integer
+    <dir>             Directory for fitted weights
+    <list>            List of slices to visualize
 
 
 Options:
     -h, --help                              Show help.
     -q, --quiet                             Suppress log messages.
     -O <path>, --output <path>              Output directory for obtained fits. [default: ./]
+    -w <path>, --weights <path>             Directory with obtained fits
     -b <bad>, --bad <bad>                   BAD value used in fit (can be decimal)
     --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and alt_read_count >= x. [default: 5]
     --visualize                             Perform visualization
     -r, --readable                          Save tsv files of fitted distributions
     -l, --line-fit                          Fit all the data with line
+    --max-read-count <int>                  Max read count for visualization [default: 50]
+    --cover-list <list>                     List of covers to visualize [default: 10,20,30,40,50]
 """
 import json
 import os
@@ -27,9 +32,10 @@ import numpy as np
 import pandas as pd
 from docopt import docopt
 from tqdm import tqdm
-from schema import SchemaError, And, Const, Schema, Use
+from schema import SchemaError, And, Const, Schema, Use, Or
 from scipy import optimize, stats as st
-from negbin_fit.helpers import alleles, make_np_array_path, get_p
+from negbin_fit.helpers import alleles, make_np_array_path, get_p, read_weights
+from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 
 
 def make_negative_binom_density(r, p, w, size_of_counts, left_most):
@@ -134,6 +140,7 @@ def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5):
                      if neg_bin_dens[k] != 0 else 0) + 0)
                                for k in range(allele_tr, N) if counts_array[k] != 0)
         return result
+
     return target
 
 
@@ -245,6 +252,21 @@ def convert_string_to_float(bad_str):
             return False
 
 
+def parse_cover_list(list_as_string):
+    cover_list = [int(x) for x in list_as_string.split(',') if int(x) > 0]
+    assert len(cover_list) > 0
+    return cover_list
+
+
+def check_weights_path(weights_path, line_fit):
+    print(read_weights(line_fit=line_fit,
+                       np_weights_path=weights_path,
+                       allele='alt'))
+    return weights_path, {allele: read_weights(line_fit=line_fit,
+                                               np_weights_path=weights_path,
+                                               allele=allele) for allele in alleles}
+
+
 def start_fit():
     args = docopt(__doc__)
     schema = Schema({
@@ -257,13 +279,26 @@ def start_fit():
             Const(lambda x: x >= 1, error='BAD must be >= 1')
         ),
         '--output': And(
-                Const(os.path.exists),
-                Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
+            Const(os.path.exists),
+            Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
         ),
         '--allele-reads-tr': And(
             Use(int),
             Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
         ),
+        '--cover-list': Use(parse_cover_list, error='Wrong format cover list'),
+        '--max-read-count': And(
+            Use(int),
+            Const(lambda x: x > 0),
+            error='Max read count threshold must be a positive integer'
+        ),
+        '--weights': Or(
+            Const(lambda x: x is None),
+            And(
+                Const(os.path.exists),
+                Const(lambda x: os.access(x, os.W_OK), error='No write permissions'),
+                Use(lambda x: check_weights_path(x, args['--line-fit']), error='No weights found in directory')
+            )),
         str: bool
     })
     try:
@@ -277,22 +312,28 @@ def start_fit():
     line_fit = args['--line-fit']
     if line_fit and BAD != 1:
         print('Line fit for BAD != 1 not implemented')
-    out_path = make_out_path(args['--output'], filename)
-    d = main(df,
-             out=out_path,
-             BAD=BAD,
-             line_fit=line_fit,
-             allele_tr=allele_tr)
-    if not line_fit and (args['--readable'] or args['--visualize']):
-        from negbin_fit.neg_bin_weights_to_df import main as convert_weights
-        convert_weights(in_df=df,
-                        np_weights_dict=d,
-                        out_path=out_path)
-    if args['--visualize']:
+
+    if not args['visualize']:
+        out_path = make_out_path(args['--output'], filename)
+        d = main(df,
+                 out=out_path,
+                 BAD=BAD,
+                 line_fit=line_fit,
+                 allele_tr=allele_tr)
+        if not line_fit and (args['--readable'] or args['--visualize']):
+            convert_weights(in_df=df,
+                            np_weights_dict=d,
+                            out_path=out_path)
+    else:
+        out_path, d = args['--weights']
+    if args['--visualize'] or args['visualize']:
         from negbin_fit.visualize import main as visualize
         visualize(
             stats=df,
             weights_dict=d,
             line_fit=line_fit,
-            out=out_path, BAD=BAD,
+            cover_list=args['--cover-list'],
+            max_read_count=args['--max-read-count'],
+            out=out_path,
+            BAD=BAD,
             allele_tr=allele_tr)

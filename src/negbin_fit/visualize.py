@@ -37,7 +37,7 @@ def local_read_weights(np_weights_dict, np_weights_path):
     return r, w, gof
 
 
-def r_ref_bias(df_ref, df_alt, BAD, out, allele_tr=5, to_show=False):
+def r_ref_bias(df_ref, df_alt, BAD, out, allele_tr=5, max_read_count=50, to_show=False):
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
 
@@ -71,13 +71,14 @@ def r_ref_bias(df_ref, df_alt, BAD, out, allele_tr=5, to_show=False):
 
 def r_vs_count_scatter(df_ref, df_alt,
                        out, BAD,
+                       max_read_count=50,
                        allele_tr=5, to_show=False,
                        weights_dict=None
                        ):
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
 
-    ax.set_xlim(allele_tr, 50)
+    ax.set_xlim(allele_tr, max_read_count)
     y_max = max(max(df_ref['r']), max(df_alt['r']))
     ax.set_ylim(0, y_max * 1.05)
     ax.grid(True)
@@ -91,7 +92,7 @@ def r_vs_count_scatter(df_ref, df_alt,
         for allele in alleles:
             a = weights_dict[allele]['a']
             b = weights_dict[allele]['b']
-            ax.plot([allele_tr, 50], [a * allele_tr + b, a * 50 + b],
+            ax.plot([allele_tr, max_read_count], [a * allele_tr + b, a * max_read_count + b],
                     c=line_plot_colors[allele], label='Line fit for {}'.format(allele.upper()))
     # if BAD == 4 / 3:
     #     ax.plot([10 * 4 / 3, y_max * 4 / 3], [10, y_max], label='y=3/4 x', c='black', linestyle='dashed')
@@ -112,15 +113,17 @@ def r_vs_count_scatter(df_ref, df_alt,
     plt.close(fig)
 
 
-def gof_scatter(df_ref, df_alt, BAD, out, allele_tr=5, to_show=False):
+def gof_scatter(df_ref, df_alt, BAD, out,
+                max_read_count=50,
+                allele_tr=5, to_show=False):
     # gof vs read cov
-    df_ref = df_ref[(df_ref['gof'] > 0) & (df_ref.index <= 50)]
-    df_alt = df_alt[(df_alt['gof'] > 0) & (df_alt.index <= 50)]
+    df_ref = df_ref[(df_ref['gof'] > 0) & (df_ref.index <= max_read_count)]
+    df_alt = df_alt[(df_alt['gof'] > 0) & (df_alt.index <= max_read_count)]
 
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
 
-    ax.set_xlim(allele_tr, 50)
+    ax.set_xlim(allele_tr, max_read_count)
     ax.set_ylim(0, max(max(df_ref['gof']), max(df_alt['gof'])) * 1.05)
     ax.grid(True)
 
@@ -163,19 +166,20 @@ def make_image_path(out, image_name, image_type):
 def slices(stats_df, BAD, out, np_weights_dict=None,
            np_weights_path=None,
            allele_tr=5,
+           max_read_count=50,
+           cover_list=None,
            to_show=False):
+    if cover_list is None:
+        cover_list = [10, 15, 20, 25, 30]
     lw = 1.25
-    cover_list = [10, 15, 20, 25, 30]
-    fixs = ['ref', 'alt']
     color_maxlog = 4
     r_dict, w_dict, gof_dict = local_read_weights(np_weights_dict, np_weights_path)
     p = get_p(BAD)
-    max_c = 50
 
     t = stats_df.copy()
     t = t[(t['ref'] >= allele_tr) & (t['alt'] >= allele_tr)]
-    t = t[(t['ref'] <= max_c) & (t['alt'] <= max_c)]
-    for count in range(allele_tr, max_c + 1):
+    t = t[(t['ref'] <= max_read_count) & (t['alt'] <= max_read_count)]
+    for count in range(allele_tr, max_read_count + 1):
         if not t[(t['ref'] == count) & (t['alt'] == allele_tr)]['counts'].tolist():
             t = t.append(pd.DataFrame({'ref': [count], 'alt': [allele_tr], 'counts': [0]}))
         if not t[(t['ref'] == allele_tr) & (t['alt'] == count)]['counts'].tolist():
@@ -206,36 +210,36 @@ def slices(stats_df, BAD, out, np_weights_dict=None,
         cbar.set_ticks(np.arange(0, color_maxlog + 1, 1))
         cbar.set_ticklabels(["10⁰", "10¹", "10²", "10³", "10⁴", "10⁵", "10⁶", "10⁷"])
 
-        if max_c <= 50:
+        if max_read_count <= 50:
             div = 5
-        elif max_c <= 100:
+        elif max_read_count <= 100:
             div = 10
-        elif max_c % 30 == 0:
+        elif max_read_count % 30 == 0:
             div = 30
         else:
             div = 50
 
-        ax1.yaxis.set_major_locator(ticker.FixedLocator(np.arange(0, max_c - allele_tr + 1, div) + 0.5))
-        ax1.yaxis.set_major_formatter(ticker.FixedFormatter(range(div - allele_tr, max_c + 1)[::-div]))
+        ax1.yaxis.set_major_locator(ticker.FixedLocator(np.arange(0, max_read_count - allele_tr + 1, div) + 0.5))
+        ax1.yaxis.set_major_formatter(ticker.FixedFormatter(range(div - allele_tr, max_read_count + 1)[::-div]))
         ax1.tick_params(axis="y", rotation=0)
 
-        ax1.xaxis.set_major_locator(ticker.FixedLocator(np.arange(div - allele_tr, max_c + 1, div) + 0.5))
-        ax1.xaxis.set_major_formatter(ticker.FixedFormatter(range(div, max_c + 1)[::div]))
+        ax1.xaxis.set_major_locator(ticker.FixedLocator(np.arange(div - allele_tr, max_read_count + 1, div) + 0.5))
+        ax1.xaxis.set_major_formatter(ticker.FixedFormatter(range(div, max_read_count + 1)[::div]))
         ax1.tick_params(axis="x", rotation=0)
 
-        ax1.hlines(y=max_c + 1 - allele_tr, xmin=0, xmax=max_c + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
-        ax1.vlines(x=0, ymin=0, ymax=max_c + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
-        ax1.hlines(y=0, xmin=0, xmax=max_c + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
-        ax1.vlines(x=max_c + 1 - allele_tr, ymin=0, ymax=max_c + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
+        ax1.hlines(y=max_read_count + 1 - allele_tr, xmin=0, xmax=max_read_count + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
+        ax1.vlines(x=0, ymin=0, ymax=max_read_count + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
+        ax1.hlines(y=0, xmin=0, xmax=max_read_count + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
+        ax1.vlines(x=max_read_count + 1 - allele_tr, ymin=0, ymax=max_read_count + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
 
-        for cov, fix in zip([cover, cover], fixs):
+        for cov, fix in zip([cover, cover], alleles.keys()):
             if fix == 'alt':
-                ax1.axhline(xmin=0, y=max_c - cov + 0.5, linestyle='dashed', linewidth=lw, color='black')
+                ax1.axhline(xmin=0, y=max_read_count - cov + 0.5, linestyle='dashed', linewidth=lw, color='black')
             elif fix == 'ref':
                 ax1.axvline(x=cov - allele_tr + 0.5, ymin=0, linestyle='dashed', linewidth=lw, color='black')
 
         # Params
-        for fix_c, fixed_allele, ax in zip([cover, cover], fixs, (ax2, ax3)):
+        for fix_c, fixed_allele, ax in zip([cover, cover], alleles.keys(), (ax2, ax3)):
             main_allele = "ref" if fixed_allele == "alt" else "alt"
             stats = stats_df
             stats_filtered = stats[stats[fixed_allele] == fix_c].astype(int)
@@ -245,11 +249,11 @@ def slices(stats_df, BAD, out, np_weights_dict=None,
                 k, SNP_counts = row[main_allele], row['counts']
                 counts_array[k] = SNP_counts
 
-            chop_counts_array = np.zeros(max_c + 1)
-            chop_counts_array[:min(max_c, max_cover_in_stats) + 1] = counts_array[:min(max_c, max_cover_in_stats) + 1]
+            chop_counts_array = np.zeros(max_read_count + 1)
+            chop_counts_array[:min(max_read_count, max_cover_in_stats) + 1] = counts_array[:min(max_read_count, max_cover_in_stats) + 1]
 
             total_snps = counts_array[0:max_cover_in_stats + 1].sum()
-            x = list(range(max_c + 1))
+            x = list(range(max_read_count + 1))
             sns.barplot(x=x,
                         y=chop_counts_array / total_snps, ax=ax, color='C1')
 
@@ -263,13 +267,13 @@ def slices(stats_df, BAD, out, np_weights_dict=None,
             else:
                 col = '#4d004b'
 
-            current_density = np.zeros(max_c + 1)
-            current_density[:min(max_c, max_cover_in_stats) + 1] = \
+            current_density = np.zeros(max_read_count + 1)
+            current_density[:min(max_read_count, max_cover_in_stats) + 1] = \
                 make_negative_binom_density(r, p,
                                             w,
                                             max_cover_in_stats,
                                             left_most=allele_tr
-                                            )[:min(max_c, max_cover_in_stats) + 1]
+                                            )[:min(max_read_count, max_cover_in_stats) + 1]
 
             label = 'negative binom fit for {}' \
                     '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4}'.format(main_allele,
@@ -278,13 +282,13 @@ def slices(stats_df, BAD, out, np_weights_dict=None,
             ax.plot(sorted(x + [allele_tr]), [0] + list(current_density), color=col)
             ax.text(s=label, x=0.65 * fix_c, y=max(current_density) * 0.6)
 
-            ax.xaxis.set_major_locator(ticker.FixedLocator(np.arange(0, max_c + 1, div)))
-            ax.xaxis.set_major_formatter(ticker.FixedFormatter(range(0, max_c + 1)[::div]))
+            ax.xaxis.set_major_locator(ticker.FixedLocator(np.arange(0, max_read_count + 1, div)))
+            ax.xaxis.set_major_formatter(ticker.FixedFormatter(range(0, max_read_count + 1)[::div]))
             ax.tick_params(axis="x", rotation=0)
             ax.set_xlabel('{} allele read count'.format({'ref': 'Reference', 'alt': 'Alternative'}[main_allele]))
 
         plt.suptitle('Ref bias BAD={:.2f}'.format(BAD))
-        plt.savefig(out)
+        plt.savefig(out(cover))
         if to_show:
             plt.show()
         plt.close(fig)
@@ -360,34 +364,44 @@ def main(stats, out, BAD,
          allele_tr=5,
          image_type='svg',
          to_show=False,
+         cover_list=None,
+         max_read_count=50,
          line_fit=False,
          ):
+    if cover_list is None:
+        cover_list = [5, 10]
     df_ref, df_alt = read_dfs(out)
     if not line_fit:
         gof_scatter(df_ref, df_alt,
                     out=make_image_path(out, 'gof', image_type),
                     BAD=BAD,
+                    max_read_count=max_read_count,
                     allele_tr=allele_tr,
                     to_show=to_show)
         r_ref_bias(df_ref, df_alt,
                    out=make_image_path(out, 'r_bias', image_type),
                    BAD=BAD,
+                   max_read_count=max_read_count,
                    allele_tr=allele_tr,
                    to_show=to_show)
         r_vs_count_scatter(df_ref, df_alt,
                            out=make_image_path(out, 'r_vs_counts', image_type),
                            BAD=BAD,
+                           max_read_count=max_read_count,
                            allele_tr=allele_tr,
                            to_show=to_show)
         slices(stats_df=stats, BAD=BAD,
                allele_tr=allele_tr,
                to_show=to_show,
+               max_read_count=max_read_count,
+               cover_list=cover_list,
                np_weights_dict=weights_dict,
-               out=make_image_path(out, 'negbin_slices', image_type))
+               out=lambda x: make_image_path(out, 'negbin_slices_{}'.format(x), image_type))
     else:
         r_vs_count_scatter(df_ref, df_alt,
                            out=make_image_path(out, 'r_vs_counts.line_fit', image_type),
                            BAD=BAD,
                            allele_tr=allele_tr,
+                           max_read_count=max_read_count,
                            weights_dict=weights_dict,
                            to_show=to_show)
