@@ -136,9 +136,10 @@ def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5):
                 continue
             neg_bin_dens = make_negative_binom_density(fix_c * a + b, 0.5, 0.5, N, allele_tr)
             result += -1 * sum(counts_array[k] * (
-                    (np.log(neg_bin_dens[k])
-                     if neg_bin_dens[k] != 0 else 0) + 0)
-                               for k in range(allele_tr, N) if counts_array[k] != 0)
+                (np.log(neg_bin_dens[k])
+                    if neg_bin_dens[k] != 0 else 0) + 0)
+                    for k in range(allele_tr, N) if counts_array[k] != 0) / \
+                    sum(counts_array[k] for k in range(allele_tr, N) if counts_array[k] != 0)
         return result
 
     return target
@@ -157,7 +158,7 @@ def fit_negative_binom_as_line(stats_df, main_allele, upper_bound, N, allele_tr)
                               x0=np.array([1.5, 0]),
                               bounds=[(0.5, 2), (-1, 5)])
     except ValueError:
-        return 'NaN', 'Nan', 0
+        return 'NaN', 'NaN', 0
     a, b = x.x
     return a, b, calculate_gof_as_line(stats_df, a, b, allele_tr)
 

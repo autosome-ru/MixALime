@@ -48,8 +48,8 @@ def r_ref_bias(df_ref, df_alt, BAD, out, allele_tr=5, max_read_count=50, to_show
 
     ax.plot([0, y_max], [0, y_max], c='grey', label='y=x', linestyle='dashed')
 
-    x = [row['r'] for index, row in df_alt.iterrows() if index in df_ref.index]
-    y = [row['r'] for index, row in df_ref.iterrows() if index in df_alt.index]
+    x = [row['r'] for index, row in df_alt.iterrows() if index in df_ref.index and row['r'] != 0]
+    y = [row['r'] for index, row in df_ref.iterrows() if index in df_alt.index and row['r'] != 0]
 
     ax.scatter(x=x, y=y, color='C1')
 
@@ -97,8 +97,11 @@ def r_vs_count_scatter(df_ref, df_alt,
     # if BAD == 4 / 3:
     #     ax.plot([10 * 4 / 3, y_max * 4 / 3], [10, y_max], label='y=3/4 x', c='black', linestyle='dashed')
 
-    ax.scatter(x=df_alt.index, y=df_alt["r"].tolist(), color='C1', label='Alt')
-    ax.scatter(x=df_ref.index, y=df_ref["r"].tolist(), color='C2', label='Ref')
+    x_alt, y_alt = zip(*([(x, y) for x, y in zip(df_alt.index, df_alt["r"].tolist()) if y != 0]))
+    x_ref, y_ref = zip(*([(x, y) for x, y in zip(df_alt.index, df_ref["r"].tolist()) if y != 0]))
+
+    ax.scatter(x=x_alt, y=y_alt, color='C1', label='Alt')
+    ax.scatter(x=x_ref, y=y_ref, color='C2', label='Ref')
 
     ax.set_xlabel('Read count for the fixed allele')
     ax.set_ylabel('Fitted r value')
