@@ -1,6 +1,6 @@
 """
 Usage:
-    negbin_fit <file> (-b <bad> | --bad <bad>) [-O <dir> |--output <dir>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-r | --readable] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
+    negbin_fit <file> (-b <bad> | --bad <bad>) [-O <dir> |--output <dir>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
     negbin_fit -h | --help
     negbin_fit visualize <file> (-b <bad> | --bad <bad>) (-w <dir> |--weights <dir>)  [--allele-reads-tr <int>] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
 
@@ -20,7 +20,6 @@ Options:
     -b <bad>, --bad <bad>                   BAD value used in fit (can be decimal)
     --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and alt_read_count >= x. [default: 5]
     --visualize                             Perform visualization
-    -r, --readable                          Save tsv files of fitted distributions
     -l, --line-fit                          Fit all the data with line
     --max-read-count <int>                  Max read count for visualization [default: 50]
     --cover-list <list>                     List of covers to visualize [default: 10,20,30,40,50]
@@ -320,10 +319,9 @@ def start_fit():
                  BAD=BAD,
                  line_fit=line_fit,
                  allele_tr=allele_tr)
-        if not line_fit and (args['--readable'] or args['--visualize']):
-            convert_weights(in_df=df,
-                            np_weights_dict=d,
-                            out_path=out_path)
+        convert_weights(in_df=df,
+                        np_weights_dict=d,
+                        out_path=out_path)
     else:
         out_path, d = args['--weights']
     if args['--visualize'] or args['visualize']:
