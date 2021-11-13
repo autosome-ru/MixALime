@@ -37,7 +37,7 @@ def local_read_weights(np_weights_dict, np_weights_path):
     return r, w, gof
 
 
-def r_ref_bias(df_ref, df_alt, BAD, out, allele_tr=5, max_read_count=50, to_show=False):
+def r_ref_bias(df_ref, df_alt, BAD, out, to_show=False):
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
 
@@ -166,17 +166,17 @@ def make_image_path(out, image_name, image_type):
     return os.path.join(out, image_name + '.' + image_type)
 
 
-def slices(stats_df, BAD, out, np_weights_dict=None,
+def slices(df_ref, df_alt, stats_df, BAD, out, weights_dict=None,
            np_weights_path=None,
            allele_tr=5,
            max_read_count=50,
            cover_list=None,
-           to_show=False):
+           to_show=False,
+           ):
     if cover_list is None:
         cover_list = [10, 15, 20, 25, 30]
     lw = 1.25
     color_maxlog = 4
-    r_dict, w_dict, gof_dict = local_read_weights(np_weights_dict, np_weights_path)
     p = get_p(BAD)
 
     t = stats_df.copy()
@@ -260,9 +260,10 @@ def slices(stats_df, BAD, out, np_weights_dict=None,
             sns.barplot(x=x,
                         y=chop_counts_array / total_snps, ax=ax, color='C1')
 
-            r, w, gof = (r_dict[fixed_allele][fix_c],
-                         w_dict[fixed_allele][fix_c],
-                         gof_dict[fixed_allele][fix_c])
+            df = df_ref if fixed_allele == 'ref' else df_alt
+            r, w, gof = (df['r'][fix_c],
+                         df['w'][fix_c],
+                         df['gof'][fix_c])
             print(r, w, gof, BAD, fix_c)
             if r == 0:
                 col = 'C6'
@@ -277,12 +278,23 @@ def slices(stats_df, BAD, out, np_weights_dict=None,
                                             max_cover_in_stats,
                                             left_most=allele_tr
                                             )[:min(max_read_count, max_cover_in_stats) + 1]
+            ax.plot(sorted(x + [allele_tr]), [0] + list(current_density), color=col)
+
+            if weights_dict is not None:
+                current_lin_density = np.zeros(max_read_count + 1)
+                current_lin_density[:min(max_read_count, max_cover_in_stats) + 1] = \
+                    make_negative_binom_density(weights_dict[main_allele]['a'] * fix_c + weights_dict[main_allele]['b'],
+                                                p,
+                                                w,
+                                                max_cover_in_stats,
+                                                left_most=allele_tr
+                                                )[:min(max_read_count, max_cover_in_stats) + 1]
+                ax.plot(sorted(x + [allele_tr]), [0] + list(current_lin_density), color='red')
 
             label = 'negative binom fit for {}' \
                     '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4}'.format(main_allele,
                                                                                                total_snps,
                                                                                                r, p, w, gof)
-            ax.plot(sorted(x + [allele_tr]), [0] + list(current_density), color=col)
             ax.text(s=label, x=0.65 * fix_c, y=max(current_density) * 0.6)
 
             ax.xaxis.set_major_locator(ticker.FixedLocator(np.arange(0, max_read_count + 1, div)))
@@ -384,8 +396,6 @@ def main(stats, out, BAD,
         r_ref_bias(df_ref, df_alt,
                    out=make_image_path(out, 'r_bias', image_type),
                    BAD=BAD,
-                   max_read_count=max_read_count,
-                   allele_tr=allele_tr,
                    to_show=to_show)
         r_vs_count_scatter(df_ref, df_alt,
                            out=make_image_path(out, 'r_vs_counts', image_type),
@@ -393,12 +403,11 @@ def main(stats, out, BAD,
                            max_read_count=max_read_count,
                            allele_tr=allele_tr,
                            to_show=to_show)
-        slices(stats_df=stats, BAD=BAD,
+        slices(df_ref, df_alt, stats_df=stats, BAD=BAD,
                allele_tr=allele_tr,
                to_show=to_show,
                max_read_count=max_read_count,
                cover_list=cover_list,
-               np_weights_dict=weights_dict,
                out=lambda x: make_image_path(out, 'negbin_slices_{}'.format(x), image_type))
     else:
         r_vs_count_scatter(df_ref, df_alt,
@@ -408,3 +417,10 @@ def main(stats, out, BAD,
                            max_read_count=max_read_count,
                            weights_dict=weights_dict,
                            to_show=to_show)
+        slices(df_ref, df_alt, stats_df=stats, BAD=BAD,
+               allele_tr=allele_tr,
+               to_show=to_show,
+               max_read_count=max_read_count,
+               cover_list=cover_list,
+               weights_dict=weights_dict,
+               out=lambda x: make_image_path(out, 'negbin_slices_with_line_fit_N_{}'.format(x), image_type))

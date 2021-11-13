@@ -138,8 +138,8 @@ def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5):
             result += -1 * sum(counts_array[k] * (
                 (np.log(neg_bin_dens[k])
                     if neg_bin_dens[k] != 0 else 0) + 0)
-                    for k in range(allele_tr, N) if counts_array[k] != 0) / \
-                    sum(counts_array[k] for k in range(allele_tr, N) if counts_array[k] != 0)
+                    for k in range(allele_tr, N) if counts_array[k] != 0)# / \
+                    # sum(counts_array[k] for k in range(allele_tr, N) if counts_array[k] != 0)
         return result
 
     return target
