@@ -4,7 +4,7 @@ import pandas as pd
 from matplotlib import pyplot as plt, ticker
 import seaborn as sns
 from negbin_fit.fit_nb import get_p, make_negative_binom_density
-from negbin_fit.helpers import read_weights, alleles, get_nb_weight_path
+from negbin_fit.helpers import read_weights, alleles, get_nb_weight_path, get_counts_dist_from_df
 from scipy import stats as st
 
 sns.set(font_scale=1.55, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
@@ -166,8 +166,8 @@ def make_image_path(out, image_name, image_type):
     return os.path.join(out, image_name + '.' + image_type)
 
 
-def slices(df_ref, df_alt, stats_df, BAD, out, weights_dict=None,
-           np_weights_path=None,
+def slices(df_ref, df_alt, stats_df, BAD, out,
+           weights_dict=None,
            allele_tr=5,
            max_read_count=50,
            cover_list=None,
@@ -424,3 +424,37 @@ def main(stats, out, BAD,
                cover_list=cover_list,
                weights_dict=weights_dict,
                out=lambda x: make_image_path(out, 'negbin_slices_with_line_fit_N_{}'.format(x), image_type))
+
+
+def draw_cover_fit(stats_df, weights_dict, allele_tr=5):
+    fig, ax = plt.subplots()
+    draw_cover_dist(stats_df, weights_dict,
+                    ax=ax,
+                    allele_tr=allele_tr * 2)
+
+
+def draw_cover_dist(stats_df, weights_dict, ax, allele_tr=10, max_read_count=50):
+    cover_array = get_counts_dist_from_df(stats_df)
+    sum_counts = sum(cover_array)
+    max_cover = min(max_read_count, len(cover_array) - 1) + 1
+    x = list(range(max_cover))
+    sns.barplot(x=x,
+                y=[z/sum_counts for z in cover_array[:max_cover]],
+                ax=ax, color='C1')
+    current_density = np.zeros(len(cover_array))
+    current_density[:max_cover] = \
+        make_negative_binom_density(weights_dict['r0'],
+                                    weights_dict['p0'],
+                                    0,
+                                    len(cover_array) - 1,
+                                    left_most=allele_tr
+                                    )[:max_cover]
+    ax.plot(sorted(x + [allele_tr]),
+            [0] + list(current_density[:max_cover]),
+            color='C6')
+
+    # ax.xaxis.set_major_locator(ticker.FixedLocator(np.arange(0, max_read_count + 1, div)))
+    # ax.xaxis.set_major_formatter(ticker.FixedFormatter(range(0, max_read_count + 1)[::div]))
+    ax.tick_params(axis="x", rotation=0)
+    # ax.set_xlabel('{} allele read count'.format({'ref': 'Reference', 'alt': 'Alternative'}[main_allele]))
+    plt.show()
