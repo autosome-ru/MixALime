@@ -36,7 +36,7 @@ from scipy import optimize, stats as st
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, read_weights
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 
-
+# FIXME
 def make_negative_binom_density(r, p, w, size_of_counts, left_most):
     negative_binom_density_array = np.zeros(size_of_counts + 1, dtype=np.float64)
     dist1 = st.nbinom(r, p)
@@ -51,19 +51,9 @@ def make_negative_binom_density(r, p, w, size_of_counts, left_most):
                           (cdf2(size_of_counts) -
                            (cdf2(left_most - 1) if left_most >= 1 else 0)
                            ) * (1 - w)
-    # plot_norm = (cdf1(size_of_counts) -
-    #              cdf1(4)
-    #              ) * w + \
-    #             (cdf2(size_of_counts) -
-    #              cdf2(4)
-    #              ) * (1 - w)
     for k in range(left_most, size_of_counts + 1):
         negative_binom_density_array[k] = \
             (w * f1(k) + (1 - w) * f2(k)) / negative_binom_norm if negative_binom_norm != 0 else 0
-        # if for_plot:
-        #     negative_binom_density_array[k] = (w * f1(k) + (1 - w) * f2(k)) / plot_norm
-        # else:
-        #     negative_binom_density_array[k] = (w * f1(k) + (1 - w) * f2(k)) / negative_binom_norm
     return negative_binom_density_array
 
 
@@ -216,6 +206,35 @@ def make_out_path(out, name):
     if not os.path.exists(directory):
         os.mkdir(directory)
     return directory
+
+
+def fit_cover_dist(stats_df, left_most):
+    stats_df['cover'] = stats_df['ref'] + stats_df['alt']
+    counts_array = [stats_df[stats_df['cover'] == cover]['counts'].sum() for cover in stats_df['cover'].unique()]
+    try:
+        x = optimize.minimize(fun=make_log_likelihood_cover(counts_array, left_most),
+                              x0=np.array([15, 0.5]),
+                              bounds=[(0.00001, None), (0, 1)])
+    except ValueError:
+        return 'NaN', 0
+    r0, p0 = x.x
+    return r0, p0, calculate_cover_dist_gof()  # TODO: call and save
+
+
+def make_log_likelihood_cover(counts_array, left_most):
+    def target(x):
+        r0 = x[0]
+        p0 = x[1]
+        neg_bin_dens = make_negative_binom_density(r0, p0, 0, len(counts_array), left_most)
+        return -1 * sum(counts_array[k] * (
+            np.log(neg_bin_dens[k]) if neg_bin_dens[k] != 0 else 0)
+                        for k in range(left_most, len(counts_array)) if counts_array[k] != 0)
+
+    return target
+
+
+def calculate_cover_dist_gof():
+    return 0
 
 
 def main(stats, out=None, BAD=1, allele_tr=5, line_fit=False):
