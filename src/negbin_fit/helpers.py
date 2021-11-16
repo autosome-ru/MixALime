@@ -88,3 +88,30 @@ def read_stats_df(filename):
         return stats, os.path.splitext(os.path.basename(filename))[0]
     except Exception:
         raise AssertionError
+
+
+def make_cover_negative_binom_density(r, p, size_of_counts, left_most, log=False, draw_rest=False):
+    negative_binom_density_array = np.zeros(size_of_counts + 1, dtype=np.float64)
+    dist = st.nbinom(r, 1 - p)
+    if log:
+        f = dist.logpmf
+    else:
+        f = dist.pmf
+    cdf = dist.cdf
+    negative_binom_norm = cdf(size_of_counts) - (cdf(left_most - 1) if left_most >= 1 else 0)
+    for k in range(0, size_of_counts + 1):
+        negative_binom_density_array[k] = \
+            f(k) if k >= left_most or draw_rest else (-np.inf if log else 0)
+    return negative_binom_density_array - np.log(negative_binom_norm) if log else negative_binom_density_array / negative_binom_norm
+
+
+def make_geom_dens(p, a, b, draw_rest=False):
+    geom_density_array = np.zeros(b + 1, dtype=np.float64)
+    dist = st.geom(p)
+    f = dist.pmf
+    cdf = dist.cdf
+    geom_norm = cdf(b) - (cdf(a - 1) if a >= 1 else 0)
+    for k in range(0, b + 1):
+        geom_density_array[k] = \
+            f(k) if k >= a or draw_rest else 0
+    return geom_density_array / geom_norm

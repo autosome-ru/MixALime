@@ -4,7 +4,8 @@ import pandas as pd
 from matplotlib import pyplot as plt, ticker
 import seaborn as sns
 from negbin_fit.fit_nb import get_p, make_negative_binom_density
-from negbin_fit.helpers import read_weights, alleles, get_nb_weight_path, get_counts_dist_from_df
+from negbin_fit.helpers import read_weights, alleles, get_nb_weight_path, get_counts_dist_from_df, \
+    make_cover_negative_binom_density, make_geom_dens
 from scipy import stats as st
 
 sns.set(font_scale=1.55, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
@@ -426,35 +427,81 @@ def main(stats, out, BAD,
                out=lambda x: make_image_path(out, 'negbin_slices_with_line_fit_N_{}'.format(x), image_type))
 
 
-def draw_cover_fit(stats_df, weights_dict, allele_tr=5):
+def draw_cover_fit(stats_df, weights_dict, cover_allele_tr, max_read_count):
     fig, ax = plt.subplots()
     draw_cover_dist(stats_df, weights_dict,
                     ax=ax,
-                    allele_tr=allele_tr * 2)
+                    cover_allele_tr=cover_allele_tr,
+                    max_read_count=max_read_count)
 
 
-def draw_cover_dist(stats_df, weights_dict, ax, allele_tr=10, max_read_count=50):
-    cover_array = get_counts_dist_from_df(stats_df)
-    sum_counts = sum(cover_array)
-    max_cover = min(max_read_count, len(cover_array) - 1) + 1
-    x = list(range(max_cover))
+def draw_barplot(x, y, ax, cover_array, r, p, w, th, max_cover, max_read_count, cover_allele_tr, it='final', draw_rest=False):
     sns.barplot(x=x,
-                y=[z/sum_counts for z in cover_array[:max_cover]],
+                y=y,
                 ax=ax, color='C1')
     current_density = np.zeros(len(cover_array))
     current_density[:max_cover] = \
-        make_negative_binom_density(weights_dict['r0'],
-                                    weights_dict['p0'],
-                                    0,
-                                    len(cover_array) - 1,
-                                    left_most=allele_tr
-                                    )[:max_cover]
-    ax.plot(sorted(x + [allele_tr]),
-            [0] + list(current_density[:max_cover]),
+        (1 - w) * make_cover_negative_binom_density(
+            r,
+            p,
+            len(cover_array) - 1,
+            left_most=cover_allele_tr,
+            draw_rest=draw_rest,
+        )[:max_cover] \
+        + w * make_geom_dens(
+            th,
+            cover_allele_tr,
+            len(cover_array) - 1,
+        )[:max_cover]
+    ax.plot(sorted(x + ([cover_allele_tr] if not draw_rest else [])),
+            ([0] if not draw_rest else []) + list(current_density[:max_cover]),
             color='C6')
 
-    # ax.xaxis.set_major_locator(ticker.FixedLocator(np.arange(0, max_read_count + 1, div)))
-    # ax.xaxis.set_major_formatter(ticker.FixedFormatter(range(0, max_read_count + 1)[::div]))
+    current_density = np.zeros(len(cover_array))
+    current_density[:max_cover] = \
+        (1 - w) * make_cover_negative_binom_density(
+            r,
+            p,
+            len(cover_array) - 1,
+            left_most=cover_allele_tr,
+            draw_rest=draw_rest,
+        )[:max_cover]
+    ax.plot(sorted(x + ([cover_allele_tr] if not draw_rest else [])),
+            ([0] if not draw_rest else []) + list(current_density[:max_cover]),
+            color='C2')
+
+    ax.xaxis.set_major_locator(ticker.FixedLocator(np.arange(0, max_read_count + 1, 5)))
+    ax.xaxis.set_major_formatter(ticker.FixedFormatter(range(0, max_read_count + 1)[::5]))
     ax.tick_params(axis="x", rotation=0)
     # ax.set_xlabel('{} allele read count'.format({'ref': 'Reference', 'alt': 'Alternative'}[main_allele]))
-    plt.show()
+    plt.savefig('D:\\Sashok\\Desktop\\fit_cover\\cover_fit_{}_{:.2f}_{:.2f}.png'.format(it, r, p))
+
+
+def draw_cover_dist(stats_df, weights_dict, ax, cover_allele_tr, max_read_count):
+    cover_array, max_cover, sum_counts, x, y = get_params_for_plot(stats_df, cover_allele_tr, max_read_count)
+    draw_barplot(x, y, ax, cover_array, weights_dict['r0'], weights_dict['p0'], weights_dict['w0'], weights_dict['th0'], max_cover, max_read_count, cover_allele_tr, it='final')
+
+
+def get_params_for_plot(stats_df, cover_allele_tr, max_read_count, draw_rest=False):
+    cover_array = get_counts_dist_from_df(stats_df)
+    max_cover = min(max_read_count, len(cover_array) - 1) + 1
+    sum_counts = sum(cover_array[cover_allele_tr:max_cover])
+    x = list(range(max_cover))
+    y = [z / sum_counts if k >= cover_allele_tr or draw_rest else 0 for k, z in enumerate(cover_array[:max_cover])]
+    return cover_array, max_cover, sum_counts, x, y
+
+
+def get_callback_plot(cover_allele_tr, max_read_count, stats_df):
+    cover_array, max_cover, sum_counts, x, y = get_params_for_plot(stats_df, cover_allele_tr, max_read_count)
+
+    def callback(xk):
+        callback.n += 1
+        r, p, w, th = xk
+        print(r, p)
+        fig, ax = plt.subplots()
+        draw_barplot(x, y, ax, cover_array, r, p, w, th, max_cover, max_read_count, cover_allele_tr, it=callback.n)
+        plt.close(fig)
+
+    callback.n = 0
+
+    return callback
