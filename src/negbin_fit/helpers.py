@@ -36,12 +36,25 @@ def get_p(BAD):
     return 1 / (BAD + 1)
 
 
-def make_negative_binom_density(r, p, w, size_of_counts, left_most):
+def make_inferred_negative_binom_density(m, r0, p0, p, max_c, min_c):
+    return make_negative_binom_density(m + r0,
+                                       p * p0,
+                                       1 / (1 +
+                                            (p * p0) ** m * (1 - p0) ** r0 / (1 - p0 * (1 - p)) ** (m + r0)
+                                            ),
+                                       max_c,
+                                       min_c,
+                                       p2=(1 - p) * p0)
+
+
+def make_negative_binom_density(r, p, w, size_of_counts, left_most, p2=None):
+    if p2 is None:
+        p2 = p
     negative_binom_density_array = np.zeros(size_of_counts + 1, dtype=np.float64)
-    dist1 = st.nbinom(r, p)
+    dist1 = st.nbinom(r, 1 - (1 - p2))  # 1 - p right mode
     f1 = dist1.pmf
     cdf1 = dist1.cdf
-    dist2 = st.nbinom(r, 1 - p)
+    dist2 = st.nbinom(r, 1 - p)  # p left mode
     f2 = dist2.pmf
     cdf2 = dist2.cdf
     negative_binom_norm = (cdf1(size_of_counts) -
@@ -107,7 +120,7 @@ def make_cover_negative_binom_density(r, p, size_of_counts, left_most, log=False
 
 def make_geom_dens(p, a, b, draw_rest=False):
     geom_density_array = np.zeros(b + 1, dtype=np.float64)
-    dist = st.geom(p)
+    dist = st.geom(1-p)
     f = dist.pmf
     cdf = dist.cdf
     geom_norm = cdf(b) - (cdf(a - 1) if a >= 1 else 0)
@@ -115,3 +128,25 @@ def make_geom_dens(p, a, b, draw_rest=False):
         geom_density_array[k] = \
             f(k) if k >= a or draw_rest else 0
     return geom_density_array / geom_norm
+
+
+def get_norm(p, N, trim_cover):
+    result = 0
+    current_multiplier = 1
+    denominator_multiplier = 1
+    for k in range(trim_cover):
+        result += current_multiplier * np.power(p, N - k) * np.power(1 - p, k) / denominator_multiplier
+        current_multiplier *= int(N - k)
+        denominator_multiplier *= k + 1
+
+    return -result
+
+
+def combine_densities(negbin_dens, geom_dens, w, frac, p, allele_tr=5, only_negbin=False):
+    comb_dens = w * geom_dens + (1 - w) * negbin_dens
+    # for k in range(allele_tr * 2, len(comb_dens)):
+    #     comb_dens[k] *= (1 + frac * (get_norm(p, k, allele_tr) + get_norm(1 - p, k, allele_tr)))
+    if only_negbin:
+        return (1 - w) * negbin_dens / comb_dens.sum()
+    else:
+        return comb_dens / comb_dens.sum()

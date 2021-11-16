@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt, ticker
 import seaborn as sns
 from negbin_fit.fit_nb import get_p, make_negative_binom_density
 from negbin_fit.helpers import read_weights, alleles, get_nb_weight_path, get_counts_dist_from_df, \
-    make_cover_negative_binom_density, make_geom_dens
+    make_cover_negative_binom_density, make_geom_dens, combine_densities, make_inferred_negative_binom_density
 from scipy import stats as st
 
 sns.set(font_scale=1.55, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
@@ -283,13 +283,15 @@ def slices(df_ref, df_alt, stats_df, BAD, out,
 
             if weights_dict is not None:
                 current_lin_density = np.zeros(max_read_count + 1)
+                neg_bin_dens1 = make_inferred_negative_binom_density(fix_c, weights_dict[main_allele]['r0'],
+                                                                     weights_dict[main_allele]['p0'], p,
+                                                                     max_cover_in_stats, allele_tr)
+                neg_bin_dens2 = make_inferred_negative_binom_density(fix_c, 1,
+                                                                     weights_dict[main_allele]['th0'], p,
+                                                                     max_cover_in_stats, allele_tr)
+                neg_bin_dens = (1 - weights_dict[main_allele]['w0']) * neg_bin_dens1 + weights_dict[main_allele]['w0'] * neg_bin_dens2
                 current_lin_density[:min(max_read_count, max_cover_in_stats) + 1] = \
-                    make_negative_binom_density(weights_dict[main_allele]['a'] * fix_c + weights_dict[main_allele]['b'],
-                                                p,
-                                                w,
-                                                max_cover_in_stats,
-                                                left_most=allele_tr
-                                                )[:min(max_read_count, max_cover_in_stats) + 1]
+                    neg_bin_dens[:min(max_read_count, max_cover_in_stats) + 1]
                 ax.plot(sorted(x + [allele_tr]), [0] + list(current_lin_density), color='red')
 
             label = 'negative binom fit for {}' \
@@ -411,61 +413,69 @@ def main(stats, out, BAD,
                cover_list=cover_list,
                out=lambda x: make_image_path(out, 'negbin_slices_{}'.format(x), image_type))
     else:
-        r_vs_count_scatter(df_ref, df_alt,
-                           out=make_image_path(out, 'r_vs_counts.line_fit', image_type),
-                           BAD=BAD,
-                           allele_tr=allele_tr,
-                           max_read_count=max_read_count,
-                           weights_dict=weights_dict,
-                           to_show=to_show)
+        # r_vs_count_scatter(df_ref, df_alt,
+        #                    out=make_image_path(out, 'r_vs_counts.line_fit', image_type),
+        #                    BAD=BAD,
+        #                    allele_tr=allele_tr,
+        #                    max_read_count=max_read_count,
+        #                    weights_dict=weights_dict,
+        #                    to_show=to_show)
         slices(df_ref, df_alt, stats_df=stats, BAD=BAD,
                allele_tr=allele_tr,
                to_show=to_show,
                max_read_count=max_read_count,
                cover_list=cover_list,
                weights_dict=weights_dict,
-               out=lambda x: make_image_path(out, 'negbin_slices_with_line_fit_N_{}'.format(x), image_type))
+               out=lambda x: make_image_path(out, 'negbin_slices_with_inferred_fit_N_{}'.format(x), image_type))
 
 
-def draw_cover_fit(stats_df, weights_dict, cover_allele_tr, max_read_count):
+def draw_cover_fit(stats_df, weights_dict, cover_allele_tr, max_read_count, BAD=1):
     fig, ax = plt.subplots()
     draw_cover_dist(stats_df, weights_dict,
                     ax=ax,
                     cover_allele_tr=cover_allele_tr,
-                    max_read_count=max_read_count)
+                    max_read_count=max_read_count,
+                    BAD=BAD)
 
 
-def draw_barplot(x, y, ax, cover_array, r, p, w, th, max_cover, max_read_count, cover_allele_tr, it='final', draw_rest=False):
+def draw_barplot(x, y, ax, cover_array, r, p, w, th, frac, max_cover, max_read_count, cover_allele_tr, it='final', BAD=1, draw_rest=False):
     sns.barplot(x=x,
                 y=y,
                 ax=ax, color='C1')
     current_density = np.zeros(len(cover_array))
     current_density[:max_cover] = \
-        (1 - w) * make_cover_negative_binom_density(
+        combine_densities(make_cover_negative_binom_density(
             r,
             p,
             len(cover_array) - 1,
             left_most=cover_allele_tr,
             draw_rest=draw_rest,
-        )[:max_cover] \
-        + w * make_geom_dens(
+        )[:max_cover],
+            make_geom_dens(
             th,
             cover_allele_tr,
             len(cover_array) - 1,
-        )[:max_cover]
+        )[:max_cover],
+        w, frac, 1 / (BAD + 1), allele_tr=5)
     ax.plot(sorted(x + ([cover_allele_tr] if not draw_rest else [])),
             ([0] if not draw_rest else []) + list(current_density[:max_cover]),
             color='C6')
 
     current_density = np.zeros(len(cover_array))
     current_density[:max_cover] = \
-        (1 - w) * make_cover_negative_binom_density(
+        combine_densities(make_cover_negative_binom_density(
             r,
             p,
             len(cover_array) - 1,
             left_most=cover_allele_tr,
             draw_rest=draw_rest,
-        )[:max_cover]
+        )[:max_cover],
+            make_geom_dens(
+            th,
+            cover_allele_tr,
+            len(cover_array) - 1,
+        )[:max_cover],
+        w, frac, 1 / (BAD + 1), allele_tr=5, only_negbin=True)
     ax.plot(sorted(x + ([cover_allele_tr] if not draw_rest else [])),
             ([0] if not draw_rest else []) + list(current_density[:max_cover]),
             color='C2')
@@ -477,9 +487,9 @@ def draw_barplot(x, y, ax, cover_array, r, p, w, th, max_cover, max_read_count, 
     plt.savefig('D:\\Sashok\\Desktop\\fit_cover\\cover_fit_{}_{:.2f}_{:.2f}.png'.format(it, r, p))
 
 
-def draw_cover_dist(stats_df, weights_dict, ax, cover_allele_tr, max_read_count):
+def draw_cover_dist(stats_df, weights_dict, ax, cover_allele_tr, max_read_count, BAD=1):
     cover_array, max_cover, sum_counts, x, y = get_params_for_plot(stats_df, cover_allele_tr, max_read_count)
-    draw_barplot(x, y, ax, cover_array, weights_dict['r0'], weights_dict['p0'], weights_dict['w0'], weights_dict['th0'], max_cover, max_read_count, cover_allele_tr, it='final')
+    draw_barplot(x, y, ax, cover_array, weights_dict['r0'], weights_dict['p0'], weights_dict['w0'], weights_dict['th0'], weights_dict['frac'], max_cover, max_read_count, cover_allele_tr, it='final', BAD=BAD)
 
 
 def get_params_for_plot(stats_df, cover_allele_tr, max_read_count, draw_rest=False):
@@ -491,15 +501,15 @@ def get_params_for_plot(stats_df, cover_allele_tr, max_read_count, draw_rest=Fal
     return cover_array, max_cover, sum_counts, x, y
 
 
-def get_callback_plot(cover_allele_tr, max_read_count, stats_df):
+def get_callback_plot(cover_allele_tr, max_read_count, stats_df, BAD=1):
     cover_array, max_cover, sum_counts, x, y = get_params_for_plot(stats_df, cover_allele_tr, max_read_count)
 
     def callback(xk):
         callback.n += 1
-        r, p, w, th = xk
+        r, p, w, th, frac = xk
         print(r, p)
         fig, ax = plt.subplots()
-        draw_barplot(x, y, ax, cover_array, r, p, w, th, max_cover, max_read_count, cover_allele_tr, it=callback.n)
+        draw_barplot(x, y, ax, cover_array, r, p, w, th, frac, max_cover, max_read_count, cover_allele_tr, it=callback.n, BAD=BAD)
         plt.close(fig)
 
     callback.n = 0

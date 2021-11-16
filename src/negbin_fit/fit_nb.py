@@ -32,7 +32,7 @@ from tqdm import tqdm
 from schema import And, Const, Schema, Use, Or
 from scipy import optimize
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, read_weights, init_docopt, read_stats_df, \
-    make_negative_binom_density, make_out_path
+    make_negative_binom_density, make_out_path, make_inferred_negative_binom_density
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 
 
@@ -42,6 +42,8 @@ def make_scaled_counts(stats_pandas_dataframe, main_allele, max_cover_in_stats):
 
     for index, row in stats_pandas_dataframe.iterrows():
         k, SNP_counts = row[main_allele], row['counts']
+        if k > max_cover_in_stats:
+            continue
         nonzero_set.add(k)
         counts_array[k] += SNP_counts
     return counts_array, nonzero_set
@@ -93,21 +95,28 @@ def calculate_gof(counts_array, w, r, BAD, left_most):
     return score
 
 
-def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5):
+def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5, BAD=1):
+    p = 1 / (BAD + 1)
+
     def target(x):
-        a = x[0]
-        b = x[1]
+        r0 = x[0]
+        p0 = x[1]
+        w0 = x[2]
+        th0 = x[3]
         result = 0
         for fix_c in range(allele_tr, upper_bound + 1):
             stats_filtered, counts_array = preprocess_stats(stats, fix_c, N, main_allele, allele_tr)
             if stats_filtered is None:
                 continue
-            neg_bin_dens = make_negative_binom_density(fix_c * a + b, 0.5, 0.5, N, allele_tr)
+            neg_bin_dens1 = make_inferred_negative_binom_density(fix_c, r0, p0, p, N, allele_tr)
+            neg_bin_dens2 = make_inferred_negative_binom_density(fix_c, 1, th0, p, N, allele_tr)
+            neg_bin_dens = (1 - w0) * neg_bin_dens1 + w0 * neg_bin_dens2
             result += -1 * sum(counts_array[k] * (
                 (np.log(neg_bin_dens[k])
                     if neg_bin_dens[k] != 0 else 0) + 0)
                     for k in range(allele_tr, N) if counts_array[k] != 0)# / \
                     # sum(counts_array[k] for k in range(allele_tr, N) if counts_array[k] != 0)
+        print(r0, result)
         return result
 
     return target
@@ -117,18 +126,20 @@ def calculate_gof_as_line(counts_array, a, b, left_most):
     return 0
 
 
-def fit_negative_binom_as_line(stats_df, main_allele, upper_bound, N, allele_tr):
+def fit_negative_binom_as_line(stats_df, main_allele, upper_bound, N, allele_tr, BAD):
     try:
         x = optimize.minimize(fun=make_likelihood_as_line(stats_df, main_allele,
                                                           upper_bound=upper_bound,
                                                           N=N,
-                                                          allele_tr=allele_tr),
-                              x0=np.array([1.5, 0]),
-                              bounds=[(0.5, 2), (-1, 5)])
+                                                          allele_tr=allele_tr,
+                                                          BAD=BAD),
+                              x0=np.array([-2, 0.95, 0.75, 0.67]),
+                              bounds=[(-4, 10), (0.01, 0.99), (0, 1), (0.01, 0.99)])
     except ValueError:
         return 'NaN', 'NaN', 0
-    a, b = x.x
-    return a, b, calculate_gof_as_line(stats_df, a, b, allele_tr)
+    print(x)
+    r, p, w, th = x.x
+    return r, p, w, th, calculate_gof_as_line(stats_df, r, p, allele_tr)
 
 
 def preprocess_stats(stats, fix_c, N, main_allele, allele_tr):
@@ -143,9 +154,9 @@ def preprocess_stats(stats, fix_c, N, main_allele, allele_tr):
     return stats_filtered, counts
 
 
-def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=200, line_fit=False):
+def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=100, line_fit=False, max_read_count=100):
     print('Fitting {} distribution...'.format(main_allele.upper()))
-    N = max(stats[main_allele])
+    N = min(max(stats[main_allele]), max_read_count)
     if not line_fit:
         save_array = np.zeros((upper_bound + 1, 4), dtype=np.float_)
         for fix_c in tqdm(range(allele_tr, upper_bound + 1)):
@@ -160,20 +171,21 @@ def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=2
             save_array[fix_c, 3] = gof
         return save_array
     else:
-        a, b, gof = fit_negative_binom_as_line(stats,
+        r, p, w, th, gof = fit_negative_binom_as_line(stats,
                                                main_allele,
                                                upper_bound=upper_bound,
                                                N=N,
-                                               allele_tr=allele_tr
+                                               allele_tr=allele_tr,
+                                               BAD=BAD,
                                                )
-        return {'a': a, 'b': b, 'gof': gof}
+        return {'r0': r, 'p0': p, 'w0': w, 'th0': th, 'gof': gof}
 
 
 def calculate_cover_dist_gof():
     return 0
 
 
-def main(stats, out=None, BAD=1, allele_tr=5, line_fit=False):
+def main(stats, out=None, BAD=1, allele_tr=5, line_fit=False, max_read_count=100):
     d = {}
     for main_allele in alleles:
         save_array = fit_neg_bin_for_allele(stats,
@@ -181,7 +193,8 @@ def main(stats, out=None, BAD=1, allele_tr=5, line_fit=False):
                                             BAD=BAD,
                                             line_fit=line_fit,
                                             upper_bound=200,
-                                            allele_tr=allele_tr)
+                                            allele_tr=allele_tr,
+                                            max_read_count=max_read_count)
 
         d[main_allele] = save_array
         if not line_fit:
@@ -248,7 +261,7 @@ def start_fit():
             And(
                 Const(os.path.exists),
                 Const(lambda x: os.access(x, os.W_OK), error='No write permissions'),
-                Use(lambda x: check_weights_path(x, False if not args['--line-fit'] else True),
+                Use(lambda x: check_weights_path(x, True),
                     error='No weights found in directory')
             )),
         str: bool
@@ -258,9 +271,11 @@ def start_fit():
     allele_tr = args['--allele-reads-tr']
     BAD = args['--bad']
     line_fit = args['--line-fit']
-    if line_fit and BAD != 1:
-        print('Line fit for BAD != 1 not implemented')
-        exit(1)
+    # if line_fit and BAD != 1:
+    #     print('Line fit for BAD != 1 not implemented')
+    #     exit(1)
+
+    max_read_count = 100
 
     if not args['visualize']:
         out_path = make_out_path(args['--output'], filename)
@@ -268,10 +283,12 @@ def start_fit():
                  out=out_path,
                  BAD=BAD,
                  line_fit=line_fit,
-                 allele_tr=allele_tr)
-        convert_weights(in_df=df,
-                        np_weights_dict=d,
-                        out_path=out_path)
+                 allele_tr=allele_tr,
+                 max_read_count=max_read_count)
+        if not line_fit:
+            convert_weights(in_df=df,
+                            np_weights_dict=d,
+                            out_path=out_path)
     else:
         out_path, d = args['--weights']
     if args['--visualize'] or args['visualize']:
