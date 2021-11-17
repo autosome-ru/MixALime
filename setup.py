@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'negbin_fit = negbin_fit.fit_nb:start_fit',
-            'cover_fit = negbin_fit.fit_cover:main'
+            'cover_fit = negbin_fit.fit_cover:main',
+            'calc_pval = calculate_pvalue.calculate_pvalue:main'
         ],
     },
     author="Sergey Abramov, Alexandr Boytsov",
