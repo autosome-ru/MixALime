@@ -32,7 +32,8 @@ from tqdm import tqdm
 from schema import And, Const, Schema, Use, Or
 from scipy import optimize
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, read_weights, init_docopt, read_stats_df, \
-    make_negative_binom_density, make_out_path, make_inferred_negative_binom_density
+    make_negative_binom_density, make_out_path, make_line_negative_binom_density, calculate_gof_for_point_fit, \
+    ParamsHandler, calculate_overall_gof
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 
 
@@ -57,7 +58,10 @@ def fit_negative_binom(n, counts_array, fix_c, BAD, left_most):
     except ValueError:
         return 'NaN', 0
     r, w = x.x
-    return x, calculate_gof(counts_array, w, r, BAD, left_most)
+    density = make_negative_binom_density(r, get_p(BAD), w, len(counts_array) - 1, left_most)
+    norm = counts_array[left_most:].sum()
+    expected = density * norm
+    return x, calculate_gof_for_point_fit(counts_array, expected, norm, 1 if BAD == 1 else 2, left_most)
 
 
 def make_log_likelihood(n, counts_array, BAD, left_most):
@@ -72,58 +76,30 @@ def make_log_likelihood(n, counts_array, BAD, left_most):
     return target
 
 
-def calculate_gof(counts_array, w, r, BAD, left_most):
-    observed = counts_array.copy()
-    observed[:left_most] = 0
-    norm = observed.sum()
-    expected = make_negative_binom_density(r, get_p(BAD), w, len(observed) - 1, left_most) * norm
-
-    idxs = (observed != 0) & (expected != 0)
-    if idxs.sum() < 3:
-        return 0
-    df = idxs.sum() - (3 if BAD != 1 else 2)
-
-    stat = np.sum(observed[idxs] * np.log(observed[idxs] / expected[idxs])) * 2
-
-    if norm <= 1:
-        return 0
-    else:
-        if max(stat - df, 0) / (df * (norm - 1)) < 0:
-            print(stat, df)
-        score = np.sqrt(max(stat - df, 0) / (df * (norm - 1)))
-
-    return score
+def get_line_params_from_x(x):
+    return ParamsHandler(r0=x[0], p0=x[1], w0=x[2], th0=x[3])
 
 
 def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5, BAD=1):
     p = 1 / (BAD + 1)
 
     def target(x):
-        r0 = x[0]
-        p0 = x[1]
-        w0 = x[2]
-        th0 = x[3]
+        params = get_line_params_from_x(x)
         result = 0
         for fix_c in range(allele_tr, upper_bound + 1):
             stats_filtered, counts_array = preprocess_stats(stats, fix_c, N, main_allele, allele_tr)
             if stats_filtered is None:
                 continue
-            neg_bin_dens1 = make_inferred_negative_binom_density(fix_c, r0, p0, p, N, allele_tr)
-            neg_bin_dens2 = make_inferred_negative_binom_density(fix_c, 1, th0, p, N, allele_tr)
-            neg_bin_dens = (1 - w0) * neg_bin_dens1 + w0 * neg_bin_dens2
+            neg_bin_dens = make_line_negative_binom_density(fix_c, params, p, N, allele_tr)
             result += -1 * sum(counts_array[k] * (
-                (np.log(neg_bin_dens[k])
-                    if neg_bin_dens[k] != 0 else 0) + 0)
+                (neg_bin_dens[k]
+                    if neg_bin_dens[k] != -np.inf else 0) + 0)
                     for k in range(allele_tr, N) if counts_array[k] != 0)# / \
                     # sum(counts_array[k] for k in range(allele_tr, N) if counts_array[k] != 0)
-        print(r0, result)
+        print(params, result)
         return result
 
     return target
-
-
-def calculate_gof_as_line(counts_array, a, b, left_most):
-    return 0
 
 
 def fit_negative_binom_as_line(stats_df, main_allele, upper_bound, N, allele_tr, BAD):
@@ -138,8 +114,11 @@ def fit_negative_binom_as_line(stats_df, main_allele, upper_bound, N, allele_tr,
     except ValueError:
         return 'NaN', 'NaN', 0
     print(x)
-    r, p, w, th = x.x
-    return r, p, w, th, calculate_gof_as_line(stats_df, r, p, allele_tr)
+    params = get_line_params_from_x(x.x)
+    density_func = lambda fix_c: make_line_negative_binom_density(fix_c, params, get_p(BAD), N,
+                                                                  allele_tr, log=False)
+    point_gofs, overall_gof = calculate_overall_gof(stats_df, density_func, params, main_allele, allele_tr, N)
+    return params, point_gofs, overall_gof
 
 
 def preprocess_stats(stats, fix_c, N, main_allele, allele_tr):
@@ -171,14 +150,14 @@ def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=1
             save_array[fix_c, 3] = gof
         return save_array
     else:
-        r, p, w, th, gof = fit_negative_binom_as_line(stats,
+        params, point_gofs, gof = fit_negative_binom_as_line(stats,
                                                main_allele,
                                                upper_bound=upper_bound,
                                                N=N,
                                                allele_tr=allele_tr,
                                                BAD=BAD,
                                                )
-        return {'r0': r, 'p0': p, 'w0': w, 'th0': th, 'gof': gof}
+        return {**params.to_dict(), 'point_gofs': point_gofs, 'gof': gof}
 
 
 def calculate_cover_dist_gof():
@@ -229,7 +208,7 @@ def parse_cover_list(list_as_string):
 def check_weights_path(weights_path, line_fit):
     return weights_path, {allele: read_weights(line_fit=line_fit,
                                                np_weights_path=weights_path,
-                                               allele=allele) for allele in alleles}
+                                               allele=alleles[allele]) for allele in alleles}
 
 
 def start_fit():

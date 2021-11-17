@@ -9,6 +9,22 @@ import pandas as pd
 alleles = {'ref': 'alt', 'alt': 'ref'}
 
 
+class ParamsHandler:
+    def __init__(self, **params):
+        for k, v in params.items():
+            setattr(self, k, v)
+        self._params = params
+
+    def to_dict(self):
+        return self._params
+
+    def __repr__(self):
+        return str(self.to_dict())
+
+    def __len__(self):
+        return len(self.to_dict())
+
+
 def make_np_array_path(out, allele, line_fit=False):
     return os.path.join(out, allele + '.' + ('npy' if not line_fit else 'json'))
 
@@ -130,18 +146,6 @@ def make_geom_dens(p, a, b, draw_rest=False):
     return geom_density_array / geom_norm
 
 
-def get_norm(p, N, trim_cover):
-    result = 0
-    current_multiplier = 1
-    denominator_multiplier = 1
-    for k in range(trim_cover):
-        result += current_multiplier * np.power(p, N - k) * np.power(1 - p, k) / denominator_multiplier
-        current_multiplier *= int(N - k)
-        denominator_multiplier *= k + 1
-
-    return -result
-
-
 def combine_densities(negbin_dens, geom_dens, w, frac, p, allele_tr=5, only_negbin=False):
     comb_dens = w * geom_dens + (1 - w) * negbin_dens
     # for k in range(allele_tr * 2, len(comb_dens)):
@@ -150,3 +154,60 @@ def combine_densities(negbin_dens, geom_dens, w, frac, p, allele_tr=5, only_negb
         return (1 - w) * negbin_dens / comb_dens.sum()
     else:
         return comb_dens / comb_dens.sum()
+
+
+def make_line_negative_binom_density(fix_c, params, p, N, allele_tr, log=True):
+    neg_bin_dens1 = make_inferred_negative_binom_density(fix_c, params.r0, params.p0, p, N, allele_tr)
+    neg_bin_dens2 = make_inferred_negative_binom_density(fix_c, 1, params.th0, p, N, allele_tr)
+    neg_bin_dens = (1 - params.w0) * neg_bin_dens1 + params.w0 * neg_bin_dens2
+    return np.log(neg_bin_dens) if log else neg_bin_dens
+
+
+def stats_df_to_numpy(stats_df, min_tr, max_tr):
+    rv = np.zeros([max_tr + 1, max_tr + 1], dtype=np.int_)
+    for k in range(min_tr, max_tr + 1):
+        for m in range(min_tr, max_tr + 1):
+            slice = stats_df[(stats_df['ref'] == k) & (stats_df['alt'] == m)]
+            if not slice.empty:
+                rv[k, m] = slice['counts']
+    return rv
+
+
+def rmsea_gof(stat, df, norm):
+    if norm <= 1:
+        return 0
+    else:
+        # if max(stat - df, 0) / (df * (norm - 1)) < 0:
+        #     print(stat, df)
+        score = np.sqrt(max(stat - df, 0) / (df * (norm - 1)))
+    return score
+
+
+def calculate_gof_for_point_fit(counts_array, expected, norm, number_of_params, left_most):
+    observed = counts_array.copy()
+    observed[:left_most] = 0
+
+    idxs = (observed != 0) & (expected != 0)
+    if idxs.sum() <= number_of_params + 1:
+        return 0
+    df = idxs.sum() - 1 - number_of_params
+    stat = np.sum(observed[idxs] * np.log(observed[idxs] / expected[idxs])) * 2
+    return rmsea_gof(stat, df, norm)
+
+
+def calculate_overall_gof(stats_df, density_func, params, main_allele, min_tr, max_tr, num_params=None):
+    if num_params is None:
+        num_params = len(params)
+    observed = stats_df_to_numpy(stats_df, min_tr, max_tr)
+    assert main_allele in ('ref', 'alt')
+    if main_allele == 'alt':
+        observed = observed.transpose()
+    expected = np.zeros([max_tr + 1, max_tr + 1], dtype=np.int_)
+    point_gofs = {}
+    for fix_c in range(min_tr, max_tr + 1):
+        observed_for_fix_c = observed[:, fix_c]
+        norm = observed_for_fix_c.sum()
+        expected[:, fix_c] = density_func(fix_c) * norm
+        point_gofs[fix_c] = calculate_gof_for_point_fit(observed_for_fix_c, expected[:, fix_c], norm, num_params, min_tr)
+    overall_gof = calculate_gof_for_point_fit(observed.flatten(), expected.flatten(), observed.sum(), num_params, min_tr)
+    return point_gofs, overall_gof

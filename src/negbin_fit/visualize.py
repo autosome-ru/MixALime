@@ -119,7 +119,9 @@ def r_vs_count_scatter(df_ref, df_alt,
 
 def gof_scatter(df_ref, df_alt, BAD, out,
                 max_read_count=50,
-                allele_tr=5, to_show=False):
+                allele_tr=5, to_show=False,
+                weights_dict=None,
+                ):
     # gof vs read cov
     df_ref = df_ref[(df_ref['gof'] > 0) & (df_ref.index <= max_read_count)]
     df_alt = df_alt[(df_alt['gof'] > 0) & (df_alt.index <= max_read_count)]
@@ -141,6 +143,15 @@ def gof_scatter(df_ref, df_alt, BAD, out,
                y=df_ref["gof"].tolist(),
                color='C2',
                label='Ref')
+
+    if weights_dict is not None:
+        for allele, df, color in zip(alleles, [df_ref, df_alt], ['C4', 'C3']):
+            x = df.index
+            y = [weights_dict[allele]['point_gofs'].get(str(k), 0) for k in x]
+            ax.scatter(x=x,
+                       y=y,
+                       color=color,
+                       label=allele.capitalize() + ' new')
 
     ax.set_xlabel('Read count for the fixed allele')
     ax.set_ylabel('Goodness of fit, RMSEA')
@@ -293,11 +304,16 @@ def slices(df_ref, df_alt, stats_df, BAD, out,
                 current_lin_density[:min(max_read_count, max_cover_in_stats) + 1] = \
                     neg_bin_dens[:min(max_read_count, max_cover_in_stats) + 1]
                 ax.plot(sorted(x + [allele_tr]), [0] + list(current_lin_density), color='red')
-
-            label = 'negative binom fit for {}' \
-                    '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4}'.format(main_allele,
-                                                                                               total_snps,
-                                                                                               r, p, w, gof)
+                label = 'negative binom fit for {}' \
+                        '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4}\ngof_red={:.4}'.format(main_allele,
+                                                                                                   total_snps,
+                                                                                                   r, p, w, gof,
+                                                                                                   weights_dict[main_allele]['point_gofs'][str(fix_c)])
+            else:
+                label = 'negative binom fit for {}' \
+                        '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4}'.format(main_allele,
+                                                                                                   total_snps,
+                                                                                                   r, p, w, gof)
             ax.text(s=label, x=0.65 * fix_c, y=max(current_density) * 0.6)
 
             ax.xaxis.set_major_locator(ticker.FixedLocator(np.arange(0, max_read_count + 1, div)))
@@ -427,6 +443,14 @@ def main(stats, out, BAD,
                cover_list=cover_list,
                weights_dict=weights_dict,
                out=lambda x: make_image_path(out, 'negbin_slices_with_inferred_fit_N_{}'.format(x), image_type))
+        gof_scatter(df_ref, df_alt,
+                    out=make_image_path(out, 'gof', image_type),
+                    BAD=BAD,
+                    max_read_count=max_read_count,
+                    allele_tr=allele_tr,
+                    to_show=to_show,
+                    weights_dict=weights_dict,
+                    )
 
 
 def draw_cover_fit(stats_df, weights_dict, cover_allele_tr, max_read_count, BAD=1):
