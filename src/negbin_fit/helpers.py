@@ -208,6 +208,6 @@ def calculate_overall_gof(stats_df, density_func, params, main_allele, min_tr, m
         observed_for_fix_c = observed[:, fix_c]
         norm = observed_for_fix_c.sum()
         expected[:, fix_c] = density_func(fix_c) * norm
-        point_gofs[fix_c] = calculate_gof_for_point_fit(observed_for_fix_c, expected[:, fix_c], norm, num_params, min_tr)
+        point_gofs[str(fix_c)] = calculate_gof_for_point_fit(observed_for_fix_c, expected[:, fix_c], norm, num_params, min_tr)
     overall_gof = calculate_gof_for_point_fit(observed.flatten(), expected.flatten(), observed.sum(), num_params, min_tr)
     return point_gofs, overall_gof
