@@ -56,7 +56,7 @@ def make_inferred_negative_binom_density(m, r0, p0, p, max_c, min_c):
     return make_negative_binom_density(m + r0,
                                        p * p0,
                                        1 / (1 +
-                                            (p * p0) ** m * (1 - p0) ** r0 / (1 - p0 * (1 - p)) ** (m + r0)
+                                            p ** m * ((1 - p * p0) / (1 - p0 * (1 - p))) ** (m + r0) / (1 - p) ** r0
                                             ),
                                        max_c,
                                        min_c,
