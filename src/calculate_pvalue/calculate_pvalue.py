@@ -16,11 +16,13 @@ Options:
 
 import os
 import pandas as pd
+from scipy import stats as st
 from negbin_fit.helpers import init_docopt, alleles, check_weights_path
 from schema import Schema, And, Const, Use
 
 
 def calculate_pval(row, row_weights):
+
     return 0, 0, 0, 0
 
 
@@ -56,21 +58,39 @@ def read_df(filename):
     return os.path.splitext(os.path.basename(df)), df
 
 
-def get_posterior_weights(merged_df, unique_snps, weights):
+def get_posterior_weights(merged_df, unique_snps, fit_params):
     result = {}
     for snp in unique_snps:
         result[snp] = {'ref': {}, 'alt': {}}
         filtered_df = filter_df(merged_df, snp)
         for main_allele in alleles:
-            prior_weight = weights[alleles[main_allele]]
-            main_counts = filtered_df[main_allele + '_counts'].to_list()
-            fixed_counts = filtered_df[alleles[main_allele] + '_counts'].to_list()
+            ks = filtered_df[main_allele + '_counts'].to_list()  # main_counts
+            ms = filtered_df[alleles[main_allele] + '_counts'].to_list()  # fixed_counts
+            BAD = filtered_df['BAD'].unique()
+            assert len(BAD) == 1
+            BAD = BAD[0]
+            p = 1 / (BAD + 1)
+            r0 = fit_params[alleles[main_allele]]['r0']
+            p0 = fit_params[alleles[main_allele]]['p0']
+            w0 = fit_params[alleles[main_allele]]['w0']
+            th0 = fit_params[alleles[main_allele]]['th0']
+            prod = 1
+            for k, m in zip(ks, ms):
+                nb1 = st.nbinom(m + r0, 1 - (p*p0))
+                geom1 = st.nbinom(m + 1, 1 - (p*th0))
+                nb2 = st.nbinom(m + r0, 1 - ((1 - p)*p0))
+                geom2 = st.nbinom(m + 1, 1 - ((1 - p)*th0))
+                pmf1 = (1 - w0) * nb1.pmf + w0 * geom1.pmf
+                pmf2 = (1 - w0) * nb2.pmf + w0 * geom2.pmf
+                prod *= pmf2(k) / pmf1(k)
+            result[snp][alleles[main_allele]] = prod
+
     return result
 
 
-def start_process(dfs, out_path, fit_weights):
+def start_process(dfs, out_path, fit_params):
     unique_snps, merged_df = merge_dfs([x[1] for x in dfs])
-    weights = get_posterior_weights(merged_df, unique_snps, fit_weights)
+    weights = get_posterior_weights(merged_df, unique_snps, fit_params)
     for df_name, df in dfs:
         df = df.apply(lambda x: process_df(x, weights), axis=1)
         df.to_csv(os.path.join(out_path, df_name + '.pvalue_table'),

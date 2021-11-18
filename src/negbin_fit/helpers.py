@@ -58,12 +58,18 @@ def get_p(BAD):
     return 1 / (BAD + 1)
 
 
-def make_inferred_negative_binom_density(m, r0, p0, p, max_c, min_c):
+def get_inferred_mode_w(m, r0, p0, p):
+    return 1 / (1 +
+                p ** m * ((1 - p * p0) / (1 - p0 * (1 - p))) ** (m + r0) / (1 - p) ** r0
+                )
+
+
+def make_inferred_negative_binom_density(m, r0, p0, p, max_c, min_c, w=None):
+    if w is None:
+        w = get_inferred_mode_w(m, r0, p0, p)
     return make_negative_binom_density(m + r0,
                                        p * p0,
-                                       1 / (1 +
-                                            p ** m * ((1 - p * p0) / (1 - p0 * (1 - p))) ** (m + r0) / (1 - p) ** r0
-                                            ),
+                                       w,
                                        max_c,
                                        min_c,
                                        p2=(1 - p) * p0)
