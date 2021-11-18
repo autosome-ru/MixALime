@@ -11,6 +11,7 @@ Arguments:
 Options:
     -h, --help                              Show help.
     -O <path>, --output <path>              Output directory for obtained fits. [default: ./]
+    -w <dir>, --weights <dir>               Directory with fitted weights
 """
 
 import os
