@@ -1,17 +1,19 @@
 """
 Usage:
-    calc_pval (<file>...) [-O <dir> |--output <dir>] (-w <dir> | --weights <dir>)
+    calc_pval (<file>...) [-O <dir> |--output <dir>] (-w <dir> | --weights <dir>) (-s <string> | --states <string>)
     cover_fit -h | --help
 
 
 Arguments:
     <file>            Path to input file in tsv format
     <dir>             Directory name
+    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
 
 Options:
     -h, --help                              Show help.
     -O <path>, --output <path>              Output directory for obtained fits. [default: ./]
     -w <dir>, --weights <dir>               Directory with fitted weights
+    -s <string>, --states <string>          States string
 """
 
 import os
@@ -220,8 +222,8 @@ def main():
             Const(os.path.exists, error='Input file(s) should exist'),
             Use(read_df, error='Wrong format stats file')
         ),
-        '--BADs': Use(
-            check_states, error='''Incorrect value for --BADs.
+        '--states': Use(
+            check_states, error='''Incorrect value for --states.
             Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
         ),
         '--weights': And(
@@ -235,7 +237,7 @@ def main():
     args = init_docopt(__doc__, schema)
     try:
         weights = check_fit_params_for_BADs(args['--weights'],
-                                            args['--BADs'])
+                                            args['--states'])
     except Exception:
         print(__doc__)
         exit('Wrong format weights')

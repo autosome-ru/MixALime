@@ -29,6 +29,7 @@ import os
 import re
 
 import numpy as np
+from calculate_pvalue.calculate_pvalue import check_states
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, read_stats_df, \
     make_negative_binom_density, make_out_path, make_line_negative_binom_density, calculate_gof_for_point_fit, \
     ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path
@@ -212,9 +213,9 @@ def start_fit():
             Const(os.path.exists, error='Input file should exist'),
             Use(read_stats_df, error='Wrong format stats file')
         ),
-        '--bad': And(
-            Use(convert_string_to_float, error='Wrong format BAD'),
-            Const(lambda x: x >= 1, error='BAD must be >= 1')
+        '--states': Use(
+            check_states, error='''Incorrect value for --states.
+            Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
         ),
         '--output': And(
             Const(os.path.exists),
@@ -241,43 +242,42 @@ def start_fit():
     args = init_docopt(__doc__, schema)
     df, filename = args['<file>']
     allele_tr = args['--allele-reads-tr']
-    BAD = args['--bad']
     line_fit = args['--line-fit']
     # if line_fit and BAD != 1:
     #     print('Line fit for BAD != 1 not implemented')
     #     exit(1)
 
     max_read_count = 100
-
-    if not args['visualize']:
-        out_path = make_out_path(args['--output'], filename)
-        out_path = add_BAD_to_path(out_path, BAD)
-        d = main(df,
-                 out=out_path,
-                 BAD=BAD,
-                 line_fit=line_fit,
-                 allele_tr=allele_tr,
-                 max_read_count=max_read_count)
-        if not line_fit:
-            convert_weights(in_df=df,
-                            np_weights_dict=d,
-                            out_path=out_path)
-    else:
-        try:
-            out_path, d = check_weights_path(args['--weights'],
-                                             line_fit=line_fit)
-        except Exception:
-            print(__doc__)
-            exit('Wrong format weights')
-            raise
-    if args['--visualize'] or args['visualize']:
-        from negbin_fit.visualize import main as visualize
-        visualize(
-            stats=df,
-            weights_dict=d,
-            line_fit=line_fit,
-            cover_list=args['--cover-list'],
-            max_read_count=args['--max-read-count'],
-            out=out_path,
-            BAD=BAD,
-            allele_tr=allele_tr)
+    for BAD in args['--states']:
+        if not args['visualize']:
+            out_path = make_out_path(args['--output'], filename)
+            out_path = add_BAD_to_path(out_path, BAD)
+            d = main(df,
+                     out=out_path,
+                     BAD=BAD,
+                     line_fit=line_fit,
+                     allele_tr=allele_tr,
+                     max_read_count=max_read_count)
+            if not line_fit:
+                convert_weights(in_df=df,
+                                np_weights_dict=d,
+                                out_path=out_path)
+        else:
+            try:
+                out_path, d = check_weights_path(args['--weights'],
+                                                 line_fit=line_fit)
+            except Exception:
+                print(__doc__)
+                exit('Wrong format weights')
+                raise
+        if args['--visualize'] or args['visualize']:
+            from negbin_fit.visualize import main as visualize
+            visualize(
+                stats=df,
+                weights_dict=d,
+                line_fit=line_fit,
+                cover_list=args['--cover-list'],
+                max_read_count=args['--max-read-count'],
+                out=out_path,
+                BAD=BAD,
+                allele_tr=allele_tr)
