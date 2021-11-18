@@ -147,7 +147,7 @@ def gof_scatter(df_ref, df_alt, BAD, out,
     if weights_dict is not None:
         for allele, df, color in zip(alleles, [df_ref, df_alt], ['C4', 'C3']):
             x = df.index
-            y = [weights_dict[allele]['point_gofs'].get(str(k), 0) for k in x]
+            y = [weights_dict[allele]['point_gofs'].get(str(k), -1) for k in x]
             ax.scatter(x=x,
                        y=y,
                        color=color,
@@ -308,7 +308,7 @@ def slices(df_ref, df_alt, stats_df, BAD, out,
                         '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4}\ngof_red={:.4}'.format(main_allele,
                                                                                                    total_snps,
                                                                                                    r, p, w, gof,
-                                                                                                   weights_dict[main_allele]['point_gofs'][fix_c])
+                                                                                                   weights_dict[main_allele]['point_gofs'][str(fix_c)])
             else:
                 label = 'negative binom fit for {}' \
                         '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4}'.format(main_allele,
