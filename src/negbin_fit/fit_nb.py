@@ -31,7 +31,7 @@ import re
 import numpy as np
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, read_stats_df, \
     make_negative_binom_density, make_out_path, make_line_negative_binom_density, calculate_gof_for_point_fit, \
-    ParamsHandler, calculate_overall_gof, check_weights_path
+    ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 from schema import And, Const, Schema, Use, Or
 from scipy import optimize
@@ -93,10 +93,10 @@ def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5, BAD
                 continue
             neg_bin_dens = make_line_negative_binom_density(fix_c, params, p, N, allele_tr)
             result += -1 * sum(counts_array[k] * (
-                (neg_bin_dens[k]
-                    if neg_bin_dens[k] != -np.inf else 0) + 0)
-                    for k in range(allele_tr, N) if counts_array[k] != 0)# / \
-                    # sum(counts_array[k] for k in range(allele_tr, N) if counts_array[k] != 0)
+                    (neg_bin_dens[k]
+                     if neg_bin_dens[k] != -np.inf else 0) + 0)
+                               for k in range(allele_tr, N) if counts_array[k] != 0)  # / \
+            # sum(counts_array[k] for k in range(allele_tr, N) if counts_array[k] != 0)
         print(params, result)
         return result
 
@@ -152,12 +152,12 @@ def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=1
         return save_array
     else:
         params, point_gofs, gof = fit_negative_binom_as_line(stats,
-                                               main_allele,
-                                               upper_bound=upper_bound,
-                                               N=N,
-                                               allele_tr=allele_tr,
-                                               BAD=BAD,
-                                               )
+                                                             main_allele,
+                                                             upper_bound=upper_bound,
+                                                             N=N,
+                                                             allele_tr=allele_tr,
+                                                             BAD=BAD,
+                                                             )
         return {**params.to_dict(), 'point_gofs': point_gofs, 'gof': gof}
 
 
@@ -235,8 +235,6 @@ def start_fit():
             And(
                 Const(os.path.exists),
                 Const(lambda x: os.access(x, os.W_OK), error='No write permissions'),
-                Use(lambda x: check_weights_path(x, True),
-                    error='No weights found in directory')
             )),
         str: bool
     })
@@ -253,6 +251,7 @@ def start_fit():
 
     if not args['visualize']:
         out_path = make_out_path(args['--output'], filename)
+        out_path = add_BAD_to_path(out_path, BAD)
         d = main(df,
                  out=out_path,
                  BAD=BAD,
@@ -264,7 +263,13 @@ def start_fit():
                             np_weights_dict=d,
                             out_path=out_path)
     else:
-        out_path, d = args['--weights']
+        try:
+            out_path, d = check_weights_path(args['--weights'],
+                                             line_fit=line_fit)
+        except Exception:
+            print(__doc__)
+            exit('Wrong format weights')
+            raise
     if args['--visualize'] or args['visualize']:
         from negbin_fit.visualize import main as visualize
         visualize(

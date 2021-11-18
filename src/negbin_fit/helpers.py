@@ -29,6 +29,10 @@ def make_np_array_path(out, allele, line_fit=False):
     return os.path.join(out, allele + '.' + ('npy' if not line_fit else 'json'))
 
 
+def add_BAD_to_path(out_path, BAD):
+    return make_out_path(out_path, 'BAD{:.2f}'.format(BAD))
+
+
 def get_nb_weight_path(out, allele):
     return os.path.join(out, 'NBweights_{}.tsv'.format(allele))
 
@@ -41,7 +45,8 @@ def check_weights_path(weights_path, line_fit):
 
 def read_weights(allele, np_weights_path=None, np_weights_dict=None, line_fit=False):
     if np_weights_path:
-        path = make_np_array_path(np_weights_path, allele, line_fit=line_fit)
+        path = make_np_array_path(np_weights_path,
+                                  allele, line_fit=line_fit)
         if not line_fit:
             np_weights = np.load(path)
         else:

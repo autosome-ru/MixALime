@@ -18,7 +18,8 @@ import os
 import pandas as pd
 from scipy import stats as st
 import numpy as np
-from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w
+import re
+from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path
 from schema import Schema, And, Const, Use
 
 
@@ -29,16 +30,15 @@ def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
     p_values = {}
     effect_sizes = {}
     for main_allele in alleles:
-        r0, p0, w0, th0 = get_params(fit_params, main_allele)
+        BAD = row['BAD']
+        p = 1 / (BAD + 1)
+        r0, p0, w0, th0 = get_params(fit_params, main_allele, BAD)
         k = row[get_counts_column(main_allele)]
         m = row[get_counts_column(alleles[main_allele])]
         gof = fit_params[alleles[main_allele]]['point_gofs'].get(str(m), 0)
 
         if gof != 0 and gof < gof_tr:
             return [np.nan] * 4
-
-        BAD = row['BAD']
-        p = 1 / (BAD + 1)
 
         nb1 = st.nbinom(m + r0, 1 - (p * p0))
         geom1 = st.nbinom(m + 1, 1 - (p * th0))
@@ -126,7 +126,7 @@ def read_df(filename):
     return os.path.splitext(os.path.basename(df)), df
 
 
-def get_params(fit_params, main_allele):
+def get_params(fit_params, main_allele, BAD):
     r0 = fit_params[alleles[main_allele]]['r0']
     p0 = fit_params[alleles[main_allele]]['p0']
     w0 = fit_params[alleles[main_allele]]['w0']
@@ -146,7 +146,7 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
             assert len(BAD) == 1
             BAD = BAD[0]
             p = 1 / (BAD + 1)
-            r0, p0, w0, th0 = get_params(fit_params, main_allele)
+            r0, p0, w0, th0 = get_params(fit_params, main_allele, BAD)
             prod = np.float64(1)
             for k, m in zip(ks, ms):
                 nb1 = st.nbinom(m + r0, 1 - (p*p0))
@@ -170,15 +170,62 @@ def start_process(dfs, out_path, fit_params):
                   sep='\t', index=False)
 
 
+def check_fit_params_for_BADs(weights_path, BADs):
+    result = {}
+    for BAD in BADs:
+        bad_weight_path = add_BAD_to_path(weights_path, BAD)
+        result[BAD] = check_weights_path(bad_weight_path, True)[1]
+    return result
+
+
+def check_states(string):
+    if not string:
+        return False
+    string = string.strip().split(',')
+    ret_val = list(map(convert_frac_to_float, string))
+    if not all(ret_val):
+        return False
+    else:
+        return ret_val
+
+
+def convert_frac_to_float(string):
+    if re.match(r"^[1-9]+[0-9]*/[1-9]+[0-9]*$", string):
+        num, denom = string.split('/')
+        if int(denom) <= 0:
+            return False
+        else:
+            value = int(num) / int(denom)
+    elif re.match(r"^[1-9]+[0-9]*\.[1-9]+[0-9]*$", string):
+        try:
+            value = float(string)
+        except ValueError:
+            return False
+    elif re.match(r"^[1-9]+[0-9]*$", string):
+        try:
+            value = int(string)
+        except ValueError:
+            return False
+    else:
+        return False
+    if value >= 1:
+        return value
+    else:
+        return False
+
+
 def main():
     schema = Schema({
         '<file>': And(
             Const(os.path.exists, error='Input file(s) should exist'),
             Use(read_df, error='Wrong format stats file')
         ),
+        '--BADs': Use(
+            check_states, error='''Incorrect value for --BADs.
+            Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
+        ),
         '--weights': And(
             Const(os.path.exists, error='Weights dir should exist'),
-            Use(check_weights_path, error='Wrong formatted weights')
         ),
         '--output': And(
             Const(os.path.exists),
@@ -186,5 +233,12 @@ def main():
         )
     })
     args = init_docopt(__doc__, schema)
+    try:
+        weights = check_fit_params_for_BADs(args['--weights'],
+                                            args['--BADs'])
+    except Exception:
+        print(__doc__)
+        exit('Wrong format weights')
+        raise
     print('Here we go again', args)
-    start_process(args['<file>'], args['--output'], args['--weights'])
+    start_process(args['<file>'], args['--output'], weights)
