@@ -27,14 +27,15 @@ Options:
 import json
 import os
 import re
+
 import numpy as np
-from tqdm import tqdm
+from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, read_stats_df, \
+    make_negative_binom_density, make_out_path, make_line_negative_binom_density, calculate_gof_for_point_fit, \
+    ParamsHandler, calculate_overall_gof, check_weights_path
+from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 from schema import And, Const, Schema, Use, Or
 from scipy import optimize
-from negbin_fit.helpers import alleles, make_np_array_path, get_p, read_weights, init_docopt, read_stats_df, \
-    make_negative_binom_density, make_out_path, make_line_negative_binom_density, calculate_gof_for_point_fit, \
-    ParamsHandler, calculate_overall_gof
-from negbin_fit.neg_bin_weights_to_df import main as convert_weights
+from tqdm import tqdm
 
 
 def make_scaled_counts(stats_pandas_dataframe, main_allele, max_cover_in_stats):
@@ -203,12 +204,6 @@ def parse_cover_list(list_as_string):
     cover_list = [int(x) for x in list_as_string.split(',') if int(x) > 0]
     assert len(cover_list) > 0
     return cover_list
-
-
-def check_weights_path(weights_path, line_fit):
-    return weights_path, {allele: read_weights(line_fit=line_fit,
-                                               np_weights_path=weights_path,
-                                               allele=alleles[allele]) for allele in alleles}
 
 
 def start_fit():

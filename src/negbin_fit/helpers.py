@@ -33,6 +33,12 @@ def get_nb_weight_path(out, allele):
     return os.path.join(out, 'NBweights_{}.tsv'.format(allele))
 
 
+def check_weights_path(weights_path, line_fit):
+    return weights_path, {allele: read_weights(line_fit=line_fit,
+                                               np_weights_path=weights_path,
+                                               allele=alleles[allele]) for allele in alleles}
+
+
 def read_weights(allele, np_weights_path=None, np_weights_dict=None, line_fit=False):
     if np_weights_path:
         path = make_np_array_path(np_weights_path, allele, line_fit=line_fit)
