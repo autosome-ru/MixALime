@@ -1,6 +1,6 @@
 """
 Usage:
-    negbin_fit [-O <dir> |--output <dir>] [-n | --no-fit] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-l | --line-fit] [--max-read-count <int>] [-c | --collect] [--cover-list <list>] <file> ...
+    negbin_fit [-O <dir> |--output <dir>] [-n | --no-fit] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-l | --line-fit] [--max-read-count <int>] [-c | --collect] [--cover-list <list>] [<file> ...] [--states <string>]
     negbin_fit -h | --help
 
 Arguments:
@@ -9,6 +9,8 @@ Arguments:
     <int>             Non negative integer
     <dir>             Directory for fitted weights
     <list>            List of slices to visualize
+    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
+
 
 
 Options:
@@ -22,6 +24,7 @@ Options:
     -l, --line-fit                          Fit all the data with line
     --max-read-count <int>                  Max read count for visualization [default: 50]
     --cover-list <list>                     List of covers to visualize [default: 10,20,30,40,50]
+    --states <string>                       States string
 """
 import json
 import os
@@ -31,7 +34,8 @@ import numpy as np
 import pandas as pd
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, \
     make_negative_binom_density, make_out_path, make_line_negative_binom_density, calculate_gof_for_point_fit, \
-    ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column
+    ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column, \
+    check_states
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 from schema import And, Const, Schema, Use, Or
 from scipy import optimize
@@ -230,12 +234,23 @@ def check_output(x):
     return True
 
 
+def parse_args(dfs, to_collect=False, states=None):
+    if states is None or to_collect:
+        assert dfs is not None
+        return merge_dfs([x[1] for x in dfs])
+    else:
+        return None, states, []
+
+
 def start_fit():
     schema = Schema({
-        '<file>': And(
-            Const(lambda x: sum(os.path.exists(y) for y in x),
-                  error='Input file(s) should exist'),
-            Use(read_dfs, error='Wrong format stats file')
+        '<file>': Or(
+            Const(lambda x: x == []),
+            And(
+                Const(lambda x: sum(os.path.exists(y) for y in x),
+                      error='Input file(s) should exist'),
+                Use(read_dfs, error='Wrong format stats file')
+            )
         ),
         '--output': Or(
             Const(lambda x: x is None),
@@ -247,6 +262,13 @@ def start_fit():
         '--allele-reads-tr': And(
             Use(int),
             Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
+        ),
+        '--states': Or(
+            Const(lambda x: x is None),
+            Use(
+                check_states, error='''Incorrect value for --states.
+            Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
+            )
         ),
         '--cover-list': Use(parse_cover_list, error='Wrong format cover list'),
         '--max-read-count': And(
@@ -261,12 +283,12 @@ def start_fit():
     allele_tr = args['--allele-reads-tr']
     out_path = args['--output']
     line_fit = args['--line-fit']
-    # if line_fit and BAD != 1:
-    #     print('Line fit for BAD != 1 not implemented')
-    #     exit(1)
-    _, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
     max_read_count = 100
-    print('{} unique BADs detected'.format(len(unique_BADs)))
+    _, unique_BADs, merged_df = parse_args(dfs,
+                                           args['--collect'],
+                                           args['--states'])
+    if args['--states'] is None:
+        print('{} unique BADs detected'.format(len(unique_BADs)))
     for BAD in sorted(unique_BADs):
         if out_path is None:
             out_path = make_out_path('./', dfs[0][0])
@@ -279,7 +301,6 @@ def start_fit():
             stats_df = open_stats_df(out)
 
         if not args['--no-fit']:
-
             d = main(stats_df,
                      out=out,
                      BAD=BAD,
@@ -301,12 +322,17 @@ def start_fit():
                 raise
         if args['--visualize']:
             from negbin_fit.visualize import main as visualize
-            visualize(
-                stats=stats_df,
-                weights_dict=d,
-                line_fit=line_fit,
-                cover_list=args['--cover-list'],
-                max_read_count=args['--max-read-count'],
-                out=out,
-                BAD=BAD,
-                allele_tr=allele_tr)
+            try:
+                visualize(
+                    stats=stats_df,
+                    weights_dict=d,
+                    line_fit=line_fit,
+                    cover_list=args['--cover-list'],
+                    max_read_count=args['--max-read-count'],
+                    out=out,
+                    BAD=BAD,
+                    allele_tr=allele_tr)
+            except ValueError:
+                print('Value error occurred while visualizing BAD={:.2f}'.format(BAD))
+                raise
+                continue

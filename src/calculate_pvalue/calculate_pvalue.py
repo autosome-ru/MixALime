@@ -17,7 +17,6 @@ Options:
 import os
 from scipy import stats as st
 import numpy as np
-import re
 from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path, \
     merge_dfs, read_dfs, get_key, get_counts_column
 from schema import Schema, And, Const, Use
@@ -165,42 +164,6 @@ def check_fit_params_for_BADs(weights_path, BADs):
         bad_weight_path = add_BAD_to_path(weights_path, BAD)
         result[BAD] = check_weights_path(bad_weight_path, True)[1]
     return result
-
-
-def check_states(string):
-    if not string:
-        return False
-    string = string.strip().split(',')
-    ret_val = list(map(convert_frac_to_float, string))
-    if not all(ret_val):
-        return False
-    else:
-        return ret_val
-
-
-def convert_frac_to_float(string):
-    if re.match(r"^[1-9]+[0-9]*/[1-9]+[0-9]*$", string):
-        num, denom = string.split('/')
-        if int(denom) <= 0:
-            return False
-        else:
-            value = int(num) / int(denom)
-    elif re.match(r"^[1-9]+[0-9]*\.[1-9]+[0-9]*$", string):
-        try:
-            value = float(string)
-        except ValueError:
-            return False
-    elif re.match(r"^[1-9]+[0-9]*$", string):
-        try:
-            value = int(string)
-        except ValueError:
-            return False
-    else:
-        return False
-    if value >= 1:
-        return value
-    else:
-        return False
 
 
 def main():

@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import json
+import re
 from docopt import docopt
 from schema import SchemaError
 from scipy import stats as st
@@ -258,3 +259,39 @@ def read_df(filename):
     except Exception:
         raise AssertionError
     return os.path.splitext(os.path.basename(filename))[0], df
+
+
+def check_states(string):
+    if not string:
+        return False
+    string = string.strip().split(',')
+    ret_val = list(map(convert_frac_to_float, string))
+    if not all(ret_val):
+        return False
+    else:
+        return ret_val
+
+
+def convert_frac_to_float(string):
+    if re.match(r"^[1-9]+[0-9]*/[1-9]+[0-9]*$", string):
+        num, denom = string.split('/')
+        if int(denom) <= 0:
+            return False
+        else:
+            value = int(num) / int(denom)
+    elif re.match(r"^[1-9]+[0-9]*\.[1-9]+[0-9]*$", string):
+        try:
+            value = float(string)
+        except ValueError:
+            return False
+    elif re.match(r"^[1-9]+[0-9]*$", string):
+        try:
+            value = int(string)
+        except ValueError:
+            return False
+    else:
+        return False
+    if value >= 1:
+        return value
+    else:
+        return False

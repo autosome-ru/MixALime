@@ -4,7 +4,7 @@ import pandas as pd
 from matplotlib import pyplot as plt, ticker
 import seaborn as sns
 from negbin_fit.fit_nb import get_p, make_negative_binom_density
-from negbin_fit.helpers import read_weights, alleles, get_nb_weight_path, get_counts_dist_from_df, \
+from negbin_fit.helpers import alleles, get_nb_weight_path, get_counts_dist_from_df, \
     make_cover_negative_binom_density, make_geom_dens, combine_densities, make_inferred_negative_binom_density
 from scipy import stats as st
 
@@ -32,9 +32,11 @@ def r_ref_bias(df_ref, df_alt, BAD, out, to_show=False):
 
     ax.plot([0, y_max], [0, y_max], c='grey', label='y=x', linestyle='dashed')
 
-    x = [row['r'] for index, row in df_alt.iterrows() if index in df_ref.index and row['r'] != 0]
-    y = [row['r'] for index, row in df_ref.iterrows() if index in df_alt.index and row['r'] != 0]
-
+    x = [row['r'] for index, row in df_alt.iterrows()
+         if index in df_ref.index]
+    y = [row['r'] for index, row in df_ref.iterrows()
+         if index in df_alt.index]
+    x, y = zip(*[(k, m) for k, m in zip(x, y) if k != 0 and m != 0])
     ax.scatter(x=x, y=y, color='C1')
 
     ax.set_xlabel('Fitted r value for fixed Alt')
@@ -153,7 +155,7 @@ def read_dfs(out):
     try:
         result = [pd.read_table(get_nb_weight_path(out, allele)) for allele in alleles]
     except Exception:
-        raise AssertionError("No weight dfs found")
+        raise AssertionError("No weight dfs found in directory {}".format(out))
     return result
 
 
@@ -288,13 +290,13 @@ def slices(df_ref, df_alt, stats_df, BAD, out,
                     neg_bin_dens[:min(max_read_count, max_cover_in_stats) + 1]
                 ax.plot(sorted(x + [allele_tr]), [0] + list(current_lin_density), color='red')
                 label = 'negative binom fit for {}' \
-                        '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4}\ngof_red={:.4}'.format(main_allele,
+                        '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4f}\ngof_red={:.4f}'.format(main_allele,
                                                                                                    total_snps,
                                                                                                    r, p, w, gof,
                                                                                                    weights_dict[main_allele]['point_gofs'][str(fix_c)])
             else:
                 label = 'negative binom fit for {}' \
-                        '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4}'.format(main_allele,
+                        '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4f}'.format(main_allele,
                                                                                                    total_snps,
                                                                                                    r, p, w, gof)
             ax.text(s=label, x=0.65 * fix_c, y=max(current_density) * 0.6)
@@ -516,7 +518,8 @@ def get_callback_plot(cover_allele_tr, max_read_count, stats_df, BAD=1):
         r, p, w, th, frac = xk
         print(r, p)
         fig, ax = plt.subplots()
-        draw_barplot(x, y, ax, cover_array, r, p, w, th, frac, max_cover, max_read_count, cover_allele_tr, it=callback.n, BAD=BAD)
+        draw_barplot(x, y, ax, cover_array, r, p, w, th, frac, max_cover, max_read_count, cover_allele_tr,
+                     it=str(callback.n), BAD=BAD)
         plt.close(fig)
 
     callback.n = 0
