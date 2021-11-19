@@ -237,12 +237,24 @@ def merge_dfs(dfs):
     return merged_df['key'].unique(), merged_df['BAD'].unique(), merged_df
 
 
-def get_counts_column(allele):
-    return (allele + '_counts').upper()
+def get_counts_column(allele, for_what='counts'):
+    if for_what == 'counts':
+        result = allele + '_counts'
+    elif for_what == 'pval':
+        result = 'PVAL_' + allele
+    elif for_what == 'es':
+        result = 'ES_' + allele
+    else:
+        raise ValueError
+    return result.upper()
+
+
+def get_required_df_fields():
+    return '#CHROM', 'POS', 'ID', 'REF', 'ALT'
 
 
 def get_key(row):
-    return row['ID']
+    return ';'.join(map(str, [row[field] for field in get_required_df_fields()]))
 
 
 def read_dfs(filenames):

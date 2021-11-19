@@ -2,10 +2,12 @@
 Usage:
     calc_pval [--visualize] [-n | --no-fit] (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>] <file> ...
     calc_pval -h | --help
+    calc_pval --aggregate (-O <out> |--output <out>) <file>...
 
 Arguments:
     <file>            Path to input file(s) in tsv format
     <dir>             Directory name
+    <out>             Output file
 
 Options:
     -h, --help                              Show help.
@@ -15,11 +17,14 @@ Options:
 """
 
 import os
+
+import pandas as pd
+from statsmodels.stats import multitest
 from scipy import stats as st
 import numpy as np
 from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path, \
-    merge_dfs, read_dfs, get_key, get_counts_column
-from schema import Schema, And, Const, Use
+    merge_dfs, read_dfs, get_key, get_counts_column, get_p
+from schema import Schema, And, Const, Use, Or
 
 
 def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
@@ -66,7 +71,7 @@ def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
                                        + nb_w * (m + r0) * (1 - p) * p0 / (1 - (1 - p) * p0))
                            + w0 * ((1 - geom_w) * (m + 1) * p * th0 / (1 - p * th0)
                                    + geom_w * (m + 1) * (1 - p) * th0 / (1 - (1 - p) * th0))
-                           - sigma * sum(i * pmf(i) for i in range(allele_tr))) /\
+                           - sigma * sum(i * pmf(i) for i in range(allele_tr))) / \
                           (1 - sigma)
             effect_sizes[main_allele] = np.log2(k / expectation)
         else:
@@ -95,10 +100,10 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
 
 def process_df(row, weights, fit_params):
     p_ref, p_alt, es_ref, es_alt = calculate_pval(row, weights[get_key(row)], fit_params)
-    row['PVAL_REF'] = p_ref
-    row['PVAL_ALT'] = p_alt
-    row['ES_REF'] = es_ref
-    row['ES_ALT'] = es_alt
+    row[get_counts_column('ref', 'pval')] = p_ref
+    row[get_counts_column('alt', 'pval')] = p_alt
+    row[get_counts_column('ref', 'es')] = es_ref
+    row[get_counts_column('alt', 'es')] = es_alt
     return row
 
 
@@ -132,14 +137,14 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
             BAD = filtered_df['BAD'].unique()
             assert len(BAD) == 1
             BAD = BAD[0]
-            p = 1 / (BAD + 1)
+            p = get_p(BAD)
             r0, p0, w0, th0, _ = get_params(fit_params, main_allele, BAD, snp)
             prod = np.float64(1)
             for k, m in zip(ks, ms):
-                nb1 = st.nbinom(m + r0, 1 - (p*p0))
-                geom1 = st.nbinom(m + 1, 1 - (p*th0))
-                nb2 = st.nbinom(m + r0, 1 - ((1 - p)*p0))
-                geom2 = st.nbinom(m + 1, 1 - ((1 - p)*th0))
+                nb1 = st.nbinom(m + r0, 1 - (p * p0))
+                geom1 = st.nbinom(m + 1, 1 - (p * th0))
+                nb2 = st.nbinom(m + r0, 1 - ((1 - p) * p0))
+                geom2 = st.nbinom(m + 1, 1 - ((1 - p) * th0))
                 pmf1 = lambda x: (1 - w0) * nb1.pmf(x) + w0 * geom1.pmf(x)
                 pmf2 = lambda x: (1 - w0) * nb2.pmf(x) + w0 * geom2.pmf(x)
                 prod *= pmf1(k) / pmf2(k)  # (1 - w) / w bayes factor
@@ -155,7 +160,7 @@ def start_process(dfs, merged_df, unique_snps, out_path, fit_params):
         print('Calculating p-value for {}'.format(df_name))
         df = df.apply(lambda x: process_df(x, weights, fit_params), axis=1)
         df[[x for x in df.columns if x != 'key']].to_csv(os.path.join(out_path, df_name + '.pvalue_table'),
-                  sep='\t', index=False)
+                                                         sep='\t', index=False)
 
 
 def check_fit_params_for_BADs(weights_path, BADs):
@@ -166,18 +171,73 @@ def check_fit_params_for_BADs(weights_path, BADs):
     return result
 
 
+def logit_combine_p_values(pvalues):
+    pvalues = np.array([pvalue for pvalue in pvalues if 1 > pvalue > 0])
+    if len(pvalues) == 0:
+        return 1
+    elif len(pvalues) == 1:
+        return pvalues[0]
+
+    statistic = -np.sum(np.log(pvalues)) + np.sum(np.log1p(-pvalues))
+    k = len(pvalues)
+    nu = np.int_(5 * k + 4)
+    approx_factor = np.sqrt(np.int_(3) * nu / (np.int_(k) * np.square(np.pi) * (nu - np.int_(2))))
+    pval = st.distributions.t.sf(statistic * approx_factor, nu)
+    return pval
+
+
+def aggregate_es(es_array, p_array):
+    if len([x for x in es_array if not pd.isna(x)]) > 0:
+        weights = [-1 * np.log10(x) for x in p_array if x != 1]
+        es_mean = np.round(np.average(es_array, weights=weights), 3)
+        es_mostsig = es_array[int(np.argmax(weights))]
+    else:
+        es_mean = np.nan
+        es_mostsig = np.nan
+    return es_mean, es_mostsig
+
+
+def aggregate_dfs(merged_df, unique_snps):
+    result = []
+    header = ['#CHROM', 'POS', 'ID',
+              'ALT', 'REF', 'MAXC_REF', 'LOGITP_REF', 'ES_REF', 'MAXC_ALT', 'LOGITP_ALT', 'ES_ALT']
+    for snp in unique_snps:
+        snp_result = snp.split(';')
+        filtered_df = filter_df(merged_df, snp)
+        for allele in alleles:
+            max_c = max(filtered_df[get_counts_column(allele)].to_list())
+            snp_result.append(max_c)
+            p_array = filtered_df[get_counts_column(allele, 'pval')].to_list()
+            snp_result.append(logit_combine_p_values(p_array))
+            es_array = filtered_df[get_counts_column(allele, 'es')].to_list()
+            es_mean, es_most_sig = aggregate_es([x for x in es_array if not pd.isna(x)], p_array)
+            snp_result.append(es_mean)
+        result.append(dict(zip(header, snp_result)))
+    return pd.DataFrame(result)
+
+
 def main():
     schema = Schema({
         '<file>': And(
             Const(lambda x: sum(os.path.exists(y) for y in x), error='Input file(s) should exist'),
             Use(read_dfs, error='Wrong format stats file')
         ),
-        '--weights': And(
-            Const(os.path.exists, error='Weights dir should exist'),
+        '--weights': Or(
+            Const(lambda x: x is None),
+            And(
+                Const(os.path.exists, error='Weights dir should exist'),
+            )
         ),
-        '--output': And(
-            Const(os.path.exists),
-            Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
+        '--output': Or(
+            And(
+                Const(os.path.exists),
+                Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
+            ),
+            And(
+                Const(lambda x: not os.path.exists(x)),
+                Const(lambda x: os.access(os.path.dirname(x) if os.path.dirname(x) != '' else '.', os.W_OK),
+                      error='No write permissions')
+            ),
         ),
         str: bool
     })
@@ -185,25 +245,53 @@ def main():
     dfs = args['<file>']
     out = args['--output']
     unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
-    try:
-        weights = check_fit_params_for_BADs(args['--weights'],
-                                            unique_BADs)
-    except Exception:
-        print(__doc__)
-        exit('Wrong format weights')
-        raise
-    if not args['--no-fit']:
-        start_process(
-            merged_df=merged_df,
-            out_path=out,
-            dfs=dfs,
-            unique_snps=unique_snps,
-            fit_params=weights
-        )
-    if args['--visualize']:
-        from calculate_pvalue.visualize import main as visualize
-        for df in dfs:
-            visualize(df=df,
-                      BADs=unique_BADs,
-                      ext='png',
-                      out=out)
+    if not args['--aggregate']:
+        try:
+            weights = check_fit_params_for_BADs(args['--weights'],
+                                                unique_BADs)
+        except Exception:
+            print(__doc__)
+            exit('Wrong format weights')
+            raise
+        if not args['--no-fit']:
+            start_process(
+                merged_df=merged_df,
+                out_path=out,
+                dfs=dfs,
+                unique_snps=unique_snps,
+                fit_params=weights
+            )
+        if args['--visualize']:
+            from calculate_pvalue.visualize import main as visualize
+            for df in dfs:
+                visualize(df=df,
+                          BADs=unique_BADs,
+                          ext='png',
+                          out=out)
+    else:
+        if os.path.isdir(out):
+            out = os.path.join(out, dfs[0][0])
+        aggregated_df = aggregate_dfs(merged_df, unique_snps)
+        if aggregated_df.empty:
+            raise AssertionError('No SNPs left after aggregation')
+
+        mc_filter_array = np.array(aggregated_df[['MAXC_REF', 'MAXC_ALT']].max(axis=1) >= 20)
+        if sum(mc_filter_array) != 0:
+            bool_ar_ref, p_val_ref, _, _ = multitest.multipletests(
+                aggregated_df[mc_filter_array]["LOGITP_REF"],
+                alpha=0.05, method='fdr_bh')
+            bool_ar_alt, p_val_alt, _, _ = multitest.multipletests(
+                aggregated_df[mc_filter_array]["LOGITP_ALT"],
+                alpha=0.05, method='fdr_bh')
+        else:
+            p_val_ref = []
+            p_val_alt = []
+
+        fdr_by_ref = np.array(['NaN'] * len(aggregated_df.index), dtype=np.float64)
+        fdr_by_ref[mc_filter_array] = p_val_ref
+        aggregated_df["FDRP_BH_REF"] = fdr_by_ref
+
+        fdr_by_alt = np.array(['NaN'] * len(aggregated_df.index), dtype=np.float64)
+        fdr_by_alt[mc_filter_array] = p_val_alt
+        aggregated_df["FDRP_BH_ALT"] = fdr_by_alt
+        aggregated_df.to_csv(out, index=False, sep='\t')
