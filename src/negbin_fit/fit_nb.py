@@ -334,5 +334,4 @@ def start_fit():
                     allele_tr=allele_tr)
             except ValueError:
                 print('Value error occurred while visualizing BAD={:.2f}'.format(BAD))
-                raise
                 continue
