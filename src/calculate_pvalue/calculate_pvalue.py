@@ -1,8 +1,7 @@
 """
 Usage:
-    calc_pval (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>] <file> ...
+    calc_pval [--visualize] [-n] (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>] <file> ...
     calc_pval -h | --help
-    calc_pval --visualize (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>] <file>...
 
 Arguments:
     <file>            Path to input file(s) in tsv format
@@ -10,6 +9,7 @@ Arguments:
 
 Options:
     -h, --help                              Show help.
+    -n                                      Skip pvalue calculation
     -O <path>, --output <path>              Output directory. [default: ./]
     -w <dir>, --weights <dir>               Directory with fitted weights
 """
@@ -229,7 +229,7 @@ def main():
         print(__doc__)
         exit('Wrong format weights')
         raise
-    if not args['--visualize']:
+    if not args['-n']:
         start_process(
             merged_df=merged_df,
             out_path=out,
