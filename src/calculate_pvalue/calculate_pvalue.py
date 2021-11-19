@@ -1,26 +1,24 @@
 """
 Usage:
-    calc_pval <file> ... [-O <dir> |--output <dir>] (-w <dir> | --weights <dir>) (-s <string> | --states <string>)
+    calc_pval (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>] <file> ...
     calc_pval -h | --help
 
 Arguments:
-    <file>            Path to input file in tsv format
+    <file>            Path to input file(s) in tsv format
     <dir>             Directory name
-    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
 
 Options:
     -h, --help                              Show help.
     -O <path>, --output <path>              Output directory. [default: ./]
     -w <dir>, --weights <dir>               Directory with fitted weights
-    -s <string>, --states <string>          States string
 """
 
 import os
-import pandas as pd
 from scipy import stats as st
 import numpy as np
 import re
-from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path
+from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path, \
+    merge_dfs, read_dfs, get_key, get_counts_column
 from schema import Schema, And, Const, Use
 
 
@@ -108,35 +106,6 @@ def filter_df(merged_df, key):
     return merged_df[merged_df['key'] == key]
 
 
-def get_counts_column(allele):
-    return allele + '_counts'
-
-
-def merge_dfs(dfs):
-    merged_df = pd.concat(dfs, names=['key'], ignore_index=True)
-    return merged_df['key'].unique(), merged_df
-
-
-def get_key(row):
-    return row['ID']
-
-
-def read_dfs(filenames):
-    result = []
-    for filename in filenames:
-        result.append(read_df(filename))
-    return result
-
-
-def read_df(filename):
-    try:
-        df = pd.read_table(filename)
-        df['key'] = df.apply(get_key, axis=1)
-    except Exception:
-        raise AssertionError
-    return os.path.splitext(os.path.basename(filename))[0], df
-
-
 def get_params(fit_param, main_allele, BAD, err_id):
     try:
         fit_params = fit_param[BAD]
@@ -179,8 +148,7 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
     return result
 
 
-def start_process(dfs, out_path, fit_params):
-    unique_snps, merged_df = merge_dfs([x[1] for x in dfs])
+def start_process(dfs, merged_df, unique_snps, out_path, fit_params):
     weights = get_posterior_weights(merged_df, unique_snps, fit_params)
     for df_name, df in dfs:
         df = df.apply(lambda x: process_df(x, weights, fit_params), axis=1)
@@ -238,10 +206,6 @@ def main():
             Const(lambda x: sum(os.path.exists(y) for y in x), error='Input file(s) should exist'),
             Use(read_dfs, error='Wrong format stats file')
         ),
-        '--states': Use(
-            check_states, error='''Incorrect value for --states.
-            Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
-        ),
         '--weights': And(
             Const(os.path.exists, error='Weights dir should exist'),
         ),
@@ -252,12 +216,19 @@ def main():
         str: bool
     })
     args = init_docopt(__doc__, schema)
+    dfs = args['<file>']
+    unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
     try:
         weights = check_fit_params_for_BADs(args['--weights'],
-                                            args['--states'])
+                                            unique_BADs)
     except Exception:
         print(__doc__)
         exit('Wrong format weights')
         raise
-    print(weights)
-    start_process(args['<file>'], args['--output'], weights)
+    start_process(
+        merged_df=merged_df,
+        out_path=args['--output'],
+        dfs=dfs,
+        unique_snps=unique_snps,
+        fit_params=weights
+    )

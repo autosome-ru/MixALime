@@ -1,8 +1,8 @@
 """
 Usage:
-    negbin_fit <file> (-s <bad> | --states <bad>) [-O <dir> |--output <dir>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
+    negbin_fit [-O <dir> |--output <dir>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-l | --line-fit] [--max-read-count <int>] [-c | --collect] [--cover-list <list>] <file> ...
     negbin_fit -h | --help
-    negbin_fit visualize <file> (-s <bad> | --states <bad>) (-w <dir> |--weights <dir>)  [--allele-reads-tr <int>] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
+    negbin_fit visualize (-w <dir> |--weights <dir>)  [--allele-reads-tr <int>] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>] <file> ...
 
 Arguments:
     <file>            Path to input file in tsv format with columns: alt ref counts.
@@ -13,11 +13,11 @@ Arguments:
 
 
 Options:
-    -h, --help                              Show help.
-    -q, --quiet                             Suppress log messages.
-    -O <path>, --output <path>              Output directory for obtained fits. [default: ./]
+    -h, --help                              Show help
+    -q, --quiet                             Suppress log messages
+    -O <path>, --output <path>              Output directory for obtained fits.
     -w <path>, --weights <path>             Directory with obtained fits
-    -s <bad>, --states <bad>                BAD value used in fit (can be decimal)
+    -c, --collect                           Collect BAD-wise stats
     --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and alt_read_count >= x. [default: 5]
     --visualize                             Perform visualization
     -l, --line-fit                          Fit all the data with line
@@ -29,10 +29,10 @@ import os
 import re
 
 import numpy as np
-from calculate_pvalue.calculate_pvalue import check_states
-from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, read_stats_df, \
+import pandas as pd
+from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, \
     make_negative_binom_density, make_out_path, make_line_negative_binom_density, calculate_gof_for_point_fit, \
-    ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path
+    ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 from schema import And, Const, Schema, Use, Or
 from scipy import optimize
@@ -98,7 +98,6 @@ def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5, BAD
                      if neg_bin_dens[k] != -np.inf else 0) + 0)
                                for k in range(allele_tr, N) if counts_array[k] != 0)  # / \
             # sum(counts_array[k] for k in range(allele_tr, N) if counts_array[k] != 0)
-        print(params, result)
         return result
 
     return target
@@ -115,7 +114,6 @@ def fit_negative_binom_as_line(stats_df, main_allele, upper_bound, N, allele_tr,
                               bounds=[(-4, 10), (0.01, 0.99), (0, 1), (0.01, 0.99)])
     except ValueError:
         return 'NaN', 'NaN', 0
-    print(x)
     params = get_line_params_from_x(x.x)
     density_func = lambda fix_c: make_line_negative_binom_density(fix_c, params, get_p(BAD), N,
                                                                   allele_tr, log=False)
@@ -136,7 +134,7 @@ def preprocess_stats(stats, fix_c, N, main_allele, allele_tr):
 
 
 def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=100, line_fit=False, max_read_count=100):
-    print('Fitting {} distribution...'.format(main_allele.upper()))
+    print('Fitting {} distribution BAD={}...'.format(main_allele.upper(), BAD))
     N = min(max(stats[main_allele]), max_read_count)
     if not line_fit:
         save_array = np.zeros((upper_bound + 1, 4), dtype=np.float_)
@@ -207,19 +205,42 @@ def parse_cover_list(list_as_string):
     return cover_list
 
 
+def open_stats_df(out_path):
+    return pd.read_table(get_stats_df_path(out_path))
+
+
+def get_stats_df_path(out_path):
+    return os.path.join(out_path, 'stats.tsv')
+
+
+def collect_stats_df(df, out_path, BAD):
+    # sum_df = [[get_counts_column(x) for x in alleles]]
+    out_t = df[df['BAD'] == BAD].groupby([get_counts_column(x) for x in alleles]).size().reset_index(name='counts')
+    out_t.fillna(0, inplace=True)
+    out_t.columns = ['ref', 'alt', 'counts']
+    out_t.to_csv(get_stats_df_path(out_path), index=False, sep='\t')
+    return out_t
+
+
+def check_output(x):
+    if not os.path.exists(x):
+        os.mkdir(x)
+    return True
+
+
 def start_fit():
     schema = Schema({
         '<file>': And(
-            Const(os.path.exists, error='Input file should exist'),
-            Use(read_stats_df, error='Wrong format stats file')
+            Const(lambda x: sum(os.path.exists(y) for y in x),
+                  error='Input file(s) should exist'),
+            Use(read_dfs, error='Wrong format stats file')
         ),
-        '--states': Use(
-            check_states, error='''Incorrect value for --states.
-            Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
-        ),
-        '--output': And(
-            Const(os.path.exists),
-            Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
+        '--output': Or(
+            Const(lambda x: x is None),
+            And(
+                Const(check_output, error="No output path exist"),
+                Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
+            )
         ),
         '--allele-reads-tr': And(
             Use(int),
@@ -240,26 +261,35 @@ def start_fit():
         str: bool
     })
     args = init_docopt(__doc__, schema)
-    df, filename = args['<file>']
+    dfs = args['<file>']
     allele_tr = args['--allele-reads-tr']
+    out_path = args['--output']
     line_fit = args['--line-fit']
     # if line_fit and BAD != 1:
     #     print('Line fit for BAD != 1 not implemented')
     #     exit(1)
-
+    unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
     max_read_count = 100
-    for BAD in args['--states']:
+    print('{} unique BADs detected'.format(len(unique_BADs)))
+    for BAD in sorted(unique_BADs):
+        if out_path is None:
+            out_path = make_out_path('./', dfs[0][0])
+        out = add_BAD_to_path(out_path, BAD)
+        if args['--collect']:
+            stats_df = collect_stats_df(merged_df, out, BAD)
+        else:
+            stats_df = open_stats_df(out)
+
         if not args['visualize']:
-            out_path = make_out_path(args['--output'], filename)
-            out_path = add_BAD_to_path(out_path, BAD)
-            d = main(df,
-                     out=out_path,
+
+            d = main(stats_df,
+                     out=out,
                      BAD=BAD,
                      line_fit=line_fit,
                      allele_tr=allele_tr,
                      max_read_count=max_read_count)
             if not line_fit:
-                convert_weights(in_df=df,
+                convert_weights(in_df=stats_df,
                                 np_weights_dict=d,
                                 out_path=out_path)
         else:
@@ -267,6 +297,7 @@ def start_fit():
                 out_path, d = check_weights_path(args['--weights'],
                                                  line_fit=line_fit)
                 out_path = add_BAD_to_path(out_path, BAD)
+                stats_df = open_stats_df(out_path)
             except Exception:
                 print(__doc__)
                 exit('Wrong format weights')
@@ -274,7 +305,7 @@ def start_fit():
         if args['--visualize'] or args['visualize']:
             from negbin_fit.visualize import main as visualize
             visualize(
-                stats=df,
+                stats=stats_df,
                 weights_dict=d,
                 line_fit=line_fit,
                 cover_list=args['--cover-list'],

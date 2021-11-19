@@ -229,3 +229,32 @@ def calculate_overall_gof(stats_df, density_func, params, main_allele, min_tr, m
         point_gofs[str(fix_c)] = calculate_gof_for_point_fit(observed_for_fix_c, expected[:, fix_c], norm, num_params, min_tr)
     overall_gof = calculate_gof_for_point_fit(observed.flatten(), expected.flatten(), observed.sum(), num_params, min_tr)
     return point_gofs, overall_gof
+
+
+def merge_dfs(dfs):
+    merged_df = pd.concat(dfs, names=['key'], ignore_index=True)
+    return merged_df['key'].unique(), merged_df['BAD'].unique(), merged_df
+
+
+def get_counts_column(allele):
+    return allele + '_counts'
+
+
+def get_key(row):
+    return row['ID']
+
+
+def read_dfs(filenames):
+    result = []
+    for filename in filenames:
+        result.append(read_df(filename))
+    return result
+
+
+def read_df(filename):
+    try:
+        df = pd.read_table(filename)
+        df['key'] = df.apply(get_key, axis=1)
+    except Exception:
+        raise AssertionError
+    return os.path.splitext(os.path.basename(filename))[0], df
