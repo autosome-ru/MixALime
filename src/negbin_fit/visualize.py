@@ -21,23 +21,6 @@ plt.rcParams['axes.ymargin'] = 0
 plt.rcParams["legend.framealpha"] = 0.8
 
 
-def local_read_weights(np_weights_dict, np_weights_path):
-    r = {}
-    w = {}
-    gof = {}
-    for fixed_allele in alleles:
-        coefs_array = read_weights(np_weights_dict=np_weights_dict, np_weights_path=np_weights_path,
-                                   allele=fixed_allele)
-        r[fixed_allele] = coefs_array[:, 0]
-        w[fixed_allele] = coefs_array[:, 1]
-        gof[fixed_allele] = coefs_array[:, 3]
-        # first_bad_gof = min(x for x in range(len(gof[fixed_allele])) if gof[fixed_allele][x] > 0.05)
-        # gof[fixed_allele][first_bad_gof:] = 1
-        # r[fixed_allele][BAD][first_bad_gof:] = 0
-        # w[fixed_allele][BAD][first_bad_gof:] = 1
-    return r, w, gof
-
-
 def r_ref_bias(df_ref, df_alt, BAD, out, to_show=False):
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
