@@ -34,7 +34,7 @@ def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
         gof = 0
         BAD = row['BAD']
         p = 1 / (BAD + 1)
-        r0, p0, w0, th0, gofs = get_params(fit_params, main_allele, BAD)
+        r0, p0, w0, th0, gofs = get_params(fit_params, main_allele, BAD, row['key'])
         k = row[get_counts_column(main_allele)]
         m = row[get_counts_column(alleles[main_allele])]
         if gofs is not None:
@@ -137,11 +137,11 @@ def read_df(filename):
     return os.path.splitext(os.path.basename(filename))[0], df
 
 
-def get_params(fit_param, main_allele, BAD):
+def get_params(fit_param, main_allele, BAD, err_id):
     try:
         fit_params = fit_param[BAD]
     except KeyError:
-        print('No fit weights for BAD={}'.format(BAD))
+        print('No fit weights for BAD={}, {} skipping ...'.format(BAD, err_id))
         return [None] * 5
     fit_params = fit_params[alleles[main_allele]]
     r0 = fit_params['r0']
@@ -164,7 +164,7 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
             assert len(BAD) == 1
             BAD = BAD[0]
             p = 1 / (BAD + 1)
-            r0, p0, w0, th0, _ = get_params(fit_params, main_allele, BAD)
+            r0, p0, w0, th0, _ = get_params(fit_params, main_allele, BAD, snp)
             prod = np.float64(1)
             for k, m in zip(ks, ms):
                 nb1 = st.nbinom(m + r0, 1 - (p*p0))
