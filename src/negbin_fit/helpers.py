@@ -177,7 +177,8 @@ def make_line_negative_binom_density(fix_c, params, p, N, allele_tr, log=True):
     neg_bin_dens1 = make_inferred_negative_binom_density(fix_c, params.r0, params.p0, p, N, allele_tr)
     neg_bin_dens2 = make_inferred_negative_binom_density(fix_c, 1, params.th0, p, N, allele_tr)
     neg_bin_dens = (1 - params.w0) * neg_bin_dens1 + params.w0 * neg_bin_dens2
-    return np.log(neg_bin_dens) if log else neg_bin_dens
+    with np.errstate(divide='ignore'):
+        return np.log(neg_bin_dens) if log else neg_bin_dens
 
 
 def stats_df_to_numpy(stats_df, min_tr, max_tr):

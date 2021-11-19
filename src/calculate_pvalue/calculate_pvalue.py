@@ -1,8 +1,7 @@
 """
 Usage:
-    calc_pval (<file>...) [-O <dir> |--output <dir>] (-w <dir> | --weights <dir>) (-s <string> | --states <string>)
-    cover_fit -h | --help
-
+    calc_pval <file> ... [-O <dir> |--output <dir>] (-w <dir> | --weights <dir>) (-s <string> | --states <string>)
+    calc_pval -h | --help
 
 Arguments:
     <file>            Path to input file in tsv format
@@ -11,7 +10,7 @@ Arguments:
 
 Options:
     -h, --help                              Show help.
-    -O <path>, --output <path>              Output directory for obtained fits. [default: ./]
+    -O <path>, --output <path>              Output directory. [default: ./]
     -w <dir>, --weights <dir>               Directory with fitted weights
     -s <string>, --states <string>          States string
 """
@@ -32,15 +31,19 @@ def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
     p_values = {}
     effect_sizes = {}
     for main_allele in alleles:
+        gof = 0
         BAD = row['BAD']
         p = 1 / (BAD + 1)
-        r0, p0, w0, th0 = get_params(fit_params, main_allele, BAD)
+        r0, p0, w0, th0, gofs = get_params(fit_params, main_allele, BAD)
         k = row[get_counts_column(main_allele)]
         m = row[get_counts_column(alleles[main_allele])]
-        gof = fit_params[alleles[main_allele]]['point_gofs'].get(str(m), 0)
+        if gofs is not None:
+            gof = gofs.get(str(m), 0)
 
-        if gof != 0 and gof < gof_tr:
-            return [np.nan] * 4
+        if gof == 0 or gof > gof_tr:
+            p_values[main_allele] = np.nan
+            effect_sizes[main_allele] = np.nan
+            continue
 
         nb1 = st.nbinom(m + r0, 1 - (p * p0))
         geom1 = st.nbinom(m + 1, 1 - (p * th0))
@@ -69,7 +72,7 @@ def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
                           (1 - sigma)
             effect_sizes[main_allele] = np.log2(k / expectation)
         else:
-            effect_sizes[main_allele] = 'NaN'
+            effect_sizes[main_allele] = np.nan
     return p_values['ref'], p_values['alt'], effect_sizes['ref'], effect_sizes['alt']
 
 
@@ -118,22 +121,35 @@ def get_key(row):
     return row['ID']
 
 
+def read_dfs(filenames):
+    result = []
+    for filename in filenames:
+        result.append(read_df(filename))
+    return result
+
+
 def read_df(filename):
     try:
         df = pd.read_table(filename)
-        df['key'] = get_key(df)
-        assert df.columns
+        df['key'] = df.apply(get_key, axis=1)
     except Exception:
         raise AssertionError
-    return os.path.splitext(os.path.basename(df)), df
+    return os.path.splitext(os.path.basename(filename))[0], df
 
 
-def get_params(fit_params, main_allele, BAD):
-    r0 = fit_params[alleles[main_allele]]['r0']
-    p0 = fit_params[alleles[main_allele]]['p0']
-    w0 = fit_params[alleles[main_allele]]['w0']
-    th0 = fit_params[alleles[main_allele]]['th0']
-    return r0, p0, w0, th0
+def get_params(fit_param, main_allele, BAD):
+    try:
+        fit_params = fit_param[BAD]
+    except KeyError:
+        print('No fit weights for BAD={}'.format(BAD))
+        return [None] * 5
+    fit_params = fit_params[alleles[main_allele]]
+    r0 = fit_params['r0']
+    p0 = fit_params['p0']
+    w0 = fit_params['w0']
+    th0 = fit_params['th0']
+    gofs = fit_params['point_gofs']
+    return r0, p0, w0, th0, gofs
 
 
 def get_posterior_weights(merged_df, unique_snps, fit_params):
@@ -148,7 +164,7 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
             assert len(BAD) == 1
             BAD = BAD[0]
             p = 1 / (BAD + 1)
-            r0, p0, w0, th0 = get_params(fit_params, main_allele, BAD)
+            r0, p0, w0, th0, _ = get_params(fit_params, main_allele, BAD)
             prod = np.float64(1)
             for k, m in zip(ks, ms):
                 nb1 = st.nbinom(m + r0, 1 - (p*p0))
@@ -219,8 +235,8 @@ def convert_frac_to_float(string):
 def main():
     schema = Schema({
         '<file>': And(
-            Const(os.path.exists, error='Input file(s) should exist'),
-            Use(read_df, error='Wrong format stats file')
+            Const(lambda x: sum(os.path.exists(y) for y in x), error='Input file(s) should exist'),
+            Use(read_dfs, error='Wrong format stats file')
         ),
         '--states': Use(
             check_states, error='''Incorrect value for --states.
@@ -232,7 +248,8 @@ def main():
         '--output': And(
             Const(os.path.exists),
             Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
-        )
+        ),
+        str: bool
     })
     args = init_docopt(__doc__, schema)
     try:
@@ -242,5 +259,5 @@ def main():
         print(__doc__)
         exit('Wrong format weights')
         raise
-    print('Here we go again', args)
+    print(weights)
     start_process(args['<file>'], args['--output'], weights)

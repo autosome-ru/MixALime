@@ -1,8 +1,8 @@
 """
 Usage:
-    negbin_fit <file> (-b <bad> | --bad <bad>) [-O <dir> |--output <dir>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
+    negbin_fit <file> (-s <bad> | --states <bad>) [-O <dir> |--output <dir>] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
     negbin_fit -h | --help
-    negbin_fit visualize <file> (-b <bad> | --bad <bad>) (-w <dir> |--weights <dir>)  [--allele-reads-tr <int>] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
+    negbin_fit visualize <file> (-s <bad> | --states <bad>) (-w <dir> |--weights <dir>)  [--allele-reads-tr <int>] [-l | --line-fit] [--max-read-count <int>] [--cover-list <list>]
 
 Arguments:
     <file>            Path to input file in tsv format with columns: alt ref counts.
@@ -17,7 +17,7 @@ Options:
     -q, --quiet                             Suppress log messages.
     -O <path>, --output <path>              Output directory for obtained fits. [default: ./]
     -w <path>, --weights <path>             Directory with obtained fits
-    -b <bad>, --bad <bad>                   BAD value used in fit (can be decimal)
+    -s <bad>, --states <bad>                BAD value used in fit (can be decimal)
     --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and alt_read_count >= x. [default: 5]
     --visualize                             Perform visualization
     -l, --line-fit                          Fit all the data with line
@@ -266,6 +266,7 @@ def start_fit():
             try:
                 out_path, d = check_weights_path(args['--weights'],
                                                  line_fit=line_fit)
+                out_path = add_BAD_to_path(out_path, BAD)
             except Exception:
                 print(__doc__)
                 exit('Wrong format weights')
