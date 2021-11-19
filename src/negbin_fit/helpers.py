@@ -237,7 +237,7 @@ def merge_dfs(dfs):
 
 
 def get_counts_column(allele):
-    return allele + '_counts'
+    return (allele + '_counts').upper()
 
 
 def get_key(row):

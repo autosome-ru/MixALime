@@ -206,7 +206,7 @@ def parse_cover_list(list_as_string):
 
 
 def open_stats_df(out_path):
-    return pd.read_table(get_stats_df_path(out_path))
+    return pd.read_table(get_stats_df_path(out_path), header=None, names=['ref', 'alt', 'counts'])
 
 
 def get_stats_df_path(out_path):
@@ -218,7 +218,10 @@ def collect_stats_df(df, out_path, BAD):
     out_t = df[df['BAD'] == BAD].groupby([get_counts_column(x) for x in alleles]).size().reset_index(name='counts')
     out_t.fillna(0, inplace=True)
     out_t.columns = ['ref', 'alt', 'counts']
-    out_t.to_csv(get_stats_df_path(out_path), index=False, sep='\t')
+    out_t.to_csv(get_stats_df_path(out_path),
+                 index=False,
+                 header=None,
+                 sep='\t')
     return out_t
 
 
@@ -268,16 +271,18 @@ def start_fit():
     # if line_fit and BAD != 1:
     #     print('Line fit for BAD != 1 not implemented')
     #     exit(1)
-    unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
+    _, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
     max_read_count = 100
     print('{} unique BADs detected'.format(len(unique_BADs)))
-    for BAD in sorted(unique_BADs):
+    for BAD in sorted(unique_BADs)[0:1]:
         if out_path is None:
             out_path = make_out_path('./', dfs[0][0])
         out = add_BAD_to_path(out_path, BAD)
         if args['--collect']:
+            print('Collecting stats file...')
             stats_df = collect_stats_df(merged_df, out, BAD)
         else:
+            print('Use existing stats')
             stats_df = open_stats_df(out)
 
         if not args['visualize']:

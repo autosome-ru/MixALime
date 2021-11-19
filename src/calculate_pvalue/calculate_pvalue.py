@@ -2,6 +2,7 @@
 Usage:
     calc_pval (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>] <file> ...
     calc_pval -h | --help
+    calc_pval --visualize (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>] <file>...
 
 Arguments:
     <file>            Path to input file(s) in tsv format
@@ -29,7 +30,7 @@ def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
     p_values = {}
     effect_sizes = {}
     for main_allele in alleles:
-        gof = 0
+        gof = None
         BAD = row['BAD']
         p = 1 / (BAD + 1)
         r0, p0, w0, th0, gofs = get_params(fit_params, main_allele, BAD, row['key'])
@@ -38,7 +39,7 @@ def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
         if gofs is not None:
             gof = gofs.get(str(m), 0)
 
-        if gof == 0 or gof > gof_tr:
+        if gof is None:
             p_values[main_allele] = np.nan
             effect_sizes[main_allele] = np.nan
             continue
@@ -95,10 +96,10 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
 
 def process_df(row, weights, fit_params):
     p_ref, p_alt, es_ref, es_alt = calculate_pval(row, weights[get_key(row)], fit_params)
-    row['pval_ref'] = p_ref
-    row['pval_alt'] = p_alt
-    row['es_ref'] = es_ref
-    row['es_alt'] = es_alt
+    row['PVAL_REF'] = p_ref
+    row['PVAL_ALT'] = p_alt
+    row['ES_REF'] = es_ref
+    row['ES_ALT'] = es_alt
     return row
 
 
@@ -149,10 +150,12 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
 
 
 def start_process(dfs, merged_df, unique_snps, out_path, fit_params):
+    print('Calculating posterior weights...')
     weights = get_posterior_weights(merged_df, unique_snps, fit_params)
     for df_name, df in dfs:
+        print('Calculating p-value for {}'.format(df_name))
         df = df.apply(lambda x: process_df(x, weights, fit_params), axis=1)
-        df.to_csv(os.path.join(out_path, df_name + '.pvalue_table'),
+        df[[x for x in df.columns if x != 'key']].to_csv(os.path.join(out_path, df_name + '.pvalue_table'),
                   sep='\t', index=False)
 
 
@@ -217,6 +220,7 @@ def main():
     })
     args = init_docopt(__doc__, schema)
     dfs = args['<file>']
+    out = args['--output']
     unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
     try:
         weights = check_fit_params_for_BADs(args['--weights'],
@@ -225,10 +229,18 @@ def main():
         print(__doc__)
         exit('Wrong format weights')
         raise
-    start_process(
-        merged_df=merged_df,
-        out_path=args['--output'],
-        dfs=dfs,
-        unique_snps=unique_snps,
-        fit_params=weights
-    )
+    if not args['--visualize']:
+        start_process(
+            merged_df=merged_df,
+            out_path=out,
+            dfs=dfs,
+            unique_snps=unique_snps,
+            fit_params=weights
+        )
+    if args['--visualize']:
+        from calculate_pvalue.visualize import main as visualize
+        for df in dfs:
+            visualize(df=df,
+                      BADs=unique_BADs,
+                      ext='png',
+                      out=out)
