@@ -1,6 +1,6 @@
 """
 Usage:
-    negbin_fit [-O <dir> |--output <dir>] [-n] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-l | --line-fit] [--max-read-count <int>] [-c | --collect] [--cover-list <list>] <file> ...
+    negbin_fit [-O <dir> |--output <dir>] [-n | --no-fit] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-l | --line-fit] [--max-read-count <int>] [-c | --collect] [--cover-list <list>] <file> ...
     negbin_fit -h | --help
 
 Arguments:
@@ -15,7 +15,8 @@ Options:
     -h, --help                              Show help
     -q, --quiet                             Suppress log messages
     -O <path>, --output <path>              Output directory for obtained fits.
-    -c, --collect                           Collect BAD-wise stats
+    -c, --collect                           Collect BAD-wise stats, use existing stats if option is not provided
+    -n, --no-fit                            Skip p-value calculation (use to visualize results)
     --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and alt_read_count >= x. [default: 5]
     --visualize                             Perform visualization
     -l, --line-fit                          Fit all the data with line
@@ -277,7 +278,7 @@ def start_fit():
             print('Using existing stats...')
             stats_df = open_stats_df(out)
 
-        if not args['-n']:
+        if not args['--no-fit']:
 
             d = main(stats_df,
                      out=out,

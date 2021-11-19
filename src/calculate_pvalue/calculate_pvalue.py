@@ -1,6 +1,6 @@
 """
 Usage:
-    calc_pval [--visualize] [-n] (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>] <file> ...
+    calc_pval [--visualize] [-n | --no-fit] (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>] <file> ...
     calc_pval -h | --help
 
 Arguments:
@@ -9,7 +9,7 @@ Arguments:
 
 Options:
     -h, --help                              Show help.
-    -n                                      Skip pvalue calculation
+    -n, --no-fit                            Skip p-value calculation
     -O <path>, --output <path>              Output directory. [default: ./]
     -w <dir>, --weights <dir>               Directory with fitted weights
 """
@@ -229,7 +229,7 @@ def main():
         print(__doc__)
         exit('Wrong format weights')
         raise
-    if not args['-n']:
+    if not args['--no-fit']:
         start_process(
             merged_df=merged_df,
             out_path=out,
