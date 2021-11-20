@@ -186,8 +186,6 @@ def slices(df_ref, df_alt, stats_df, BAD, out,
             t = t.append(pd.DataFrame({'ref': [allele_tr], 'alt': [count], 'counts': [0]}))
     t.reset_index(inplace=True, drop=True)
 
-    print(t['counts'].sum(axis=0))
-
     t.rename(
         columns={
             'ref': 'Reference allele read count',
@@ -261,7 +259,6 @@ def slices(df_ref, df_alt, stats_df, BAD, out,
             r, w, gof = (df['r'][fix_c],
                          df['w'][fix_c],
                          df['gof'][fix_c])
-            print(r, w, gof, BAD, fix_c)
             if r == 0:
                 col = 'C6'
                 r = fix_c

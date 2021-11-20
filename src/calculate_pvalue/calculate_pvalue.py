@@ -1,17 +1,18 @@
 """
 Usage:
-    calc_pval [--visualize] [-n | --no-fit] (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>] <file> ...
+    calc_pval (-I <file> ...) [--visualize] [-n | --no-fit] (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>]
     calc_pval -h | --help
-    calc_pval --aggregate (-O <out> |--output <out>) <file>...
+    calc_pval aggregate (-O <out> |--output <out>) (-I <file>...)
 
 Arguments:
     <file>            Path to input file(s) in tsv format
     <dir>             Directory name
-    <out>             Output file
+    <out>             Output file path
 
 Options:
     -h, --help                              Show help.
     -n, --no-fit                            Skip p-value calculation
+    -I <file>                               Input files
     -O <path>, --output <path>              Output directory. [default: ./]
     -w <dir>, --weights <dir>               Directory with fitted weights
 """
@@ -218,7 +219,7 @@ def aggregate_dfs(merged_df, unique_snps):
 
 def main():
     schema = Schema({
-        '<file>': And(
+        '-I': And(
             Const(lambda x: sum(os.path.exists(y) for y in x), error='Input file(s) should exist'),
             Use(read_dfs, error='Wrong format stats file')
         ),
@@ -242,10 +243,11 @@ def main():
         str: bool
     })
     args = init_docopt(__doc__, schema)
-    dfs = args['<file>']
+    dfs = args['-I']
     out = args['--output']
+    ext = 'svg'
     unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
-    if not args['--aggregate']:
+    if not args['aggregate']:
         try:
             weights = check_fit_params_for_BADs(args['--weights'],
                                                 unique_BADs)
@@ -266,7 +268,7 @@ def main():
             for df in dfs:
                 visualize(df=df,
                           BADs=unique_BADs,
-                          ext='png',
+                          ext=ext,
                           out=out)
     else:
         if os.path.isdir(out):
