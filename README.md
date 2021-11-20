@@ -11,7 +11,7 @@
 	 * Files to provide in ```-I``` option should have the same format as described in [<b>Formats</b>](##Formats) section
 	 * ```-O``` directory name to save BAD-wise statistics into (default: ./)
  2) Fit neg-binomial distribution ```negbin_fit -O <dir>```
-    * Directory provided in ```-O``` option should be the same with ```-O``` from <b>step1<b>
+    * Directory provided in ```-O``` option should be the same with ```-O``` from <b>step1</b>
     * To visualize result add ```--visualize``` option
     * To use deprecated 'point fit' add ```-p``` option
 3) Calculate p-value for the files ```calc_pval -I <inp_1> <inp_2> ... -O <dir> -w <dir>```
