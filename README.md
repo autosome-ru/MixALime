@@ -32,4 +32,4 @@
 
 2) Input file for <b>step 4</b> should have 4 additional columns:
 	- <b>PVAL_REF</b>, <b>PVAL_ALT</b>: Calculated p-values;
-	- <b>ES_REF</b>, <b>ES_ALT<b>: Calculated effect sizes.
+	- <b>ES_REF</b>, <b>ES_ALT</b>: Calculated effect sizes.
