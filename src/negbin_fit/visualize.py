@@ -426,7 +426,7 @@ def main(stats, out, BAD,
                weights_dict=weights_dict,
                out=lambda x: make_image_path(out, 'negbin_slices_with_inferred_fit_N_{}'.format(x), image_type))
         gof_scatter(df_ref, df_alt,
-                    out=make_image_path(out, 'gof.lf.', image_type),
+                    out=make_image_path(out, 'gof.lf', image_type),
                     BAD=BAD,
                     max_read_count=max_read_count,
                     allele_tr=allele_tr,
