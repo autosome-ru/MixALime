@@ -30,6 +30,6 @@
 	- <b>REF_COUNTS</b>, <b>ALT_COUNTS</b>: reference and alternative read counts;
 	- <b>BAD</b>: BAD estimates with [BABACHI](https://github.com/autosome-ru/BABACHI).
 
-2) Input file for <b>step 4</b> should have the same format as described above with 4 additional columns:
+2) Input file for <b>step 4</b> should have the same columns as described above with 4 additional columns:
 	- <b>PVAL_REF</b>, <b>PVAL_ALT</b>: Calculated p-values;
 	- <b>ES_REF</b>, <b>ES_ALT</b>: Calculated effect sizes.
