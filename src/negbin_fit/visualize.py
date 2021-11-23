@@ -108,30 +108,33 @@ def gof_scatter(df_ref, df_alt, BAD, out,
                 weights_dict=None,
                 ):
     # gof vs read cov
-    df_ref = df_ref[(df_ref['gof'] > 0) & (df_ref.index <= max_read_count)]
-    df_alt = df_alt[(df_alt['gof'] > 0) & (df_alt.index <= max_read_count)]
 
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
-
     ax.set_xlim(allele_tr, max_read_count)
     ax.set_ylim(0, max(max(df_ref['gof']), max(df_alt['gof'])) * 1.05)
     ax.grid(True)
 
     ax.axhline(y=0.05, lw=2, linestyle='--', color='#505050')
 
-    ax.scatter(x=df_alt.index,
-               y=df_alt["gof"].tolist(),
-               color='C1',
-               label='Alt')
-    ax.scatter(x=df_ref.index,
-               y=df_ref["gof"].tolist(),
-               color='C2',
-               label='Ref')
+    if df_ref is not None:
+        df_ref = df_ref[(df_ref['gof'] > 0) & (df_ref.index <= max_read_count)]
+        df_alt = df_alt[(df_alt['gof'] > 0) & (df_alt.index <= max_read_count)]
+        ax.scatter(x=df_alt.index,
+                   y=df_alt["gof"].tolist(),
+                   color='C1',
+                   label='Alt')
+        ax.scatter(x=df_ref.index,
+                   y=df_ref["gof"].tolist(),
+                   color='C2',
+                   label='Ref')
 
     if weights_dict is not None:
         for allele, df, color in zip(alleles, [df_ref, df_alt], ['C4', 'C3']):
-            x = df.index
+            if df_ref is not None:
+                x = df.index
+            else:
+                x = [x for x in range(max_read_count)]
             y = [weights_dict[allele]['point_gofs'].get(str(k), -1) for k in x]
             ax.scatter(x=x,
                        y=y,
@@ -152,11 +155,13 @@ def gof_scatter(df_ref, df_alt, BAD, out,
 
 
 def read_dfs(out):
-    try:
-        result = [pd.read_table(get_nb_weight_path(out, allele)) for allele in alleles]
-    except Exception:
-        raise AssertionError("No weight dfs found in directory {}".format(out))
-    return result
+    if sum([os.path.exists(get_nb_weight_path(out, allele)) for allele in alleles]) == 2:
+        try:
+            result = [pd.read_table(get_nb_weight_path(out, allele)) for allele in alleles]
+        except Exception:
+            raise AssertionError("No weight dfs found in directory {}".format(out))
+        return result
+    return [None, None]
 
 
 def make_image_path(out, image_name, image_type):
@@ -225,10 +230,12 @@ def slices(df_ref, df_alt, stats_df, BAD, out,
         ax1.xaxis.set_major_formatter(ticker.FixedFormatter(range(div, max_read_count + 1)[::div]))
         ax1.tick_params(axis="x", rotation=0)
 
-        ax1.hlines(y=max_read_count + 1 - allele_tr, xmin=0, xmax=max_read_count + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
+        ax1.hlines(y=max_read_count + 1 - allele_tr, xmin=0, xmax=max_read_count + 1 - allele_tr, colors=['black', ],
+                   linewidth=lw * 2)
         ax1.vlines(x=0, ymin=0, ymax=max_read_count + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
         ax1.hlines(y=0, xmin=0, xmax=max_read_count + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
-        ax1.vlines(x=max_read_count + 1 - allele_tr, ymin=0, ymax=max_read_count + 1 - allele_tr, colors=['black', ], linewidth=lw * 2)
+        ax1.vlines(x=max_read_count + 1 - allele_tr, ymin=0, ymax=max_read_count + 1 - allele_tr, colors=['black', ],
+                   linewidth=lw * 2)
 
         for cov, fix in zip([cover, cover], alleles.keys()):
             if fix == 'alt':
@@ -248,32 +255,34 @@ def slices(df_ref, df_alt, stats_df, BAD, out,
                 counts_array[k] = SNP_counts
 
             chop_counts_array = np.zeros(max_read_count + 1)
-            chop_counts_array[:min(max_read_count, max_cover_in_stats) + 1] = counts_array[:min(max_read_count, max_cover_in_stats) + 1]
+            chop_counts_array[:min(max_read_count, max_cover_in_stats) + 1] = counts_array[:min(max_read_count,
+                                                                                                max_cover_in_stats) + 1]
 
             total_snps = counts_array[0:max_cover_in_stats + 1].sum()
             x = list(range(max_read_count + 1))
             sns.barplot(x=x,
                         y=chop_counts_array / total_snps, ax=ax, color='C1')
+            if df_ref is not None:
+                df = df_ref if fixed_allele == 'ref' else df_alt
+                r, w, gof = (df['r'][fix_c],
+                             df['w'][fix_c],
+                             df['gof'][fix_c])
+                if r == 0:
+                    col = 'C6'
+                    r = fix_c
+                else:
+                    col = '#4d004b'
 
-            df = df_ref if fixed_allele == 'ref' else df_alt
-            r, w, gof = (df['r'][fix_c],
-                         df['w'][fix_c],
-                         df['gof'][fix_c])
-            if r == 0:
-                col = 'C6'
-                r = fix_c
-            else:
-                col = '#4d004b'
+                current_density = np.zeros(max_read_count + 1)
+                current_density[:min(max_read_count, max_cover_in_stats) + 1] = \
+                    make_negative_binom_density(r, p,
+                                                w,
+                                                max_cover_in_stats,
+                                                left_most=allele_tr
+                                                )[:min(max_read_count, max_cover_in_stats) + 1]
+                ax.plot(sorted(x + [allele_tr]), [0] + list(current_density), color=col)
 
-            current_density = np.zeros(max_read_count + 1)
-            current_density[:min(max_read_count, max_cover_in_stats) + 1] = \
-                make_negative_binom_density(r, p,
-                                            w,
-                                            max_cover_in_stats,
-                                            left_most=allele_tr
-                                            )[:min(max_read_count, max_cover_in_stats) + 1]
-            ax.plot(sorted(x + [allele_tr]), [0] + list(current_density), color=col)
-
+            label = None
             if weights_dict is not None:
                 current_lin_density = np.zeros(max_read_count + 1)
                 neg_bin_dens1 = make_inferred_negative_binom_density(fix_c, weights_dict[main_allele]['r0'],
@@ -282,21 +291,26 @@ def slices(df_ref, df_alt, stats_df, BAD, out,
                 neg_bin_dens2 = make_inferred_negative_binom_density(fix_c, 1,
                                                                      weights_dict[main_allele]['th0'], p,
                                                                      max_cover_in_stats, allele_tr)
-                neg_bin_dens = (1 - weights_dict[main_allele]['w0']) * neg_bin_dens1 + weights_dict[main_allele]['w0'] * neg_bin_dens2
+                neg_bin_dens = (1 - weights_dict[main_allele]['w0']) * neg_bin_dens1 + weights_dict[main_allele][
+                    'w0'] * neg_bin_dens2
                 current_lin_density[:min(max_read_count, max_cover_in_stats) + 1] = \
                     neg_bin_dens[:min(max_read_count, max_cover_in_stats) + 1]
                 ax.plot(sorted(x + [allele_tr]), [0] + list(current_lin_density), color='red')
-                label = 'negative binom fit for {}' \
-                        '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4f}\ngof_red={:.4f}'.format(main_allele,
-                                                                                                   total_snps,
-                                                                                                   r, p, w, gof,
-                                                                                                   weights_dict[main_allele]['point_gofs'][str(fix_c)])
+                if df_ref is not None:
+                    label = 'negative binom fit for {}' \
+                            '\ntotal observations: {}\nr={:.2f},' \
+                            'p={:.2f}, w={:.2f}\ngof={:.4f}\ngof_red={:.4f}'.format(main_allele,
+                                                                                    total_snps,
+                                                                                    r, p, w, gof,
+                                                                                    weights_dict[main_allele][
+                                                                                        'point_gofs'][str(fix_c)])
             else:
                 label = 'negative binom fit for {}' \
                         '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4f}'.format(main_allele,
-                                                                                                   total_snps,
-                                                                                                   r, p, w, gof)
-            ax.text(s=label, x=0.65 * fix_c, y=max(current_density) * 0.6)
+                                                                                                    total_snps,
+                                                                                                    r, p, w, gof)
+            if label:
+                ax.text(s=label, x=0.65 * fix_c, y=min(max_read_count, max_cover_in_stats) + 1 * 0.6)
 
             ax.xaxis.set_major_locator(ticker.FixedLocator(np.arange(0, max_read_count + 1, div)))
             ax.xaxis.set_major_formatter(ticker.FixedFormatter(range(0, max_read_count + 1)[::div]))
@@ -444,7 +458,8 @@ def draw_cover_fit(stats_df, weights_dict, cover_allele_tr, max_read_count, BAD=
                     BAD=BAD)
 
 
-def draw_barplot(x, y, ax, cover_array, r, p, w, th, frac, max_cover, max_read_count, cover_allele_tr, it='final', BAD=1, draw_rest=False):
+def draw_barplot(x, y, ax, cover_array, r, p, w, th, frac, max_cover, max_read_count, cover_allele_tr, it='final',
+                 BAD=1, draw_rest=False):
     sns.barplot(x=x,
                 y=y,
                 ax=ax, color='C1')
@@ -457,12 +472,12 @@ def draw_barplot(x, y, ax, cover_array, r, p, w, th, frac, max_cover, max_read_c
             left_most=cover_allele_tr,
             draw_rest=draw_rest,
         )[:max_cover],
-            make_geom_dens(
-            th,
-            cover_allele_tr,
-            len(cover_array) - 1,
-        )[:max_cover],
-        w, frac, 1 / (BAD + 1), allele_tr=5)
+                          make_geom_dens(
+                              th,
+                              cover_allele_tr,
+                              len(cover_array) - 1,
+                          )[:max_cover],
+                          w, frac, 1 / (BAD + 1), allele_tr=5)
     ax.plot(sorted(x + ([cover_allele_tr] if not draw_rest else [])),
             ([0] if not draw_rest else []) + list(current_density[:max_cover]),
             color='C6')
@@ -476,12 +491,12 @@ def draw_barplot(x, y, ax, cover_array, r, p, w, th, frac, max_cover, max_read_c
             left_most=cover_allele_tr,
             draw_rest=draw_rest,
         )[:max_cover],
-            make_geom_dens(
-            th,
-            cover_allele_tr,
-            len(cover_array) - 1,
-        )[:max_cover],
-        w, frac, 1 / (BAD + 1), allele_tr=5, only_negbin=True)
+                          make_geom_dens(
+                              th,
+                              cover_allele_tr,
+                              len(cover_array) - 1,
+                          )[:max_cover],
+                          w, frac, 1 / (BAD + 1), allele_tr=5, only_negbin=True)
     ax.plot(sorted(x + ([cover_allele_tr] if not draw_rest else [])),
             ([0] if not draw_rest else []) + list(current_density[:max_cover]),
             color='C2')
@@ -495,7 +510,8 @@ def draw_barplot(x, y, ax, cover_array, r, p, w, th, frac, max_cover, max_read_c
 
 def draw_cover_dist(stats_df, weights_dict, ax, cover_allele_tr, max_read_count, BAD=1):
     cover_array, max_cover, sum_counts, x, y = get_params_for_plot(stats_df, cover_allele_tr, max_read_count)
-    draw_barplot(x, y, ax, cover_array, weights_dict['r0'], weights_dict['p0'], weights_dict['w0'], weights_dict['th0'], weights_dict['frac'], max_cover, max_read_count, cover_allele_tr, it='final', BAD=BAD)
+    draw_barplot(x, y, ax, cover_array, weights_dict['r0'], weights_dict['p0'], weights_dict['w0'], weights_dict['th0'],
+                 weights_dict['frac'], max_cover, max_read_count, cover_allele_tr, it='final', BAD=BAD)
 
 
 def get_params_for_plot(stats_df, cover_allele_tr, max_read_count, draw_rest=False):
