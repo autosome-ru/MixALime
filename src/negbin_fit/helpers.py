@@ -65,9 +65,13 @@ def get_p(BAD):
 
 
 def get_inferred_mode_w(m, r0, p0, p):
-    return 1 / (1 +
-                p ** m * ((1 - p * p0) / (1 - p0 * (1 - p))) ** (m + r0) / (1 - p) ** r0
-                )
+    try:
+        return 1 / (1 +
+                    np.exp(m * np.log(p) + (m + r0) * np.log((1 - p * p0) / (1 - p0 * (1 - p))) - r0 * np.log(1 - p))
+                    )
+    except OverflowError:
+        print(m, r0, p0, p)
+        raise
 
 
 def make_inferred_negative_binom_density(m, r0, p0, p, max_c, min_c, w=None):
@@ -267,6 +271,8 @@ def read_dfs(filenames):
 def read_df(filename):
     try:
         df = pd.read_table(filename)
+        df = df[df['REF_COUNTS'] >= 5]
+        df = df[df['ALT_COUNTS'] >= 5]
         df['key'] = df.apply(get_key, axis=1)
     except Exception:
         raise AssertionError

@@ -26,6 +26,7 @@ import numpy as np
 from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path, \
     merge_dfs, read_dfs, get_key, get_counts_column, get_p
 from schema import Schema, And, Const, Use, Or
+from tqdm import tqdm
 
 
 def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
@@ -72,7 +73,7 @@ def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
                                        + nb_w * (m + r0) * (1 - p) * p0 / (1 - (1 - p) * p0))
                            + w0 * ((1 - geom_w) * (m + 1) * p * th0 / (1 - p * th0)
                                    + geom_w * (m + 1) * (1 - p) * th0 / (1 - (1 - p) * th0))
-                           - sigma * sum(i * pmf(i) for i in range(allele_tr))) / \
+                           - sigma * sum(i * pmf(i) for i in range(1, allele_tr))) / \
                           (1 - sigma)
             effect_sizes[main_allele] = np.log2(k / expectation)
         else:
@@ -129,7 +130,8 @@ def get_params(fit_param, main_allele, BAD, err_id):
 
 def get_posterior_weights(merged_df, unique_snps, fit_params):
     result = {}
-    for snp in unique_snps:
+    cache = {}
+    for snp in tqdm(unique_snps):
         result[snp] = {'ref': 0, 'alt': 0}
         filtered_df = filter_df(merged_df, snp)
         for main_allele in alleles:
@@ -140,15 +142,33 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
             BAD = BAD[0]
             p = get_p(BAD)
             r0, p0, w0, th0, _ = get_params(fit_params, main_allele, BAD, snp)
-            prod = np.float64(1)
+            prod = np.float64(0)
             for k, m in zip(ks, ms):
-                nb1 = st.nbinom(m + r0, 1 - (p * p0))
-                geom1 = st.nbinom(m + 1, 1 - (p * th0))
-                nb2 = st.nbinom(m + r0, 1 - ((1 - p) * p0))
-                geom2 = st.nbinom(m + 1, 1 - ((1 - p) * th0))
-                pmf1 = lambda x: (1 - w0) * nb1.pmf(x) + w0 * geom1.pmf(x)
-                pmf2 = lambda x: (1 - w0) * nb2.pmf(x) + w0 * geom2.pmf(x)
-                prod *= pmf1(k) / pmf2(k)  # (1 - w) / w bayes factor
+                if (k, m, BAD, main_allele) in cache:
+                    add = cache[(k, m, BAD, main_allele)]
+                else:
+                    nb1 = st.nbinom(m + r0, 1 - (p * p0))
+                    geom1 = st.nbinom(m + 1, 1 - (p * th0))
+                    nb2 = st.nbinom(m + r0, 1 - ((1 - p) * p0))
+                    geom2 = st.nbinom(m + 1, 1 - ((1 - p) * th0))
+                    pmf1 = lambda x: (1 - w0) * nb1.pmf(x) + w0 * geom1.pmf(x)
+                    pmf2 = lambda x: (1 - w0) * nb2.pmf(x) + w0 * geom2.pmf(x)
+                    pm1 = pmf1(k)
+                    pm2 = pmf2(k)
+                    if pm1 == 0:
+                        pm1 = nb1.logpmf(k)
+                    else:
+                        pm1 = np.log(pm1)
+                    if pm2 == 0:
+                        pm2 = nb2.logpmf(k)
+                    else:
+                        pm2 = np.log(pm2)
+                    add = pm1 - pm2  # log (1 - w) / w bayes factor
+                    if k + m <= 200:
+                        cache[(k, m, BAD, main_allele)] = add
+                prod += add
+            with np.errstate(over='ignore'):
+                prod = np.exp(prod)
             result[snp][main_allele] = prod
 
     return result
@@ -157,9 +177,10 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
 def start_process(dfs, merged_df, unique_snps, out_path, fit_params):
     print('Calculating posterior weights...')
     weights = get_posterior_weights(merged_df, unique_snps, fit_params)
+    tqdm.pandas()
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
-        df = df.apply(lambda x: process_df(x, weights, fit_params), axis=1)
+        df = df.progress_apply(lambda x: process_df(x, weights, fit_params), axis=1)
         df[[x for x in df.columns if x != 'key']].to_csv(os.path.join(out_path, df_name + '.pvalue_table'),
                                                          sep='\t', index=False)
 
@@ -237,7 +258,8 @@ def main():
             And(
                 Const(lambda x: not os.path.exists(x)),
                 Const(lambda x: os.access(os.path.dirname(x) if os.path.dirname(x) != '' else '.', os.W_OK),
-                      error='No write permissions')
+                      error='No write permissions'),
+                Const(lambda x: os.mkdir(x) or True, error='Can not create output directory')
             ),
         ),
         str: bool
