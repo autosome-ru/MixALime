@@ -188,7 +188,7 @@ def start_process(dfs, merged_df, unique_snps, out_path, fit_params):
 def check_fit_params_for_BADs(weights_path, BADs):
     result = {}
     for BAD in BADs:
-        bad_weight_path = add_BAD_to_path(weights_path, BAD)
+        bad_weight_path = add_BAD_to_path(weights_path, BAD, create=False)
         result[BAD] = check_weights_path(bad_weight_path, True)[1]
     return result
 
@@ -277,6 +277,7 @@ def main():
             print(__doc__)
             exit('Wrong format weights')
             raise
+
         if not args['--no-fit']:
             start_process(
                 merged_df=merged_df,

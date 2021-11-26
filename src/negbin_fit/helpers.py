@@ -30,8 +30,8 @@ def make_np_array_path(out, allele, line_fit=False):
     return os.path.join(out, allele + '.' + ('npy' if not line_fit else 'json'))
 
 
-def add_BAD_to_path(out_path, BAD):
-    return make_out_path(out_path, 'BAD{:.2f}'.format(BAD))
+def add_BAD_to_path(out_path, BAD, create=True):
+    return make_out_path(out_path, 'BAD{:.2f}'.format(BAD), create=create)
 
 
 def get_nb_weight_path(out, allele):
@@ -107,10 +107,14 @@ def make_negative_binom_density(r, p, w, size_of_counts, left_most, p2=None):
     return negative_binom_density_array
 
 
-def make_out_path(out, name):
+def make_out_path(out, name, create=True):
     directory = os.path.join(out, name)
     if not os.path.exists(directory):
-        os.mkdir(directory)
+        if create:
+            os.mkdir(directory)
+        else:
+            print('No weights found in {}'.format(directory))
+            exit(1)
     return directory
 
 
