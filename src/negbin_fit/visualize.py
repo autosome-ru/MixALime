@@ -112,7 +112,7 @@ def gof_scatter(df_ref, df_alt, BAD, out,
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
     ax.set_xlim(allele_tr, max_read_count)
-    ax.set_ylim(0, max(max(df_ref['gof']), max(df_alt['gof'])) * 1.05)
+    ax.set_ylim(bottom=0)
     ax.grid(True)
 
     ax.axhline(y=0.05, lw=2, linestyle='--', color='#505050')
@@ -120,6 +120,7 @@ def gof_scatter(df_ref, df_alt, BAD, out,
     if df_ref is not None:
         df_ref = df_ref[(df_ref['gof'] > 0) & (df_ref.index <= max_read_count)]
         df_alt = df_alt[(df_alt['gof'] > 0) & (df_alt.index <= max_read_count)]
+        ax.set_ylim(0, max(max(df_ref['gof']), max(df_alt['gof'])) * 1.05)
         ax.scatter(x=df_alt.index,
                    y=df_alt["gof"].tolist(),
                    color='C1',
