@@ -134,13 +134,13 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
     for snp in tqdm(unique_snps):
         result[snp] = {'ref': 0, 'alt': 0}
         filtered_df = filter_df(merged_df, snp)
+        BAD = filtered_df['BAD'].unique()
+        assert len(BAD) == 1
+        BAD = BAD[0]
+        p = get_p(BAD)
         for main_allele in alleles:
             ks = filtered_df[get_counts_column(main_allele)].to_list()  # main_counts
             ms = filtered_df[get_counts_column(alleles[main_allele])].to_list()  # fixed_counts
-            BAD = filtered_df['BAD'].unique()
-            assert len(BAD) == 1
-            BAD = BAD[0]
-            p = get_p(BAD)
             r0, p0, w0, th0, _ = get_params(fit_params, main_allele, BAD, snp)
             prod = np.float64(0)
             for k, m in zip(ks, ms):
