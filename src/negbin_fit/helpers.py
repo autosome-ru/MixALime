@@ -258,7 +258,7 @@ def get_counts_column(allele, for_what='counts'):
 
 
 def get_required_df_fields():
-    return '#CHROM', 'POS', 'ID', 'REF', 'ALT'
+    return '#CHROM', 'POS', 'REF', 'ALT'
 
 
 def get_key(row):
