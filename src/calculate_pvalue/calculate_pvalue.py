@@ -258,8 +258,7 @@ def main():
             And(
                 Const(lambda x: not os.path.exists(x)),
                 Const(lambda x: os.access(os.path.dirname(x) if os.path.dirname(x) != '' else '.', os.W_OK),
-                      error='No write permissions'),
-                Const(lambda x: os.mkdir(x) or True, error='Can not create output directory')
+                      error='No write permissions')
             ),
         ),
         str: bool
@@ -270,6 +269,14 @@ def main():
     ext = 'svg'
     unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
     if not args['aggregate']:
+        if not os.path.exists(out):
+            try:
+                os.mkdir(out)
+            except Exception:
+                print(__doc__)
+                exit('Can not create output directory')
+                raise
+
         try:
             weights = check_fit_params_for_BADs(args['--weights'],
                                                 unique_BADs)
