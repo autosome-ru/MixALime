@@ -258,7 +258,7 @@ def get_counts_column(allele, for_what='counts'):
 
 
 def get_required_df_fields():
-    return '#CHROM', 'POS', 'REF', 'ALT'
+    return '#CHROM', 'POS', 'ID', 'REF', 'ALT'
 
 
 def get_key(row):
@@ -267,6 +267,7 @@ def get_key(row):
 
 def read_dfs(filenames):
     result = []
+    print('Reading tables...')
     for filename in filenames:
         result.append(read_df(filename))
     return result
@@ -278,6 +279,7 @@ def read_df(filename):
         df = df[df['REF_COUNTS'] >= 5]
         df = df[df['ALT_COUNTS'] >= 5]
         df['key'] = df.apply(get_key, axis=1)
+        df['fname'] = filename
     except Exception:
         raise AssertionError
     return os.path.splitext(os.path.basename(filename))[0], df

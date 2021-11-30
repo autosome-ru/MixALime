@@ -219,22 +219,40 @@ def aggregate_es(es_array, p_array):
     return es_mean, es_mostsig
 
 
+def get_es_list(filtered_df, allele):
+    es_col = get_counts_column(allele, 'es')
+    pval_col = get_counts_column(allele, 'pval')
+    return [(row[es_col], row['fname']) for _, row in filtered_df.iterrows()
+            if not pd.isna(row[es_col]) and row[pval_col] != 1]
+
+
+def list_to_str(array):
+    return '@'.join(array)
+
+
 def aggregate_dfs(merged_df, unique_snps):
     result = []
     header = ['#CHROM', 'POS', 'ID',
               'ALT', 'REF', 'MAXC_REF', 'LOGITP_REF', 'ES_REF', 'MAXC_ALT', 'LOGITP_ALT', 'ES_ALT']
-    for snp in unique_snps:
+    for snp in tqdm(unique_snps[:1000], unit='SNPs'):
         snp_result = snp.split(';')
         filtered_df = filter_df(merged_df, snp)
+        total_exps = list_to_str(filtered_df['fname'].to_list())
+        conc_exps = {}
         for allele in alleles:
             max_c = max(filtered_df[get_counts_column(allele)].to_list())
             snp_result.append(max_c)
             p_array = filtered_df[get_counts_column(allele, 'pval')].to_list()
             snp_result.append(logit_combine_p_values(p_array))
-            es_array = filtered_df[get_counts_column(allele, 'es')].to_list()
-            es_mean, es_most_sig = aggregate_es([x for x in es_array if not pd.isna(x)], p_array)
+            es_fname_array = get_es_list(filtered_df, allele)
+            conc_exps[allele] = list_to_str([x[1] for x in es_fname_array])
+            es_mean, es_most_sig = aggregate_es([x[0] for x in es_fname_array], p_array)
             snp_result.append(es_mean)
-        result.append(dict(zip(header, snp_result)))
+        row_dict = dict(zip(header, snp_result))
+        conc_allele = 'alt' if row_dict['LOGITP_REF'] > row_dict['LOGITP_ALT'] else 'ref'
+        row_dict['All_EXPS'] = total_exps
+        row_dict['CONC_EXPS'] = conc_exps[conc_allele]
+        result.append(row_dict)
     return pd.DataFrame(result)
 
 
