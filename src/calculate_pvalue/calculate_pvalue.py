@@ -2,7 +2,7 @@
 Usage:
     calc_pval (-I <file> ...) [--visualize] [-n | --no-fit] (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>]
     calc_pval -h | --help
-    calc_pval aggregate (-O <out> |--output <out>) (-I <file>...)
+    calc_pval aggregate (-O <out> |--output <out>) (-I <file>...) [--coverage-tr <int>]
 
 Arguments:
     <file>            Path to input file(s) in tsv format
@@ -13,7 +13,8 @@ Options:
     -h, --help                              Show help.
     -n, --no-fit                            Skip p-value calculation
     -I <file>                               Input files
-    -O <path>, --output <path>              Output directory. [default: ./]
+    --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
+    -O <path>, --output <path>              Output directory [default: ./]
     -w <dir>, --weights <dir>               Directory with fitted weights
 """
 
@@ -234,7 +235,7 @@ def aggregate_dfs(merged_df, unique_snps):
     result = []
     header = ['#CHROM', 'POS', 'ID',
               'ALT', 'REF', 'MAXC_REF', 'LOGITP_REF', 'ES_REF', 'MAXC_ALT', 'LOGITP_ALT', 'ES_ALT']
-    for snp in tqdm(unique_snps[:1000], unit='SNPs'):
+    for snp in tqdm(unique_snps, unit='SNPs'):
         snp_result = snp.split(';')
         filtered_df = filter_df(merged_df, snp)
         total_exps = list_to_str(filtered_df['fname'].to_list())
@@ -279,6 +280,7 @@ def main():
                       error='No write permissions')
             ),
         ),
+        '--coverage-tr': Use(lambda x: int(x)),
         str: bool
     })
     args = init_docopt(__doc__, schema)
@@ -324,8 +326,8 @@ def main():
         aggregated_df = aggregate_dfs(merged_df, unique_snps)
         if aggregated_df.empty:
             raise AssertionError('No SNPs left after aggregation')
-
-        mc_filter_array = np.array(aggregated_df[['MAXC_REF', 'MAXC_ALT']].max(axis=1) >= 20)
+        maxc_tr = args['--coverage-tr']
+        mc_filter_array = np.array(aggregated_df[['MAXC_REF', 'MAXC_ALT']].max(axis=1) >= maxc_tr)
         if sum(mc_filter_array) != 0:
             bool_ar_ref, p_val_ref, _, _ = multitest.multipletests(
                 aggregated_df[mc_filter_array]["LOGITP_REF"],
