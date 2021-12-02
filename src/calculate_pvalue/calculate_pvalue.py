@@ -8,6 +8,7 @@ Arguments:
     <file>            Path to input file(s) in tsv format
     <dir>             Directory name
     <out>             Output file path
+    <int>             Positive integer
 
 Options:
     -h, --help                              Show help.
