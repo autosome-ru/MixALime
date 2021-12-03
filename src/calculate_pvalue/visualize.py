@@ -1,12 +1,15 @@
 import numpy as np
 import os
+
+import pandas as pd
 from matplotlib import pyplot as plt, ticker
 import seaborn as sns
-from negbin_fit.helpers import alleles, make_out_path
+from negbin_fit.helpers import alleles, make_out_path, get_pvalue_file_path
 
 
 def main(df, BADs, out, ext='svg'):
-    df_name, result_df = df
+    df_name, _ = df
+    result_df = pd.read_table(get_pvalue_file_path(out, df_name))
     out = make_out_path(out, 'visualizations')
     for BAD in sorted(BADs):
         bad_df = result_df[result_df['BAD'] == BAD]

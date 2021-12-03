@@ -26,7 +26,7 @@ from statsmodels.stats import multitest
 from scipy import stats as st
 import numpy as np
 from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path, \
-    merge_dfs, read_dfs, get_key, get_counts_column, get_p
+    merge_dfs, read_dfs, get_key, get_counts_column, get_p, get_pvalue_file_path
 from schema import Schema, And, Const, Use, Or
 from tqdm import tqdm
 
@@ -183,7 +183,7 @@ def start_process(dfs, merged_df, unique_snps, out_path, fit_params):
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
         df = df.progress_apply(lambda x: process_df(x, weights, fit_params), axis=1)
-        df[[x for x in df.columns if x != 'key']].to_csv(os.path.join(out_path, df_name + '.pvalue_table'),
+        df[[x for x in df.columns if x != 'key']].to_csv(get_pvalue_file_path(out_path, df_name + '.pvalue_table'),
                                                          sep='\t', index=False)
 
 
