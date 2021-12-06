@@ -30,6 +30,23 @@ def make_np_array_path(out, allele, line_fit=False):
     return os.path.join(out, allele + '.' + ('npy' if not line_fit else 'json'))
 
 
+def parse_input(dfs, filename):
+    if filename is not None:
+        dfs_paths = parse_files_list(filename)
+        return read_dfs(dfs_paths)
+    elif dfs:
+        return dfs
+    else:
+        exit('No input files provided, consider using -I or -f options')
+        raise AssertionError
+
+
+def parse_files_list(filename):
+    with open(filename) as inp:
+        lines = inp.readlines()
+    return [x for x in lines if not x.startswith('#')]
+
+
 def add_BAD_to_path(out_path, BAD, create=True):
     return make_out_path(out_path, 'BAD{:.2f}'.format(BAD), create=create)
 

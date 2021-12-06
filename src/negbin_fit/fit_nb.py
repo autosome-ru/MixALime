@@ -2,7 +2,7 @@
 Usage:
     negbin_fit [-O <dir> |--output <dir>] [-n | --no-fit] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-p | --point-fit] [--max-read-count <int>] [--cover-list <list>]  [--states <string>]
     negbin_fit -h | --help
-    negbin_fit collect (-I <file> ...) [-O <dir> |--output <dir>]
+    negbin_fit collect [-I <file> ...] [-O <dir> |--output <dir>] [-f <file-list>]
 
 Arguments:
     <file>            Path to input file in tsv format with columns: alt ref counts.
@@ -11,7 +11,7 @@ Arguments:
     <dir>             Directory with fitted weights
     <list>            List of slices to visualize
     <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
-
+    <file-list>       File with filenames of input file on each line
 
 
 Options:
@@ -26,6 +26,7 @@ Options:
     --max-read-count <int>                  Max read count for visualization [default: 50]
     --cover-list <list>                     List of covers to visualize [default: 10,20,30,40,50]
     --states <string>                       States string
+    -f <file-list>                          File with filenames of input file on each line
 """
 import json
 import os
@@ -36,7 +37,7 @@ import pandas as pd
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, \
     make_negative_binom_density, make_line_negative_binom_density, calculate_gof_for_point_fit, \
     ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column, \
-    check_states
+    check_states, parse_input, parse_files_list
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 from schema import And, Const, Schema, Use, Or
 from scipy import optimize
@@ -257,6 +258,10 @@ def start_fit():
                 Use(read_dfs, error='Wrong format stats file')
             )
         ),
+        '-f': Or(
+            Const(lambda x: x is None),
+            Use(parse_files_list, error='Error while parsing file -f')
+        ),
         '--output': Or(
             Const(lambda x: x is None),
             And(
@@ -287,7 +292,7 @@ def start_fit():
     base_out_path = args['--output']
     merged_df = None
     if args['collect']:
-        dfs = args['-I']
+        dfs = parse_input(args['-I'], args['-f'])
         _, unique_BADs, merged_df = parse_args(dfs)
         print('{} unique BADs detected'.format(len(unique_BADs)))
     elif args['--states']:

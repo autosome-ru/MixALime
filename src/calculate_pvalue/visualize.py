@@ -7,26 +7,26 @@ import seaborn as sns
 from negbin_fit.helpers import alleles, make_out_path, get_pvalue_file_path
 
 
-def main(df, BADs, out, ext='svg'):
-    df_name, _ = df
-    result_df = pd.read_table(get_pvalue_file_path(out, df_name))
-    out = make_out_path(out, 'visualizations')
-    for BAD in sorted(BADs):
-        bad_df = result_df[result_df['BAD'] == BAD]
-        if len(result_df.index) == 0:
-            print('No p-values for BAD={}'.format(BAD))
-            continue
-        print('Visualizing p-value for {}, BAD={}'.format(df_name, BAD))
-        vis_p_value_bias(bad_df=bad_df,
-                         df_name=df_name,
-                         BAD=BAD,
-                         out=out,
-                         ext=ext)
-        vis_p_value_dist(bad_df=bad_df,
-                         df_name=df_name,
-                         BAD=BAD,
-                         ext=ext,
-                         out=out)
+def main(dfs, BADs, out, ext='svg'):
+    for df in dfs:
+        df_name, result_df = df
+        out = make_out_path(out, 'visualizations')
+        for BAD in sorted(BADs):
+            bad_df = result_df[result_df['BAD'] == BAD]
+            if len(result_df.index) == 0:
+                print('No p-values for BAD={}'.format(BAD))
+                continue
+            print('Visualizing p-value for {}, BAD={}'.format(df_name, BAD))
+            vis_p_value_bias(bad_df=bad_df,
+                             df_name=df_name,
+                             BAD=BAD,
+                             out=out,
+                             ext=ext)
+            vis_p_value_dist(bad_df=bad_df,
+                             df_name=df_name,
+                             BAD=BAD,
+                             ext=ext,
+                             out=out)
 
 
 def get_field(allele):

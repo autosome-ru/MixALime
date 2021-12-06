@@ -37,7 +37,8 @@ setup(
         'matplotlib>=3.2.1',
         'seaborn>=0.10.1',
         'scipy>=1.5.2',
-        'tqdm>=4.62.3'
+        'tqdm>=4.62.3',
+        'statsmodels>=0.12.2'
     ],
     extras_require={
         'dev': ['wheel', 'twine', 'setuptools_scm'],

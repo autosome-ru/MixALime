@@ -1,14 +1,15 @@
 """
 Usage:
-    calc_pval (-I <file> ...) [--visualize] [-n | --no-fit] (-w <dir> | --weights <dir>) [-O <dir> |--output <dir>]
+    calc_pval (-I <file> ...) [--visualize] [-n | --no-fit] (-w <dir> | --weights <dir>) [-O <dir> | --output <dir>] [-f <file-list>]
     calc_pval -h | --help
-    calc_pval aggregate (-O <out> |--output <out>) (-I <file>...) [--coverage-tr <int>]
+    calc_pval aggregate (-O <out> | --output <out>) (-I <file>...) [--coverage-tr <int>] [-f <file-list>]
 
 Arguments:
     <file>            Path to input file(s) in tsv format
     <dir>             Directory name
     <out>             Output file path
     <int>             Positive integer
+    <file-list>       File with paths to input files
 
 Options:
     -h, --help                              Show help.
@@ -17,6 +18,7 @@ Options:
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
     -O <path>, --output <path>              Output directory [default: ./]
     -w <dir>, --weights <dir>               Directory with fitted weights
+    -f <file-list>                          File with filenames of input file on each line
 """
 
 import os
@@ -26,7 +28,7 @@ from statsmodels.stats import multitest
 from scipy import stats as st
 import numpy as np
 from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path, \
-    merge_dfs, read_dfs, get_key, get_counts_column, get_p, get_pvalue_file_path
+    merge_dfs, read_dfs, get_key, get_counts_column, get_p, get_pvalue_file_path, parse_files_list, parse_input
 from schema import Schema, And, Const, Use, Or
 from tqdm import tqdm
 
@@ -180,11 +182,14 @@ def start_process(dfs, merged_df, unique_snps, out_path, fit_params):
     print('Calculating posterior weights...')
     weights = get_posterior_weights(merged_df, unique_snps, fit_params)
     tqdm.pandas()
+    result = []
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
         df = df.progress_apply(lambda x: process_df(x, weights, fit_params), axis=1)
-        df[[x for x in df.columns if x != 'key']].to_csv(get_pvalue_file_path(out_path, df_name + '.pvalue_table'),
+        df[[x for x in df.columns if x != 'key']].to_csv(get_pvalue_file_path(out_path, df_name),
                                                          sep='\t', index=False)
+        result.append((df_name, df))
+    return result
 
 
 def check_fit_params_for_BADs(weights_path, BADs):
@@ -260,9 +265,16 @@ def aggregate_dfs(merged_df, unique_snps):
 
 def main():
     schema = Schema({
-        '-I': And(
-            Const(lambda x: sum(os.path.exists(y) for y in x), error='Input file(s) should exist'),
-            Use(read_dfs, error='Wrong format stats file')
+        '-I': Or(
+            Const(lambda x: x == []),
+            And(
+                Const(lambda x: sum(os.path.exists(y) for y in x), error='Input file(s) should exist'),
+                Use(read_dfs, error='Wrong format stats file')
+            )
+        ),
+        '-f': Or(
+            Const(lambda x: x is None),
+            Use(parse_files_list, error='Error while parsing file -f')
         ),
         '--weights': Or(
             Const(lambda x: x is None),
@@ -285,7 +297,7 @@ def main():
         str: bool
     })
     args = init_docopt(__doc__, schema)
-    dfs = args['-I']
+    dfs = parse_input(args['-I'], args['-f'])
     out = args['--output']
     ext = 'svg'
     unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
@@ -307,20 +319,22 @@ def main():
             raise
 
         if not args['--no-fit']:
-            start_process(
+            result_dfs = start_process(
                 merged_df=merged_df,
                 out_path=out,
                 dfs=dfs,
                 unique_snps=unique_snps,
                 fit_params=weights
             )
+        else:
+            result_dfs = [pd.read_table(get_pvalue_file_path(out, df_name)) for df_name, df in dfs]
         if args['--visualize']:
             from calculate_pvalue.visualize import main as visualize
-            for df in dfs:
-                visualize(df=df,
-                          BADs=unique_BADs,
-                          ext=ext,
-                          out=out)
+            visualize(dfs=result_dfs,
+                      BADs=unique_BADs,
+                      ext=ext,
+                      out=out)
+
     else:
         if os.path.isdir(out):
             out = os.path.join(out, dfs[0][0])
