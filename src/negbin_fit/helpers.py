@@ -30,10 +30,9 @@ def make_np_array_path(out, allele, line_fit=False):
     return os.path.join(out, allele + '.' + ('npy' if not line_fit else 'json'))
 
 
-def parse_input(dfs, filename):
-    if filename is not None:
-        dfs_paths = parse_files_list(filename)
-        return read_dfs(dfs_paths)
+def parse_input(dfs, filenames):
+    if filenames is not None:
+        return read_dfs(filenames)
     elif dfs:
         return dfs
     else:
