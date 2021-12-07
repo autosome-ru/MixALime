@@ -42,7 +42,7 @@ def parse_input(dfs, filenames):
 
 def parse_files_list(filename):
     with open(filename) as inp:
-        lines = inp.readlines()
+        lines = inp.read().splitlines()
     return [x for x in lines if not x.startswith('#')]
 
 
