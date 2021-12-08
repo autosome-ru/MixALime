@@ -2,7 +2,7 @@
 Usage:
     calc_pval [-I <file> ...] [--visualize] [-n | --no-fit] (-w <dir> | --weights <dir>) [-O <dir> | --output <dir>] [-f <file-list>]
     calc_pval -h | --help
-    calc_pval aggregate (-O <out> | --output <out>) (-I <file>...) [--coverage-tr <int>] [-f <file-list>]
+    calc_pval aggregate (-O <out> | --output <out>) [-I <file>...] [--coverage-tr <int>] [-f <file-list>]
 
 Arguments:
     <file>            Path to input file(s) in tsv format
