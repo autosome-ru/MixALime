@@ -244,7 +244,6 @@ def aggregate_dfs(merged_df, unique_snps):
     for snp in tqdm(unique_snps, unit='SNPs'):
         snp_result = snp.split(';')
         filtered_df = filter_df(merged_df, snp)
-        total_exps = list_to_str(filtered_df['fname'].unique().to_list())
         conc_exps = {}
         for allele in alleles:
             max_c = max(filtered_df[get_counts_column(allele)].to_list())
@@ -252,13 +251,13 @@ def aggregate_dfs(merged_df, unique_snps):
             p_array = filtered_df[get_counts_column(allele, 'pval')].to_list()
             snp_result.append(logit_combine_p_values(p_array))
             es_fname_array = get_es_list(filtered_df, allele)
-            conc_exps[allele] = list_to_str([x[1] for x in es_fname_array])
-            es_mean, es_most_sig = aggregate_es([x[0] for x in es_fname_array], p_array)
+            conc_exps[allele] = list_to_str(set([fname for _, fname in es_fname_array]))
+            es_mean, es_most_sig = aggregate_es([es for es, _ in es_fname_array], p_array)
             snp_result.append(es_mean)
         row_dict = dict(zip(header, snp_result))
-        conc_allele = 'alt' if row_dict['LOGITP_REF'] > row_dict['LOGITP_ALT'] else 'ref'
-        row_dict['All_EXPS'] = total_exps
-        row_dict['CONC_EXPS'] = conc_exps[conc_allele]
+        for allele in alleles:
+            row_dict['{}_EXPS'.format(allele.upper())] = conc_exps[allele]
+
         result.append(row_dict)
     return pd.DataFrame(result)
 
