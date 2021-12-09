@@ -244,7 +244,7 @@ def aggregate_dfs(merged_df, unique_snps):
     for snp in tqdm(unique_snps, unit='SNPs'):
         snp_result = snp.split(';')
         filtered_df = filter_df(merged_df, snp)
-        total_exps = list_to_str(filtered_df['fname'].to_list())
+        total_exps = list_to_str(filtered_df['fname'].unique().to_list())
         conc_exps = {}
         for allele in alleles:
             max_c = max(filtered_df[get_counts_column(allele)].to_list())
