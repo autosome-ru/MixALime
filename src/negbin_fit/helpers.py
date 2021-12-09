@@ -289,7 +289,9 @@ def read_dfs(filenames):
     result = []
     print('Reading tables...')
     for filename in filenames:
-        result.append(read_df(filename))
+        df = read_df(filename)
+        if df is not None:
+            result.append(df)
     return result
 
 
@@ -298,6 +300,9 @@ def read_df(filename):
         df = pd.read_table(filename)
         df = df[df['REF_COUNTS'] >= 5]
         df = df[df['ALT_COUNTS'] >= 5]
+        if df.empty:
+            print('No SNPs found in {}'.format(filename))
+            return None
         df['key'] = df.apply(get_key, axis=1)
         df['fname'] = filename
     except Exception:
