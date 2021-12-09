@@ -301,7 +301,7 @@ def read_df(filename):
         df['key'] = df.apply(get_key, axis=1)
         df['fname'] = filename
     except Exception:
-        raise AssertionError
+        raise ValueError('Cannot read {}'.format(filename))
     return os.path.splitext(os.path.basename(filename))[0], df
 
 
