@@ -282,7 +282,7 @@ def get_required_df_fields():
 
 
 def get_key(row):
-    return ';'.join(map(str, [row[field] for field in get_required_df_fields()]))
+    return '@'.join(map(str, [row[field] for field in get_required_df_fields()]))
 
 
 def read_dfs(filenames):

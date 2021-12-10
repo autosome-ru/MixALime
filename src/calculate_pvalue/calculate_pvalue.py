@@ -186,7 +186,7 @@ def start_process(dfs, merged_df, unique_snps, out_path, fit_params):
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
         df = df.progress_apply(lambda x: process_df(x, weights, fit_params), axis=1)
-        df[[x for x in df.columns if x != 'key']].to_csv(get_pvalue_file_path(out_path, df_name),
+        df[[x for x in df.columns if x not in ('key', 'fname')]].to_csv(get_pvalue_file_path(out_path, df_name),
                                                          sep='\t', index=False)
         result.append((df_name, df))
     return result
@@ -240,21 +240,21 @@ def list_to_str(array):
 def aggregate_dfs(merged_df, unique_snps):
     result = []
     header = ['#CHROM', 'POS', 'ID',
-              'ALT', 'REF', 'MAXC_REF', 'LOGITP_REF', 'ES_REF', 'MAXC_ALT', 'LOGITP_ALT', 'ES_ALT']
+              'ALT', 'REF', 'LOGITP_REF', 'ES_REF', 'LOGITP_ALT', 'ES_ALT']
     for snp in tqdm(unique_snps, unit='SNPs'):
-        snp_result = snp.split(';')
+        snp_result = snp.split('@')
         filtered_df = filter_df(merged_df, snp)
         conc_exps = {}
         for allele in alleles:
-            max_c = max(filtered_df[get_counts_column(allele)].to_list())
-            snp_result.append(max_c)
             p_array = filtered_df[get_counts_column(allele, 'pval')].to_list()
             snp_result.append(logit_combine_p_values(p_array))
             es_fname_array = get_es_list(filtered_df, allele)
-            conc_exps[allele] = list_to_str(set([fname for _, fname in es_fname_array]))
+            conc_exps[allele] = list_to_str(set([fname.strip() for _, fname in es_fname_array]))
             es_mean, es_most_sig = aggregate_es([es for es, _ in es_fname_array], p_array)
             snp_result.append(es_mean)
         row_dict = dict(zip(header, snp_result))
+        row_dict['MAX_COVER'] = filtered_df[[get_counts_column(allele) for allele in alleles]].sum(axis=1).max()
+
         for allele in alleles:
             row_dict['{}_EXPS'.format(allele.upper())] = conc_exps[allele]
 
@@ -336,15 +336,15 @@ def main():
 
     else:
         if os.path.isdir(out):
-            out = os.path.join(out, dfs[0][0])
+            out = os.path.join(out, dfs[0][0] + '.tsv')
         aggregated_df = aggregate_dfs(merged_df, unique_snps)
         if aggregated_df.empty:
             raise AssertionError('No SNPs left after aggregation')
         maxc_tr = args['--coverage-tr']
-        mc_filter_array = np.array(aggregated_df[['MAXC_REF', 'MAXC_ALT']].max(axis=1) >= maxc_tr)
-        if sum(mc_filter_array) != 0:
+        mc_filter_array = np.array(aggregated_df['MAX_COVER'] >= maxc_tr, dtype=np.bool)
+        if mc_filter_array.sum() != 0:
             bool_ar_ref, p_val_ref, _, _ = multitest.multipletests(
-                aggregated_df[mc_filter_array]["LOGITP_REF"],
+                aggregated_df[mc_filter_array]["LOGITP_REF"].to_numpy(),
                 alpha=0.05, method='fdr_bh')
             bool_ar_alt, p_val_alt, _, _ = multitest.multipletests(
                 aggregated_df[mc_filter_array]["LOGITP_ALT"],
