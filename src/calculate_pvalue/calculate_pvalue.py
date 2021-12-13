@@ -249,7 +249,7 @@ def aggregate_dfs(merged_df, unique_snps):
             p_array = filtered_df[get_counts_column(allele, 'pval')].to_list()
             snp_result.append(logit_combine_p_values(p_array))
             es_fname_array = get_es_list(filtered_df, allele)
-            conc_exps[allele] = list_to_str(set([fname.strip() for _, fname in es_fname_array]))
+            conc_exps[allele] = list_to_str(set([fname.strip() for es, fname in es_fname_array if es >= 0]))
             es_mean, es_most_sig = aggregate_es([es for es, _ in es_fname_array], p_array)
             snp_result.append(es_mean)
         row_dict = dict(zip(header, snp_result))
