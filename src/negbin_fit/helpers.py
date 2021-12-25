@@ -107,6 +107,66 @@ def make_negative_binom_density(r, p, w, size_of_counts, left_most, p2=None):
     return negative_binom_density_array
 
 
+def make_prior_fixed_allele_density(params, p, N, allele_tr, log=True):
+    dist = {
+        'nb1': st.nbinom(params.r0, 1 - (1-p)*params.p0/(1 - p*params.p0)),
+        'nb2': st.nbinom(params.r0, 1 - p*params.p0/(1 - (1-p)*params.p0)),
+        'g1': st.nbinom(1, 1 - (1-p)*params.th0/(1 - p*params.th0)),
+        'g2': st.nbinom(1, 1 - p*params.th0/(1 - (1-p)*params.th0)),
+    }
+
+    pmfs = {
+        label: dist[label].pmf for label in dist
+    }
+
+    cdfs = {
+        label: dist[label].cdf for label in dist
+    }
+
+    pmf = lambda x: params.w0 * (pmfs['g1'](x) + pmfs['g2'](x)) * 0.5 + \
+                    (1 - params.w0) * (pmfs['nb1'](x) + pmfs['nb2'](x)) * 0.5
+
+    cdf = lambda x: params.w0 * (cdfs['g1'](x) + cdfs['g2'](x)) * 0.5 + \
+                    (1 - params.w0) * (cdfs['nb1'](x) + cdfs['nb2'](x)) * 0.5
+
+    norm = cdf(N) - cdf(max(allele_tr - 1, 0))
+
+    density_array = np.zeros(N + 1, dtype=np.float64)
+    if not log:
+        if norm != 0:
+            for k in range(allele_tr, N + 1):
+                density_array[k] = \
+                    pmf(k) / norm
+    else:
+        if norm != 0:
+            norm = np.log(norm)
+            for k in range(N + 1):
+                if k < allele_tr:
+                    density_array[k] = -np.inf
+                else:
+                    density_array[k] = np.log(pmf(k)) - norm
+        else:
+            for k in range(N + 1):
+                density_array[k] = -np.inf
+    return density_array
+
+
+def make_binom_density(n, p):
+    binom = np.zeros(n + 1)
+    if p != 0.5:
+        f1 = st.binom(n, p).pmf
+        f2 = st.binom(n, 1 - p).pmf
+        binom_norm = 1 - sum(0.5 * (f1(k) + f2(k)) for k in [0, 1, 2, 3, 4, n - 4, n - 3, n - 2, n - 1, n])
+        for k in range(5, n - 4):
+            binom[k] = 0.5 * (f1(k) + f2(k)) / binom_norm
+    else:
+        f = st.binom(n, p).pmf
+        binom_norm = 1 - sum(f(k) for k in [0, 1, 2, 3, 4, n - 4, n - 3, n - 2, n - 1, n])
+        for k in range(5, n - 4):
+            binom[k] = f(k) / binom_norm
+    return binom
+
+
 def make_out_path(out, name):
     directory = os.path.join(out, name)
     if not os.path.exists(directory):
@@ -214,7 +274,7 @@ def calculate_gof_for_point_fit(counts_array, expected, norm, number_of_params, 
     if idxs.sum() <= number_of_params + 1:
         return 0
     df = idxs.sum() - 1 - number_of_params
-    stat = np.sum(observed[idxs] * np.log(observed[idxs] / expected[idxs])) * 2
+    stat = np.sum(observed[idxs] * (np.log(observed[idxs]) - np.log(expected[idxs]))) * 2
     return rmsea_gof(stat, df, norm)
 
 

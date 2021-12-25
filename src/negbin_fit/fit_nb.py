@@ -24,7 +24,7 @@ Options:
     --visualize                             Perform visualization
     -p, --point-fit                         Fit data point-wise
     --max-read-count <int>                  Max read count for visualization [default: 50]
-    --cover-list <list>                     List of covers to visualize [default: 10,20,30,40,50]
+    --cover-list <list>                     List of covers to visualize [default: 10,12,15,18,20,23,25,28,30,35,40,50]
     --states <string>                       States string
 """
 import json
@@ -36,20 +36,20 @@ import pandas as pd
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, \
     make_negative_binom_density, make_line_negative_binom_density, calculate_gof_for_point_fit, \
     ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column, \
-    check_states
+    check_states, make_prior_fixed_allele_density
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 from schema import And, Const, Schema, Use, Or
 from scipy import optimize
 from tqdm import tqdm
 
 
-def make_scaled_counts(stats_pandas_dataframe, main_allele, max_cover_in_stats):
-    counts_array = np.zeros(max_cover_in_stats + 1, dtype=np.int64)
+def make_scaled_counts(stats_pandas_dataframe, main_allele, main_allele_max):
+    counts_array = np.zeros(main_allele_max + 1, dtype=np.int64)
     nonzero_set = set()
 
     for index, row in stats_pandas_dataframe.iterrows():
         k, SNP_counts = row[main_allele], row['counts']
-        if k > max_cover_in_stats:
+        if k > main_allele_max:
             continue
         nonzero_set.add(k)
         counts_array[k] += SNP_counts
@@ -82,70 +82,94 @@ def make_log_likelihood(n, counts_array, BAD, left_most):
     return target
 
 
-def get_line_params_from_x(x):
+def get_line_params_from_x(x, r0, p0, w0, th0):
     return ParamsHandler(r0=x[0], p0=x[1], w0=x[2], th0=x[3])
 
 
-def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5, BAD=1):
+def make_likelihood_as_line(stats, main_allele, N_fixed, N, allele_tr=5, BAD=1,
+                            r0=0.0, p0=0.0, w0=0.0, th0=0.0):
     p = 1 / (BAD + 1)
+    # main_allele = alleles[main_allele]  # FIXME
 
     def target(x):
-        params = get_line_params_from_x(x)
+        params = get_line_params_from_x(x, r0, p0, w0, th0)
         result = 0
-        for fix_c in range(allele_tr, upper_bound + 1):
-            stats_filtered, counts_array = preprocess_stats(stats, fix_c, N, main_allele, allele_tr)
+        fixed_counts_array = np.zeros(N_fixed + 1, dtype=np.int64)
+
+        for fix_c in range(allele_tr, N_fixed + 1):
+            stats_filtered, counts_array = preprocess_stats(stats, fix_c, N, main_allele, allele_tr, linefit=True)
             if stats_filtered is None:
                 continue
+            fixed_counts_array[fix_c] = counts_array.sum()
             neg_bin_dens = make_line_negative_binom_density(fix_c, params, p, N, allele_tr)
             result += -1 * sum(counts_array[k] * (
                     (neg_bin_dens[k]
-                     if neg_bin_dens[k] != -np.inf else 0) + 0)
+                     if neg_bin_dens[k] != -np.inf else 0))
                                for k in range(allele_tr, N) if counts_array[k] != 0)  # / \
             # sum(counts_array[k] for k in range(allele_tr, N) if counts_array[k] != 0)
+
+        prior_dens = make_prior_fixed_allele_density(params, p, N_fixed, allele_tr, log=True)
+        result += -1 * sum(fixed_counts_array[m] * (
+                (prior_dens[m]
+                 if prior_dens[m] != -np.inf else 0))
+                           for m in range(allele_tr, N_fixed) if fixed_counts_array[m] != 0)
+        print(params, result)
         return result
 
     return target
 
 
 def fit_negative_binom_as_line(stats_df, main_allele, upper_bound, N, allele_tr, BAD):
+    if main_allele == 'ref':
+        r, p, w, th = 0.06631928007525814, 0.9869044185205613, 0.38468515088307126, 0.5385602816180118
+    else:
+        r, p, w, th = 0.06833570450229036, 0.9861755409396784, 0.388138848027557, 0.5315225480601807
     try:
         x = optimize.minimize(fun=make_likelihood_as_line(stats_df, main_allele,
-                                                          upper_bound=upper_bound,
+                                                          N_fixed=upper_bound,
                                                           N=N,
                                                           allele_tr=allele_tr,
-                                                          BAD=BAD),
-                              x0=np.array([-2, 0.95, 0.75, 0.67]),
-                              bounds=[(-4, 10), (0.01, 0.99), (0, 1), (0.01, 0.99)])
+                                                          BAD=BAD,
+                                                          r0=r,
+                                                          p0=p,
+                                                          w0=w,
+                                                          th0=th),
+                              x0=np.array([0.1, 0.95, 0.75, 0.67]),
+                              bounds=[(0.001, 10), (0.01, 0.99), (0, 1), (0.01, 0.99)])
+                              # x0=np.array([w, th]),
+                              # bounds=[(0, 1), (0.01, 0.99)])
+        print(x)
     except ValueError:
         return 'NaN', 'NaN', 0
-    params = get_line_params_from_x(x.x)
+    params = get_line_params_from_x(x.x, r, p, w, th)
     density_func = lambda fix_c: make_line_negative_binom_density(fix_c, params, get_p(BAD), N,
                                                                   allele_tr, log=False)
     point_gofs, overall_gof = calculate_overall_gof(stats_df, density_func, params, main_allele, allele_tr, N)
     return params, point_gofs, overall_gof
 
 
-def preprocess_stats(stats, fix_c, N, main_allele, allele_tr):
+def preprocess_stats(stats, fix_c, N, main_allele, allele_tr, linefit=True):
     stats_filtered = stats[stats[alleles[main_allele]] == fix_c]
     try:
         counts, set_of_nonzero_n = make_scaled_counts(stats_filtered, main_allele, N)
     except ValueError:
         counts, set_of_nonzero_n = [], set()
 
-    if len(set_of_nonzero_n) == 0 or counts.sum() < max(set_of_nonzero_n) - allele_tr:
+    if len(set_of_nonzero_n) == 0 or (not linefit and counts.sum() < max(set_of_nonzero_n) - allele_tr):
         return None, None
     return stats_filtered, counts
 
 
-def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=100, line_fit=False, max_read_count=100):
+def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, line_fit=False, max_read_count=100):
     print('Fitting {} distribution BAD={}...'.format(main_allele.upper(), BAD))
     N = min(max(stats[main_allele]), max_read_count)
+    N_fixed = min(max(stats[alleles[main_allele]]), max_read_count)
     if not line_fit:
-        save_array = np.zeros((upper_bound + 1, 4), dtype=np.float_)
-        for fix_c in tqdm(range(allele_tr, upper_bound + 1)):
+        save_array = np.zeros((N_fixed + 1, 4), dtype=np.float_)
+        for fix_c in tqdm(range(allele_tr, N_fixed + 1)):
             stats_filtered, counts = preprocess_stats(stats,
                                                       fix_c, N,
-                                                      main_allele, allele_tr)
+                                                      main_allele, allele_tr, linefit=line_fit)
             if stats_filtered is None:
                 continue
             weights, gof = fit_negative_binom(N, counts, fix_c, BAD, allele_tr)
@@ -156,7 +180,7 @@ def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=1
     else:
         params, point_gofs, gof = fit_negative_binom_as_line(stats,
                                                              main_allele,
-                                                             upper_bound=upper_bound,
+                                                             upper_bound=N_fixed,
                                                              N=N,
                                                              allele_tr=allele_tr,
                                                              BAD=BAD,
@@ -175,7 +199,6 @@ def main(stats, out=None, BAD=1, allele_tr=5, line_fit=False, max_read_count=100
                                             main_allele,
                                             BAD=BAD,
                                             line_fit=line_fit,
-                                            upper_bound=200,
                                             allele_tr=allele_tr,
                                             max_read_count=max_read_count)
 
@@ -210,7 +233,17 @@ def parse_cover_list(list_as_string):
 
 
 def open_stats_df(out_path):
-    return pd.read_table(get_stats_df_path(out_path), header=None, names=['ref', 'alt', 'counts'])
+    table = pd.read_table(get_stats_df_path(out_path), header=None, names=['ref', 'alt', 'counts'])
+    # table = table[table['alt'] >= table['ref']]
+    # rows = []
+    # for index, row in table[table['alt'] > table['ref']].iterrows():
+    #     rows.append({
+    #         'ref': row['alt'],
+    #         'alt': row['ref'],
+    #         'counts': row['counts'],
+    #     })
+    # table = table.append(pd.DataFrame(rows))
+    return table
 
 
 def get_stats_df_path(out_path):
