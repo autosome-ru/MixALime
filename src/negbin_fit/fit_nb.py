@@ -341,16 +341,14 @@ def start_fit():
                 raise
         if args['--visualize']:
             from negbin_fit.visualize import main as visualize
-            try:
-                visualize(
-                    stats=stats_df,
-                    weights_dict=d,
-                    line_fit=line_fit,
-                    cover_list=args['--cover-list'],
-                    max_read_count=args['--max-read-count'],
-                    out=bad_out_path,
-                    BAD=BAD,
-                    allele_tr=allele_tr)
-            except ValueError:
-                print('Value error occurred while visualizing BAD={:.2f}'.format(BAD))
-                continue
+
+            visualize(
+                stats=stats_df,
+                weights_dict=d,
+                line_fit=line_fit,
+                cover_list=args['--cover-list'],
+                max_read_count=args['--max-read-count'],
+                out=bad_out_path,
+                BAD=BAD,
+                allele_tr=allele_tr)
+
