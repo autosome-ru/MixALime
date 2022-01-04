@@ -212,7 +212,7 @@ def slices(df_ref, df_alt, stats_df, BAD, out,
 
         cbar = ax1.collections[0].colorbar
         cbar.set_ticks(np.arange(0, color_maxlog + 1, 1))
-        cbar.set_ticklabels(["10⁰", "10¹", "10²", "10³", "10⁴", "10⁵", "10⁶", "10⁷"])
+        cbar.set_ticklabels(["10⁰", "10¹", "10²", "10³", "10⁴"])
 
         if max_read_count <= 50:
             div = 5
