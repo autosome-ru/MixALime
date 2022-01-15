@@ -185,7 +185,7 @@ def get_dist(params, main_allele, fix_c, p, model, max_cover_in_stats, allele_tr
                                                   for x in
                                                   params[main_allele][int(1 / p - 1)]['logpdf'].get(fix_c, [])]
         print(result, fix_c)
-        return np.array(result + [0 for i in range(max_cover_in_stats - len(result))])
+        return np.array(result + [0 for i in range(max_cover_in_stats + 1 - len(result))])
 
 
 def get_negbindens_by_fixc(params, main_allele, fix_c, p, max_cover_in_stats, allele_tr):
