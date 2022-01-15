@@ -359,13 +359,19 @@ def start_fit():
             model = 'NB'
         if to_fit:
             from betanegbinfit import run
+            print(merged_df)
             fit_params = run(data=merged_df, output_folder=base_out_path,
                              bads=unique_BADs, model=model, left=allele_tr - 1,
                              max_slice=max_read_count, apply_weights=False,
                              n_jobs=njobs)
+            print(fit_params)
         else:
-            print('Not implemented')
-            raise
+            raise ValueError('Not implemented')
+            # for BAD in sorted(unique_BADs):
+            #     bad_out_path = add_BAD_to_path(base_out_path, BAD)
+            #     _, d = check_weights_path(bad_out_path, line_fit=line_fit)
+            #
+            #     stats_dfs[BAD] = open_stats_df(bad_out_path)
             #  fit_params = read_bnb_model(output_folder=base_out_path, model=model)
         if to_visualize:
             for BAD in sorted(unique_BADs):
