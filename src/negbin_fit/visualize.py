@@ -107,7 +107,7 @@ def get_gof(params, allele, fixed_c, BAD, model):
     if model == 'NB':
         return params[allele]['point_gofs'].get(str(fixed_c), -1)
     elif model == 'BetaNB':
-        print(params[allele][BAD]['stats'].keys())
+        print(params[allele][BAD]['stats']['rmsea'])
         return -1
 
 
