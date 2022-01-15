@@ -355,7 +355,7 @@ def start_fit():
                     allele_tr=allele_tr)
 
     else:
-        print(merged_df)
+        print(merged_df, model)
         if model == 'NB_G':
             model = 'NB'
         if to_fit:
