@@ -103,11 +103,12 @@ def r_vs_count_scatter(df_ref, df_alt,
     plt.close(fig)
 
 
-def get_gof(params, allele, fixed_c, model):
+def get_gof(params, allele, fixed_c, BAD, model):
     if model == 'NB':
         return params[allele]['point_gofs'].get(str(fixed_c), -1)
     elif model == 'BetaNB':
-        return -1  # FIXME
+        print(params[allele][BAD]['stats'])
+        return -1
 
 
 def gof_scatter(df_ref, df_alt, BAD, out, model,
@@ -143,7 +144,7 @@ def gof_scatter(df_ref, df_alt, BAD, out, model,
                 x = df.index
             else:
                 x = [x for x in range(max_read_count)]
-            y = [get_gof(params, allele, k, model) for k in x]
+            y = [get_gof(params, allele, k, BAD, model) for k in x]
             ax.scatter(x=x,
                        y=y,
                        color=color,
