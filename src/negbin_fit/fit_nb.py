@@ -359,13 +359,11 @@ def start_fit():
         if model == 'NB_G':
             model = 'NB'
         if to_fit:
-            print(merged_df)
             from betanegbinfit import run
             fit_params = run(data=merged_df, output_folder=base_out_path,
                              bads=unique_BADs, model=model, left=allele_tr - 1,
                              max_count=max_read_count, apply_weights=False,
                              n_jobs=njobs)
-            print(fit_params)
         else:
             fit_params = read_dist_from_folder(folder=base_out_path)
         if to_visualize:
