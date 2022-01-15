@@ -312,11 +312,10 @@ def start_fit():
     max_read_count = 100
     njobs = -1
     stats_dfs = {}
-    if to_fit:
-        for BAD in sorted(unique_BADs):
-            bad_out_path = add_BAD_to_path(base_out_path, BAD)
-            print('Collecting stats file for BAD={:.2f} ...'.format(BAD))
-            stats_dfs[BAD] = collect_stats_df(merged_df, bad_out_path, BAD)
+    for BAD in sorted(unique_BADs):
+        bad_out_path = add_BAD_to_path(base_out_path, BAD)
+        print('Collecting stats file for BAD={:.2f} ...'.format(BAD))
+        stats_dfs[BAD] = collect_stats_df(merged_df, bad_out_path, BAD)
 
     if model in available_models[2:]:
         line_fit = model == 'NB_AS_Total'
