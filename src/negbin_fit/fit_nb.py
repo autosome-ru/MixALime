@@ -33,6 +33,7 @@ import os
 import re
 import numpy as np
 import pandas as pd
+from betanegbinfit.bridge_mixalime import read_dist_from_folder
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, \
     make_negative_binom_density, make_line_negative_binom_density, calculate_gof_for_point_fit, \
     ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column, \
@@ -362,17 +363,11 @@ def start_fit():
             from betanegbinfit import run
             fit_params = run(data=merged_df, output_folder=base_out_path,
                              bads=unique_BADs, model=model, left=allele_tr - 1,
-                             max_slice=max_read_count, apply_weights=False,
+                             max_count=max_read_count, apply_weights=False,
                              n_jobs=njobs)
             print(fit_params)
         else:
-            raise ValueError('Not implemented')
-            # for BAD in sorted(unique_BADs):
-            #     bad_out_path = add_BAD_to_path(base_out_path, BAD)
-            #     _, d = check_weights_path(bad_out_path, line_fit=line_fit)
-            #
-            #     stats_dfs[BAD] = open_stats_df(bad_out_path)
-            #  fit_params = read_bnb_model(output_folder=base_out_path, model=model)
+            fit_params = read_dist_from_folder(folder=base_out_path)
         if to_visualize:
             for BAD in sorted(unique_BADs):
                 bad_out_path = add_BAD_to_path(base_out_path, BAD)
