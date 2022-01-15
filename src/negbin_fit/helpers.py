@@ -8,6 +8,7 @@ from scipy import stats as st
 import pandas as pd
 
 alleles = {'ref': 'alt', 'alt': 'ref'}
+available_models = ('NB_G', 'BetaNB', 'NB_AS', 'NB_AS_Total')
 
 
 class ParamsHandler:

@@ -1,44 +1,44 @@
 """
 Usage:
-    negbin_fit [-O <dir> |--output <dir>] [-n | --no-fit] [-q | --quiet] [--allele-reads-tr <int>] [--visualize] [-p | --point-fit] [--max-read-count <int>] [--cover-list <list>]  [--states <string>]
+    negbin_fit [options] (-I <file> ... | -f <file-list>) (-O <dir> -m <model>)
     negbin_fit -h | --help
-    negbin_fit collect [-I <file> ...] [-O <dir> |--output <dir>] [-f <file-list>]
 
 Arguments:
     <file>            Path to input file in tsv format with columns: alt ref counts.
     <bad>             BAD value (can be decimal)
     <int>             Non negative integer
     <dir>             Directory with fitted weights
-    <list>            List of slices to visualize
-    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
+    <list>            List of positive integers
     <file-list>       File with filenames of input file on each line
-
 
 Options:
     -h, --help                              Show help
-    -q, --quiet                             Suppress log messages
     -I <file>...                            Path to input file(s)
+    -f <file-list>                          File with filenames of input file on each line
     -O <path>, --output <path>              Output directory for obtained fits.
+    -m <model>, --model <model>             Model to fit data with (NB_G, NB_AS, BetaNB, NB_AS_Total) [default: NB_AS_Total]
+
+Optional:
+    -q, --quiet                             Suppress log messages
     -n, --no-fit                            Skip p-value calculation (use to visualize results)
-    --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x and alt_read_count >= x. [default: 5]
-    --visualize                             Perform visualization
-    -p, --point-fit                         Fit data point-wise
+    --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x
+                                            and alt_read_count >= x. [default: 5]
+Visualize:
+   --visualize                              Perform visualization
     --max-read-count <int>                  Max read count for visualization [default: 50]
     --cover-list <list>                     List of covers to visualize [default: 10,20,30,40,50]
-    --states <string>                       States string
-    -f <file-list>                          File with filenames of input file on each line
 """
 import json
 import os
 import re
-
 import numpy as np
 import pandas as pd
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, \
     make_negative_binom_density, make_line_negative_binom_density, calculate_gof_for_point_fit, \
     ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column, \
-    check_states, parse_input, parse_files_list
+    parse_input, parse_files_list, available_models
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
+from negbin_fit.visualize import main as visualize
 from schema import And, Const, Schema, Use, Or
 from scipy import optimize
 from tqdm import tqdm
@@ -273,53 +273,57 @@ def start_fit():
             Use(int),
             Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
         ),
-        '--states': Or(
-            Const(lambda x: x is None),
-            Use(
-                check_states, error='''Incorrect value for --states.
-            Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
-            )
-        ),
+        # '--states': Or(
+        #     Const(lambda x: x is None),
+        #     Use(
+        #         check_states, error='''Incorrect value for --states.
+        #     Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
+        #     )
+        # ),
         '--cover-list': Use(parse_cover_list, error='Wrong format cover list'),
         '--max-read-count': And(
             Use(int),
             Const(lambda x: x > 0),
             error='Max read count threshold must be a positive integer'
         ),
+        '--model': Const(lambda x: x in available_models,
+                         error='Model not in ({})'.format(', '.join(available_models))),
         str: bool
     })
     args = init_docopt(__doc__, schema)
     base_out_path = args['--output']
-    merged_df = None
-    if args['collect']:
-        dfs = parse_input(args['-I'], args['-f'])
-        _, unique_BADs, merged_df = parse_args(dfs)
-        print('{} unique BADs detected'.format(len(unique_BADs)))
-    elif args['--states']:
-        unique_BADs = args['--states']
-    else:
-        unique_BADs = search_BADs(base_out_path)
-        if len(unique_BADs) > 0:
-            print('{} unique BADs detected'.format(len(unique_BADs)))
-        else:
-            print('No BADs found in {}'.format(base_out_path))
-            exit(1)
+    dfs = parse_input(args['-I'], args['-f'])
+    _, unique_BADs, merged_df = parse_args(dfs)
+    print('{} unique BADs detected'.format(len(unique_BADs)))
+    # if args['--states']:
+    #     unique_BADs = args['--states']
+    # else:
+    #     unique_BADs = search_BADs(base_out_path)
+    #     if len(unique_BADs) > 0:
+    #         print('{} unique BADs detected'.format(len(unique_BADs)))
+    #     else:
+    #         print('No BADs found in {}'.format(base_out_path))
+    #         exit(1)
     allele_tr = args['--allele-reads-tr']
-    line_fit = not args['--point-fit']
+    model = args['--model']
+    to_fit = not args['--no-fit']
+    to_visualize = args['--visualize']
     max_read_count = 100
-    for BAD in sorted(unique_BADs):
-        bad_out_path = add_BAD_to_path(base_out_path, BAD)
-        if args['collect']:
+    njobs = -1
+    stats_dfs = {}
+    if to_fit:
+        for BAD in sorted(unique_BADs):
+            bad_out_path = add_BAD_to_path(base_out_path, BAD)
             print('Collecting stats file for BAD={:.2f} ...'.format(BAD))
-            collect_stats_df(merged_df, bad_out_path, BAD)
-            continue
-        else:
-            if not os.path.isfile(get_stats_df_path(bad_out_path)):
-                print('No stats file in {}'.format(bad_out_path))
-                exit(1)
-            stats_df = open_stats_df(bad_out_path)
+            stats_dfs[BAD] = collect_stats_df(merged_df, bad_out_path, BAD)
 
-        if not args['--no-fit']:
+    if model in available_models[2:]:
+        line_fit = model == 'NB_AS_Total'
+        for BAD in sorted(unique_BADs):
+            bad_out_path = add_BAD_to_path(base_out_path, BAD)
+
+            stats_df = stats_dfs[BAD]
+
             d = main(stats_df,
                      out=bad_out_path,
                      BAD=BAD,
@@ -330,25 +334,49 @@ def start_fit():
                 convert_weights(in_df=stats_df,
                                 np_weights_dict=d,
                                 out_path=bad_out_path)
+            else:
+                try:
+                    _, d = check_weights_path(bad_out_path, line_fit=line_fit)
+
+                    stats_df = open_stats_df(bad_out_path)
+                except Exception:
+                    print(__doc__)
+                    exit('Error reading weights in {}'.format(bad_out_path))
+                    raise
+            if to_visualize:
+                visualize(
+                    stats=stats_df,
+                    params=d,
+                    model=model,
+                    cover_list=args['--cover-list'],
+                    max_read_count=args['--max-read-count'],
+                    out=bad_out_path,
+                    BAD=BAD,
+                    allele_tr=allele_tr)
+
+    else:
+        if model == 'NB_G':
+            model = 'NB'
+        if to_fit:
+            from betanegbinfit import run
+            fit_params = run(data=merged_df, output_folder=base_out_path,
+                             bads=unique_BADs, model=model, left=allele_tr - 1,
+                             max_slice=max_read_count, apply_weights=False,
+                             n_jobs=njobs)
         else:
-            try:
-                _, d = check_weights_path(bad_out_path, line_fit=line_fit)
-
-                stats_df = open_stats_df(bad_out_path)
-            except Exception:
-                print(__doc__)
-                exit('Wrong format weights')
-                raise
-        if args['--visualize']:
-            from negbin_fit.visualize import main as visualize
-
-            visualize(
-                stats=stats_df,
-                weights_dict=d,
-                line_fit=line_fit,
-                cover_list=args['--cover-list'],
-                max_read_count=args['--max-read-count'],
-                out=bad_out_path,
-                BAD=BAD,
-                allele_tr=allele_tr)
-
+            print('Not implemented')
+            raise
+            #  fit_params = read_bnb_model(output_folder=base_out_path, model=model)
+        if to_visualize:
+            for BAD in sorted(unique_BADs):
+                bad_out_path = add_BAD_to_path(base_out_path, BAD)
+                stats_df = stats_dfs[BAD]
+                visualize(
+                    stats=stats_df,
+                    params=fit_params,
+                    model=model,
+                    cover_list=args['--cover-list'],
+                    max_read_count=args['--max-read-count'],
+                    out=bad_out_path,
+                    BAD=BAD,
+                    allele_tr=allele_tr)
