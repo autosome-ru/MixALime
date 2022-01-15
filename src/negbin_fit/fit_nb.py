@@ -355,11 +355,10 @@ def start_fit():
                     allele_tr=allele_tr)
 
     else:
-        print(model)
         if model == 'NB_G':
             model = 'NB'
         if to_fit:
-            print('BEFORE RUN')
+            print(merged_df)
             from betanegbinfit import run
             fit_params = run(data=merged_df, output_folder=base_out_path,
                              bads=unique_BADs, model=model, left=allele_tr - 1,
