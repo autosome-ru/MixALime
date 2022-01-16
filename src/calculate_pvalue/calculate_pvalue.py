@@ -46,6 +46,7 @@ from tqdm import tqdm
 
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5):
     if model == 'BetaNB':
+        print(np.shape(row[['REF_COUNTS', 'ALT_COUNTS']]))
         print(bridge_mixalime.calc_pvalues(data=row[['REF_COUNTS', 'ALT_COUNTS']],
                                            params=fit_params,
                                            bad=row['BAD'],
