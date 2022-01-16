@@ -49,7 +49,7 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
         w_ref = params['ref'][row['BAD']]['params']['Estimate'].get('w{}'.format(
             row['REF_COUNTS']), 0.5)
         w_alt = params['ref'][row['BAD']]['params']['Estimate'].get('w{}'.format(
-            row['REF_COUNTS']), 0.5)
+            row['ALT_COUNTS']), 0.5)
         pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row['REF_COUNTS'],
                                                       alt_count=row['ALT_COUNTS'],
                                                       params=params,
