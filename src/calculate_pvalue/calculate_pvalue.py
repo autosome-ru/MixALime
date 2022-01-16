@@ -189,6 +189,7 @@ def get_pmf_for_dist(params, k, m, BAD, model):
 
 
 def get_params_by_model(fit_params, main_allele, BAD, model, snp):
+    print(model)
     if model == 'BetaNB':
         return fit_params[main_allele][BAD]
     else:
