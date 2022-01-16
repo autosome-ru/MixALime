@@ -202,13 +202,9 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
     return result
 
 
-def start_process(dfs, merged_df, unique_snps, unique_BADs, out_path, fit_params, model):
+def start_process(dfs, merged_df, unique_snps, out_path, fit_params, model):
     if model == 'BetaNB':
-        models_dict = {}
-        for BAD in unique_BADs:
-            # FIXME
-            models_dict[BAD] = ModelMixture(bad=BAD, left=4, model='BetaNB')
-        params = fit_params, models_dict
+        params = None
     else:
         print('Calculating posterior weights...')
         params = get_posterior_weights(merged_df, unique_snps, fit_params)
@@ -346,7 +342,12 @@ def main():
                 exit('Can not create output directory')
                 raise
         if model == 'BetaNB':
+            models_dict = {}
+            for BAD in unique_BADs:
+                # FIXME
+                models_dict[BAD] = ModelMixture(bad=BAD, left=4, model='BetaNB')
             params = bridge_mixalime.read_dist_from_folder(folder=weights_dir)
+            fit_params = params, models_dict
         else:
             try:
                 params = check_fit_params_for_BADs(weights_dir,
@@ -362,8 +363,7 @@ def main():
                 out_path=out,
                 dfs=dfs,
                 unique_snps=unique_snps,
-                unique_BADs=unique_BADs,
-                fit_params=params,
+                fit_params=fit_params,
                 model=args['--model']
             )
         else:

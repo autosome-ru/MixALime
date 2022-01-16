@@ -28,6 +28,7 @@ Visualize:
     --visualize                             Perform visualization
     --max-read-count <int>                  Max read count for visualization [default: 50]
     --cover-list <list>                     List of covers to visualize [default: 10,20,30,40,50]
+    -e <ext>, --ext <ext>                   Extension to save figures with [default: svg]
 """
 import json
 import os
