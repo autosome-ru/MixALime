@@ -46,10 +46,10 @@ from tqdm import tqdm
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5):
     if model == 'BetaNB':
         print(betanegbinfit.bridge_mixalime.calc_pvalues(data=row,
-                                                          params=fit_params,
-                                                          bad=row['BAD'],
-                                                          left=allele_tr - 1
-                                                          ))
+                                                         params=fit_params,
+                                                         bad=row['BAD'],
+                                                         left=allele_tr - 1
+                                                         ))
         return 0
     else:
         return calculate_pval_negbin(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5)
@@ -213,7 +213,7 @@ def start_process(dfs, merged_df, unique_snps, out_path, fit_params, model):
         print('Calculating p-value for {}'.format(df_name))
         df = df.progress_apply(lambda x: process_df(x, params, fit_params, model), axis=1)
         df[[x for x in df.columns if x not in ('key', 'fname')]].to_csv(get_pvalue_file_path(out_path, df_name),
-                                                         sep='\t', index=False)
+                                                                        sep='\t', index=False)
         result.append((df_name, df))
     return result
 
@@ -321,7 +321,7 @@ def main():
             ),
         ),
         '--coverage-tr': Use(lambda x: int(x)),
-        '--ext': Const(lambda x: x > 0),
+        '--ext': Const(lambda x: len(x) > 0),
         str: bool
     })
     args = init_docopt(__doc__, schema)
@@ -342,7 +342,7 @@ def main():
             pass
         try:
             params = check_fit_params_for_BADs(args['--weights'],
-                                                unique_BADs)
+                                               unique_BADs)
         except Exception:
             print(__doc__)
             exit('Wrong format weights')

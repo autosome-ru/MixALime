@@ -290,7 +290,7 @@ def start_fit():
         ),
         '--model': Const(lambda x: x in available_models,
                          error='Model not in ({})'.format(', '.join(available_models))),
-        '--ext': Const(lambda x: x > 0),
+        '--ext': Const(lambda x: len(x) > 0),
         str: bool
     })
     args = init_docopt(__doc__, schema)
