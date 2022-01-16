@@ -348,7 +348,7 @@ def main():
                 # FIXME
                 models_dict[BAD] = ModelMixture(bad=BAD, left=4, model='BetaNB')
             params = bridge_mixalime.read_dist_from_folder(folder=weights_dir)
-            print(params)
+            print(params['params'].keys())
             fit_params = params, models_dict
         else:
             try:
