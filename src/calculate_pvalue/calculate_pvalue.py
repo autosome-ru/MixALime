@@ -188,6 +188,13 @@ def get_pmf_for_dist(params, k, m, BAD, allele, model):
     return pm1, pm2
 
 
+def get_params_by_model(fit_params, main_allele, BAD, model, snp):
+    if model == 'BetaNB':
+        return fit_params
+    else:
+        return get_neg_bin_params(fit_params, main_allele, BAD, snp)
+
+
 def get_posterior_weights(merged_df, unique_snps, model, fit_params):
     result = {}
     cache = {}
@@ -200,7 +207,7 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params):
         for main_allele in alleles:
             ks = filtered_df[get_counts_column(main_allele)].to_list()  # main_counts
             ms = filtered_df[get_counts_column(alleles[main_allele])].to_list()  # fixed_counts
-            params = get_neg_bin_params(fit_params, main_allele, BAD, snp)
+            params = get_params_by_model(fit_params, main_allele, BAD, model, snp)
             prod = np.float64(0)
             for k, m in zip(ks, ms):
                 if (k, m, BAD, main_allele) in cache:
