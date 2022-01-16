@@ -128,7 +128,7 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
 
 
 def process_df(row, weights, fit_params, model):
-    p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights[get_key(row)], fit_params, model)
+    p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row)), fit_params, model)
     row[get_counts_column('ref', 'pval')] = p_ref
     row[get_counts_column('alt', 'pval')] = p_alt
     row[get_counts_column('ref', 'es')] = es_ref
