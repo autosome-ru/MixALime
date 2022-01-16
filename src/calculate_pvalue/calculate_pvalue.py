@@ -33,7 +33,6 @@ import os
 
 from betanegbinfit import bridge_mixalime
 import pandas as pd
-from betanegbinfit.bridge_mixalime import read_dist_from_folder
 from statsmodels.stats import multitest
 from scipy import stats as st
 import numpy as np
@@ -46,9 +45,8 @@ from tqdm import tqdm
 
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5):
     if model == 'BetaNB':
-        print(row[['REF_COUNTS', 'ALT_COUNTS']].to_numpy().reshape(1, 2),
-              np.shape(row[['REF_COUNTS', 'ALT_COUNTS']].to_numpy().reshape(1, 2)) == 2)
-        print(bridge_mixalime.calc_pvalues(data=row[['REF_COUNTS', 'ALT_COUNTS']],
+        print(bridge_mixalime.calc_pvalue_and_es(ref_count=row['REF_COUNTS'],
+                                                 alt_count=row['ALT_COUNTS'],
                                            params=fit_params,
                                            bad=row['BAD'],
                                            left=allele_tr - 1
@@ -343,7 +341,7 @@ def main():
                 exit('Can not create output directory')
                 raise
         if model == 'BetaNB':
-            params = read_dist_from_folder(folder=weights_dir)
+            params = bridge_mixalime.read_dist_from_folder(folder=weights_dir)
         else:
             try:
                 params = check_fit_params_for_BADs(weights_dir,
