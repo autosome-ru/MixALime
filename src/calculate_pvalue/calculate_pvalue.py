@@ -47,12 +47,12 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
     if model == 'BetaNB':
         params, models_dict = fit_params
         pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row['REF_COUNTS'],
-                                                 alt_count=row['ALT_COUNTS'],
-                                                 params=params,
-                                                 w_ref=1,
-                                                 w_alt=1,
-                                                 m=models_dict[row['BAD']]
-                                                 )
+                                                      alt_count=row['ALT_COUNTS'],
+                                                      params=params,
+                                                      w_ref=1,
+                                                      w_alt=1,
+                                                      m=models_dict[row['BAD']]
+                                                      )
         return *pval, *es
     else:
         return calculate_pval_negbin(row, row_weights, fit_params, gof_tr, allele_tr)
@@ -348,11 +348,12 @@ def main():
                 # FIXME
                 models_dict[BAD] = ModelMixture(bad=BAD, left=4, model='BetaNB')
             params = bridge_mixalime.read_dist_from_folder(folder=weights_dir)
+            print(params)
             fit_params = params, models_dict
         else:
             try:
                 fit_params = check_fit_params_for_BADs(weights_dir,
-                                                   unique_BADs)
+                                                       unique_BADs)
             except Exception:
                 print(__doc__)
                 exit('Wrong format weights')
