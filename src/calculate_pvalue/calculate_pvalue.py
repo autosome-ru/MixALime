@@ -45,12 +45,12 @@ from tqdm import tqdm
 
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5):
     if model == 'BetaNB':
-        params, m = fit_params
+        params, models_dict = fit_params
         print(bridge_mixalime.calc_pvalue_and_es(ref_count=row['REF_COUNTS'],
                                                  alt_count=row['ALT_COUNTS'],
                                                  params=params,
                                                  w=1,
-                                                 m=m
+                                                 m=models_dict[row['BAD']]
                                                  ))
         return 0
     else:
