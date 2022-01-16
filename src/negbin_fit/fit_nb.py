@@ -1,7 +1,6 @@
 """
 Usage:
     negbin_fit [options] (-I <file> ... | -f <file-list>) (-O <dir> -m <model>)
-    negbin_fit -h | --help
 
 Arguments:
     <file>            Path to input file in tsv format with columns: alt ref counts.
@@ -10,21 +9,23 @@ Arguments:
     <dir>             Directory with fitted weights
     <list>            List of positive integers
     <file-list>       File with filenames of input file on each line
+    <model>           String any of (NB_G, NB_AS, BetaNB, NB_AS_Total)
+    <ext>             Extension, non-empty string
 
-Options:
-    -h, --help                              Show help
+Required:
     -I <file>...                            Path to input file(s)
     -f <file-list>                          File with filenames of input file on each line
     -O <path>, --output <path>              Output directory for obtained fits.
-    -m <model>, --model <model>             Model to fit data with (NB_G, NB_AS, BetaNB, NB_AS_Total) [default: NB_AS_Total]
+    -m <model>, --model <model>             Model to fit data with [default: NB_AS_Total]
 
 Optional:
+    -h, --help                              Show help
     -q, --quiet                             Suppress log messages
-    -n, --no-fit                            Skip p-value calculation (use to visualize results)
+    -n, --no-fit                            Skip fitting procedure (use to visualize results)
     --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x
                                             and alt_read_count >= x. [default: 5]
 Visualize:
-   --visualize                              Perform visualization
+    --visualize                             Perform visualization
     --max-read-count <int>                  Max read count for visualization [default: 50]
     --cover-list <list>                     List of covers to visualize [default: 10,20,30,40,50]
 """
@@ -289,6 +290,7 @@ def start_fit():
         ),
         '--model': Const(lambda x: x in available_models,
                          error='Model not in ({})'.format(', '.join(available_models))),
+        '--ext': Const(lambda x: x > 0),
         str: bool
     })
     args = init_docopt(__doc__, schema)

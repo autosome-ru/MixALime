@@ -1,39 +1,61 @@
 """
 Usage:
-    calc_pval [-I <file> ...] [--visualize] [-n | --no-fit] (-w <dir> | --weights <dir>) [-O <dir> | --output <dir>] [-f <file-list>]
-    calc_pval -h | --help
-    calc_pval aggregate (-O <out> | --output <out>) [-I <file>...] [--coverage-tr <int>] [-f <file-list>]
+    calc_pval [options] (-I <file> ... | -f <file-list>) (-w <dir> -O <dir> -m <model>)
+    calc_pval aggregate [options] (-I <file> ... | -f <file-list>) (-O <out>)
 
 Arguments:
     <file>            Path to input file(s) in tsv format
+    <file-list>       File with paths to input files
     <dir>             Directory name
     <out>             Output file path
     <int>             Positive integer
-    <file-list>       File with paths to input files
+    <ext>             Extension, non-empty string
+    <model>           String, one of (BetaNB, NB_AS_Total)
 
-Options:
-    -h, --help                              Show help.
-    -n, --no-fit                            Skip p-value calculation
+Required:
     -I <file>                               Input files
+    -f <file-list>                          File with filenames of input files on each line
+    -O <path>, --output <path>              Output director
+    -w <dir>, --weights <dir>               Directory with fitted weights for models
+    -m <model>, --model <model>             Model to calculate p-value with [default: NB_AS_Total]
+
+Optional:
+    -h, --help                              Show help
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
-    -O <path>, --output <path>              Output directory [default: ./]
-    -w <dir>, --weights <dir>               Directory with fitted weights
-    -f <file-list>                          File with filenames of input file on each line
+
+Visualization
+    -n, --no-fit                            Skip p-value calculation
+    --visualize                             Perform visualization
+    -e <ext>, --ext <ext>                   Extension to save figures with [default: svg]
 """
 
 import os
 
+import betanegbinfit.bridge_mixalime
 import pandas as pd
 from statsmodels.stats import multitest
 from scipy import stats as st
 import numpy as np
 from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path, \
-    merge_dfs, read_dfs, get_key, get_counts_column, get_p, get_pvalue_file_path, parse_files_list, parse_input
+    merge_dfs, read_dfs, get_key, get_counts_column, get_p, get_pvalue_file_path, parse_files_list, parse_input, \
+    available_models
 from schema import Schema, And, Const, Use, Or
 from tqdm import tqdm
 
 
-def calculate_pval(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
+def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5):
+    if model == 'BetaNB':
+        print(betanegbinfit.bridge_mixalime.calc_pvalues(data=row,
+                                                          params=fit_params,
+                                                          bad=row['BAD'],
+                                                          left=allele_tr - 1
+                                                          ))
+        return 0
+    else:
+        return calculate_pval_negbin(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5)
+
+
+def calculate_pval_negbin(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5):
     """
     returns log2 ES
     """
@@ -104,8 +126,8 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
     return get_function_mixture(nb, geom, w0)
 
 
-def process_df(row, weights, fit_params):
-    p_ref, p_alt, es_ref, es_alt = calculate_pval(row, weights[get_key(row)], fit_params)
+def process_df(row, weights, fit_params, model):
+    p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights[get_key(row)], fit_params, model)
     row[get_counts_column('ref', 'pval')] = p_ref
     row[get_counts_column('alt', 'pval')] = p_alt
     row[get_counts_column('ref', 'es')] = es_ref
@@ -178,14 +200,18 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
     return result
 
 
-def start_process(dfs, merged_df, unique_snps, out_path, fit_params):
-    print('Calculating posterior weights...')
-    weights = get_posterior_weights(merged_df, unique_snps, fit_params)
+def start_process(dfs, merged_df, unique_snps, out_path, fit_params, model):
+    if model == 'BetaNB':
+        params = fit_params
+    else:
+        print('Calculating posterior weights...')
+        params = get_posterior_weights(merged_df, unique_snps, fit_params)
+
     tqdm.pandas()
     result = []
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
-        df = df.progress_apply(lambda x: process_df(x, weights, fit_params), axis=1)
+        df = df.progress_apply(lambda x: process_df(x, params, fit_params, model), axis=1)
         df[[x for x in df.columns if x not in ('key', 'fname')]].to_csv(get_pvalue_file_path(out_path, df_name),
                                                          sep='\t', index=False)
         result.append((df_name, df))
@@ -281,6 +307,8 @@ def main():
                 Const(os.path.exists, error='Weights dir should exist'),
             )
         ),
+        '--model': Const(lambda x: x in available_models,
+                         error='Model not in ({})'.format(', '.join(available_models))),
         '--output': Or(
             And(
                 Const(os.path.exists),
@@ -293,12 +321,14 @@ def main():
             ),
         ),
         '--coverage-tr': Use(lambda x: int(x)),
+        '--ext': Const(lambda x: x > 0),
         str: bool
     })
     args = init_docopt(__doc__, schema)
     dfs = parse_input(args['-I'], args['-f'])
     out = args['--output']
-    ext = 'svg'
+    ext = args['--ext']
+    model = args['--model']
     unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
     if not args['aggregate']:
         if not os.path.exists(out):
@@ -308,9 +338,10 @@ def main():
                 print(__doc__)
                 exit('Can not create output directory')
                 raise
-
+        if not model:
+            pass
         try:
-            weights = check_fit_params_for_BADs(args['--weights'],
+            params = check_fit_params_for_BADs(args['--weights'],
                                                 unique_BADs)
         except Exception:
             print(__doc__)
@@ -323,7 +354,8 @@ def main():
                 out_path=out,
                 dfs=dfs,
                 unique_snps=unique_snps,
-                fit_params=weights
+                fit_params=params,
+                model=args['--model']
             )
         else:
             result_dfs = [pd.read_table(get_pvalue_file_path(out, df_name)) for df_name, df in dfs]
