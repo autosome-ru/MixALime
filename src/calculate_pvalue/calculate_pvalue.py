@@ -204,16 +204,16 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
 
 def start_process(dfs, merged_df, unique_snps, out_path, fit_params, model):
     if model == 'BetaNB':
-        params = None
+        weights = {}
     else:
         print('Calculating posterior weights...')
-        params = get_posterior_weights(merged_df, unique_snps, fit_params)
+        weights = get_posterior_weights(merged_df, unique_snps, fit_params)
 
     tqdm.pandas()
     result = []
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
-        df = df.progress_apply(lambda x: process_df(x, params, fit_params, model), axis=1)
+        df = df.progress_apply(lambda x: process_df(x, weights, fit_params, model), axis=1)
         df[[x for x in df.columns if x not in ('key', 'fname')]].to_csv(get_pvalue_file_path(out_path, df_name),
                                                                         sep='\t', index=False)
         result.append((df_name, df))
@@ -350,7 +350,7 @@ def main():
             fit_params = params, models_dict
         else:
             try:
-                params = check_fit_params_for_BADs(weights_dir,
+                fit_params = check_fit_params_for_BADs(weights_dir,
                                                    unique_BADs)
             except Exception:
                 print(__doc__)
