@@ -161,10 +161,10 @@ def get_neg_bin_params(fit_param, main_allele, BAD, err_id):
     return r0, p0, w0, th0, gofs
 
 
-def get_pmf_for_dist(params, k, m, BAD, allele, model):
+def get_pmf_for_dist(params, k, m, BAD, model):
     p = get_p(BAD)
     if model == 'BetaNB':
-        logpdfs = params[allele][BAD].keys()
+        logpdfs = params.keys()
         print(logpdfs)
         return 0, 0
     else:
@@ -190,7 +190,7 @@ def get_pmf_for_dist(params, k, m, BAD, allele, model):
 
 def get_params_by_model(fit_params, main_allele, BAD, model, snp):
     if model == 'BetaNB':
-        return fit_params
+        return fit_params[main_allele][BAD]
     else:
         return get_neg_bin_params(fit_params, main_allele, BAD, snp)
 
@@ -213,7 +213,7 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params):
                 if (k, m, BAD, main_allele) in cache:
                     add = cache[(k, m, BAD, main_allele)]
                 else:
-                    pm1, pm2 = get_pmf_for_dist(params, k, m, BAD, main_allele, model)
+                    pm1, pm2 = get_pmf_for_dist(params, k, m, BAD, model)
 
                     add = pm1 - pm2  # log (1 - w) / w bayes factor
                     if k + m <= 200:  # FIXME
