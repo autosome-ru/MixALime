@@ -72,7 +72,7 @@ def calculate_pval_negbin(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5)
         gof = None
         BAD = row['BAD']
         p = 1 / (BAD + 1)
-        r0, p0, w0, th0, gofs = get_params(fit_params, main_allele, BAD, row['key'])
+        r0, p0, w0, th0, gofs = get_neg_bin_params(fit_params, main_allele, BAD, row['key'])
         k = row[get_counts_column(main_allele)]
         m = row[get_counts_column(alleles[main_allele])]
         if gofs is not None:
@@ -146,7 +146,7 @@ def filter_df(merged_df, key):
     return merged_df[merged_df['key'] == key]
 
 
-def get_params(fit_param, main_allele, BAD, err_id):
+def get_neg_bin_params(fit_param, main_allele, BAD, err_id):
     try:
         fit_params = fit_param[BAD]
     except KeyError:
@@ -161,7 +161,34 @@ def get_params(fit_param, main_allele, BAD, err_id):
     return r0, p0, w0, th0, gofs
 
 
-def get_posterior_weights(merged_df, unique_snps, fit_params):
+def get_pmf_for_dist(params, k, m, BAD, allele, model):
+    p = get_p(BAD)
+    if model == 'BetaNB':
+        logpdfs = params[allele][BAD].keys()
+        print(logpdfs)
+        return 0, 0
+    else:
+        r0, p0, w0, th0, _ = params
+        nb1 = st.nbinom(m + r0, 1 - (p * p0))
+        geom1 = st.nbinom(m + 1, 1 - (p * th0))
+        nb2 = st.nbinom(m + r0, 1 - ((1 - p) * p0))
+        geom2 = st.nbinom(m + 1, 1 - ((1 - p) * th0))
+        pmf1 = lambda x: (1 - w0) * nb1.pmf(x) + w0 * geom1.pmf(x)
+        pmf2 = lambda x: (1 - w0) * nb2.pmf(x) + w0 * geom2.pmf(x)
+        pm1 = pmf1(k)
+        pm2 = pmf2(k)
+        if pm1 == 0:
+            pm1 = nb1.logpmf(k)
+        else:
+            pm1 = np.log(pm1)
+        if pm2 == 0:
+            pm2 = nb2.logpmf(k)
+        else:
+            pm2 = np.log(pm2)
+    return pm1, pm2
+
+
+def get_posterior_weights(merged_df, unique_snps, model, fit_params):
     result = {}
     cache = {}
     for snp in tqdm(unique_snps):
@@ -170,34 +197,19 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
         BAD = filtered_df['BAD'].unique()
         assert len(BAD) == 1
         BAD = BAD[0]
-        p = get_p(BAD)
         for main_allele in alleles:
             ks = filtered_df[get_counts_column(main_allele)].to_list()  # main_counts
             ms = filtered_df[get_counts_column(alleles[main_allele])].to_list()  # fixed_counts
-            r0, p0, w0, th0, _ = get_params(fit_params, main_allele, BAD, snp)
+            params = get_neg_bin_params(fit_params, main_allele, BAD, snp)
             prod = np.float64(0)
             for k, m in zip(ks, ms):
                 if (k, m, BAD, main_allele) in cache:
                     add = cache[(k, m, BAD, main_allele)]
                 else:
-                    nb1 = st.nbinom(m + r0, 1 - (p * p0))
-                    geom1 = st.nbinom(m + 1, 1 - (p * th0))
-                    nb2 = st.nbinom(m + r0, 1 - ((1 - p) * p0))
-                    geom2 = st.nbinom(m + 1, 1 - ((1 - p) * th0))
-                    pmf1 = lambda x: (1 - w0) * nb1.pmf(x) + w0 * geom1.pmf(x)
-                    pmf2 = lambda x: (1 - w0) * nb2.pmf(x) + w0 * geom2.pmf(x)
-                    pm1 = pmf1(k)
-                    pm2 = pmf2(k)
-                    if pm1 == 0:
-                        pm1 = nb1.logpmf(k)
-                    else:
-                        pm1 = np.log(pm1)
-                    if pm2 == 0:
-                        pm2 = nb2.logpmf(k)
-                    else:
-                        pm2 = np.log(pm2)
+                    pm1, pm2 = get_pmf_for_dist(params, k, m, BAD, main_allele, model)
+
                     add = pm1 - pm2  # log (1 - w) / w bayes factor
-                    if k + m <= 200:
+                    if k + m <= 200:  # FIXME
                         cache[(k, m, BAD, main_allele)] = add
                 prod += add
             with np.errstate(over='ignore'):
@@ -208,12 +220,8 @@ def get_posterior_weights(merged_df, unique_snps, fit_params):
 
 
 def start_process(dfs, merged_df, unique_snps, out_path, fit_params, model):
-    if model == 'BetaNB':
-        weights = {}
-    else:
-        print('Calculating posterior weights...')
-        weights = get_posterior_weights(merged_df, unique_snps, fit_params)
-
+    print('Calculating posterior weights...')
+    weights = get_posterior_weights(merged_df, unique_snps, model, fit_params)
     tqdm.pandas()
     result = []
     for df_name, df in dfs:
