@@ -227,10 +227,16 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params):
     return result
 
 
-def start_process(dfs, merged_df, unique_snps, out_path, fit_params, model):
+def start_process(dfs, merged_df, unique_snps, unique_BADs, out_path, fit_params, model):
     print('Calculating posterior weights...')
     weights = get_posterior_weights(merged_df, unique_snps, model, fit_params)
     tqdm.pandas()
+    if model == 'BetaNB':
+        models_dict = {}
+        for BAD in unique_BADs:
+            # FIXME
+            models_dict[BAD] = ModelMixture(bad=BAD, left=4, model='BetaNB')
+        fit_params = fit_params, models_dict
     result = []
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
@@ -363,12 +369,7 @@ def main():
                 exit('Can not create output directory')
                 raise
         if model == 'BetaNB':
-            models_dict = {}
-            for BAD in unique_BADs:
-                # FIXME
-                models_dict[BAD] = ModelMixture(bad=BAD, left=4, model='BetaNB')
-            params = bridge_mixalime.read_dist_from_folder(folder=weights_dir)
-            fit_params = params, models_dict
+            fit_params = bridge_mixalime.read_dist_from_folder(folder=weights_dir)
         else:
             try:
                 fit_params = check_fit_params_for_BADs(weights_dir,
@@ -384,6 +385,7 @@ def main():
                 out_path=out,
                 dfs=dfs,
                 unique_snps=unique_snps,
+                unique_BADs=unique_BADs,
                 fit_params=fit_params,
                 model=args['--model']
             )
