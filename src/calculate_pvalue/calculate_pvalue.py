@@ -46,6 +46,7 @@ from tqdm import tqdm
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5):
     if model == 'BetaNB':
         params, models_dict = fit_params
+        print(params['ref'][row['BAD']]['params'].keys())
         pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row['REF_COUNTS'],
                                                       alt_count=row['ALT_COUNTS'],
                                                       params=params,
@@ -348,7 +349,6 @@ def main():
                 # FIXME
                 models_dict[BAD] = ModelMixture(bad=BAD, left=4, model='BetaNB')
             params = bridge_mixalime.read_dist_from_folder(folder=weights_dir)
-            print(params['params'].keys())
             fit_params = params, models_dict
         else:
             try:
