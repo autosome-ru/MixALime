@@ -46,13 +46,14 @@ from tqdm import tqdm
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5):
     if model == 'BetaNB':
         params, models_dict = fit_params
-        return bridge_mixalime.calc_pvalue_and_es(ref_count=row['REF_COUNTS'],
+        pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row['REF_COUNTS'],
                                                  alt_count=row['ALT_COUNTS'],
                                                  params=params,
                                                  w_ref=1,
                                                  w_alt=1,
                                                  m=models_dict[row['BAD']]
                                                  )
+        return *pval, *es
     else:
         return calculate_pval_negbin(row, row_weights, fit_params, gof_tr, allele_tr)
 
