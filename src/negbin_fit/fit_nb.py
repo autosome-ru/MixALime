@@ -21,10 +21,10 @@ Required:
 Optional:
     -h, --help                              Show help
     -q, --quiet                             Suppress log messages
-    -n, --no-fit                            Skip fitting procedure (use to visualize results)
     --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x
                                             and alt_read_count >= x. [default: 5]
 Visualize:
+    -n, --no-fit                            Skip fitting procedure (use to visualize results)
     --visualize                             Perform visualization
     --max-read-count <int>                  Max read count for visualization [default: 50]
     --cover-list <list>                     List of covers to visualize [default: 10,20,30,40,50]

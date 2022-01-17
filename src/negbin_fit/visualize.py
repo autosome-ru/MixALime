@@ -198,6 +198,10 @@ def get_negbindens_by_fixc(params, main_allele, fix_c, p, max_cover_in_stats, al
         'w0'] * neg_bin_dens2
 
 
+def unpack_dist_params(params, main_allele, fix_c, BAD, model):
+    return 1,
+
+
 def slices(df_ref, df_alt, stats_df,
            BAD, out, model,
            params=None,
@@ -316,6 +320,7 @@ def slices(df_ref, df_alt, stats_df,
                 ax.plot(sorted(x + [allele_tr]), [0] + list(current_density), color=col)
 
             # if model != 'NB_AS'
+            label = None
             if params is not None:
                 current_lin_density = np.zeros(max_read_count + 1)
                 fit_density = get_dist(params, main_allele, fix_c, p,
@@ -334,11 +339,22 @@ def slices(df_ref, df_alt, stats_df,
                                                                                     get_gof(params, main_allele,
                                                                                             fix_c, BAD, model))
                 else:
-                    label = '{} fit for {}' \
-                            '\ntotal observations: {}\ngof={:.4f}'.format(model, main_allele,
-                                                                          total_snps,
-                                                                          get_gof(params, main_allele,
-                                                                                  fix_c, BAD, model))
+                    if model == 'BetaNB':
+                        label = '{} fit for {}' \
+                                '\ntotal observations: {}\nr={:.2f},' \
+                                'p={:.2f}, w={:.2f}\ngof={:.4f}'.format(model,
+                                                                        main_allele,
+                                                                        total_snps,
+                                                                        *unpack_dist_params(
+                                                                            params,
+                                                                            main_allele,
+                                                                            fix_c, BAD,
+                                                                            model),
+                                                                        get_gof(params,
+                                                                                main_allele,
+                                                                                fix_c,
+                                                                                BAD,
+                                                                                model))
             else:
                 label = '{} fit for {}' \
                         '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4f}'.format(model, main_allele,
