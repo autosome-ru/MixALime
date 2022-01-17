@@ -164,9 +164,10 @@ def get_neg_bin_params(fit_param, main_allele, BAD, err_id):
 def get_pmf_for_dist(params, k, m, BAD, model):
     p = get_p(BAD)
     if model == 'BetaNB':
-        print(params['logpdf']['modes'])
-        logpdfs = list(map(lambda x: x.get(m, None), params['logpdf']['modes']))  # Use m as key
-        print([x[k] if x is not None else None for x in logpdfs])
+        print(params['logpdf']['modes'].get(m, (None, None)))
+        logpdfs = list(map(lambda x: x[k] if x is not None else None,
+                           params['logpdf']['modes'].get(m, (None, None))))
+        print(logpdfs)
         return logpdfs
     else:
         r0, p0, w0, th0, _ = params
