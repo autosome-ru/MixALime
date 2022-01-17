@@ -315,7 +315,6 @@ def slices(df_ref, df_alt, stats_df,
                                                 )[:min(max_read_count, max_cover_in_stats) + 1]
                 ax.plot(sorted(x + [allele_tr]), [0] + list(current_density), color=col)
 
-            label = None
             # if model != 'NB_AS'
             if params is not None:
                 current_lin_density = np.zeros(max_read_count + 1)
@@ -332,8 +331,14 @@ def slices(df_ref, df_alt, stats_df,
                             'p={:.2f}, w={:.2f}\ngof={:.4f}\ngof_red={:.4f}'.format(model, main_allele,
                                                                                     total_snps,
                                                                                     r, p, w, gof,
-                                                                                    params[main_allele][
-                                                                                        'point_gofs'][str(fix_c)])
+                                                                                    get_gof(params, main_allele,
+                                                                                            fix_c, BAD, model))
+                else:
+                    label = '{} fit for {}' \
+                            '\ntotal observations: {}\ngof={:.4f}'.format(model, main_allele,
+                                                                          total_snps,
+                                                                          get_gof(params, main_allele,
+                                                                                  fix_c, BAD, model))
             else:
                 label = '{} fit for {}' \
                         '\ntotal observations: {}\nr={:.2f}, p={:.2f}, w={:.2f}\ngof={:.4f}'.format(model, main_allele,

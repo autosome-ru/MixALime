@@ -171,7 +171,7 @@ def get_pmf_for_dist(params, k, m, BAD, model):
     if model == 'BetaNB':
         logpdfs = list(map(lambda x: x[k] if x is not None and len(x) > k else None,
                            params['logpdf']['modes'].get(m, (None, None))))
-        return logpdfs
+        return logpdfs[::-1]
     else:
         r0, p0, w0, th0, _ = params
         nb1 = st.nbinom(m + r0, 1 - (p * p0))
