@@ -165,7 +165,7 @@ def get_pmf_for_dist(params, k, m, BAD, model):
     p = get_p(BAD)
     if model == 'BetaNB':
         print(params['logpdf']['modes'])
-        logpdfs = map(lambda x: x[m], params['modes'])  # Use m as key
+        logpdfs = map(lambda x: x[m], params['logpdf']['modes'])  # Use m as key
         print(logpdfs)
         return 0, 0
     else:
