@@ -165,8 +165,8 @@ def get_pmf_for_dist(params, k, m, BAD, model):
     p = get_p(BAD)
     if model == 'BetaNB':
         logpdfs = map(lambda x: x[m][k], params['logpdf']['modes'])  # Use m as key
-        print(logpdfs)
-        return 0, 0
+        print(*logpdfs)
+        return logpdfs
     else:
         r0, p0, w0, th0, _ = params
         nb1 = st.nbinom(m + r0, 1 - (p * p0))
