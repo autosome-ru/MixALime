@@ -46,15 +46,16 @@ from tqdm import tqdm
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5):
     if model == 'BetaNB':
         params, models_dict = fit_params
-        w_ref = params['ref'][row['BAD']]['params']['Estimate'].get('w{}'.format(
-            row['ALT_COUNTS']), 0.5)
-        w_alt = params['ref'][row['BAD']]['params']['Estimate'].get('w{}'.format(
-            row['REF_COUNTS']), 0.5)
+        scaled_weights = {}
+        for main_allele in alleles:
+            w = params[main_allele][row['BAD']]['params']['Estimate'].get('w{}'.format(
+                row['{}_COUNTS'.format(alleles[main_allele].upper())]), 0.5)
+            scaled_weights[main_allele] = row_weights[main_allele] * w
         pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row['REF_COUNTS'],
                                                       alt_count=row['ALT_COUNTS'],
                                                       params=params,
-                                                      w_ref=w_ref,
-                                                      w_alt=w_alt,
+                                                      w_ref=scaled_weights['ref'],
+                                                      w_alt=scaled_weights['alt'],
                                                       m=models_dict[row['BAD']]
                                                       )
         return *pval, *es
