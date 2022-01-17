@@ -205,6 +205,7 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path):
     cache = {}
     for snp in tqdm(unique_snps):
         result[snp] = {'ref': 0, 'alt': 0}
+        print(snp)
         filtered_df = filter_df(merged_df, snp)
         BAD = filtered_df['BAD'].unique()
         assert len(BAD) == 1
