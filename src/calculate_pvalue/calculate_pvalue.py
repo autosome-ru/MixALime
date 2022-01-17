@@ -58,9 +58,10 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
                                                       w_alt=scaled_weights['alt'],
                                                       m=models_dict[row['BAD']]
                                                       )
-        for pv in pval:
-            if abs(pv) > 1:
-                print(row, pval, es)
+
+        if abs(pval[0]) > 1:
+            print(row, pval, es, scaled_weights, params['ref'][row['BAD']]['params']['Estimate'].get('w{}'.format(
+            row['{}_COUNTS'.format('alt'.upper())]), 0.5))
         return *pval, *es
     else:
         return calculate_pval_negbin(row, row_weights, fit_params, gof_tr, allele_tr)
