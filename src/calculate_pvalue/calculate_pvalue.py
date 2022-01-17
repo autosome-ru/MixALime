@@ -216,8 +216,10 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params):
                     add = cache[(k, m, BAD, main_allele)]
                 else:
                     pm1, pm2 = get_pmf_for_dist(params, k, m, BAD, model)
-
-                    add = pm1 - pm2  # log (1 - w) / w bayes factor
+                    if pm1 is None or pm2 is None:
+                        add = 1
+                    else:
+                        add = pm1 - pm2  # log (1 - w) / w bayes factor
                     if k + m <= 200:  # FIXME
                         cache[(k, m, BAD, main_allele)] = add
                 prod += add
