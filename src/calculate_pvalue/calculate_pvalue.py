@@ -200,7 +200,7 @@ def get_params_by_model(fit_params, main_allele, BAD, model, snp):
         return get_neg_bin_params(fit_params, main_allele, BAD, snp)
 
 
-def get_posterior_weights(merged_df, unique_snps, model, fit_params):
+def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path):
     result = {}
     cache = {}
     for snp in tqdm(unique_snps):
@@ -222,6 +222,7 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params):
                     if pm1 is None or pm2 is None:
                         add = 1
                     else:
+                        print(pm1, pm2)
                         add = pm1 - pm2  # log (1 - w) / w bayes factor
                     if k + m <= 200:  # FIXME
                         cache[(k, m, BAD, main_allele)] = add
@@ -235,7 +236,7 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params):
 
 def start_process(dfs, merged_df, unique_snps, unique_BADs, out_path, fit_params, model):
     print('Calculating posterior weights...')
-    weights = get_posterior_weights(merged_df, unique_snps, model, fit_params)
+    weights = get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path)
     tqdm.pandas()
     if model == 'BetaNB':
         models_dict = {}
