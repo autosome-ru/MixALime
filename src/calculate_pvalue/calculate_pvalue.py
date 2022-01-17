@@ -50,7 +50,7 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
         for main_allele in alleles:
             w = params[main_allele][row['BAD']]['params']['Estimate'].get('w{}'.format(
                 row['{}_COUNTS'.format(alleles[main_allele].upper())]), 0.5)
-            scaled_weights[main_allele] = row_weights[main_allele] * w
+            scaled_weights[main_allele] = modify_w_with_bayes_factor(row_weights[main_allele], w)
         pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row['REF_COUNTS'],
                                                       alt_count=row['ALT_COUNTS'],
                                                       params=params,
@@ -222,8 +222,6 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path):
                     if pm1 is None or pm2 is None:
                         add = 1
                     else:
-                        if snp.split('@')[2] == 'rs111603084':
-                            print(pm1, pm2)
                         add = pm1 - pm2  # log (1 - w) / w bayes factor
                     if k + m <= 200:  # FIXME
                         cache[(k, m, BAD, main_allele)] = add
