@@ -205,7 +205,6 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path):
     cache = {}
     for snp in tqdm(unique_snps):
         result[snp] = {'ref': 0, 'alt': 0}
-        print(snp)
         filtered_df = filter_df(merged_df, snp)
         BAD = filtered_df['BAD'].unique()
         assert len(BAD) == 1
@@ -223,7 +222,8 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path):
                     if pm1 is None or pm2 is None:
                         add = 1
                     else:
-                        print(pm1, pm2)
+                        if snp.split('@')[2] == 'rs111603084':
+                            print(pm1, pm2)
                         add = pm1 - pm2  # log (1 - w) / w bayes factor
                     if k + m <= 200:  # FIXME
                         cache[(k, m, BAD, main_allele)] = add
