@@ -23,7 +23,7 @@ Required:
 Optional:
     -h, --help                              Show help
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
-    --method <method>                       Method for p-value aggregarion
+    --method <method>                       Method for p-value aggregation [default: logit]
 
 Visualization
     -n, --no-fit                            Skip p-value calculation
