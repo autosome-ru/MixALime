@@ -389,7 +389,7 @@ def main(stats, out, BAD, model,
     if cover_list is None:
         cover_list = [5, 10]
     df_ref, df_alt = read_dfs(out)
-    if model == 'NB':
+    if model == 'NB_AS':
         r_ref_bias(df_ref, df_alt,
                    out=make_image_path(out, 'r_bias', image_type),
                    BAD=BAD,
