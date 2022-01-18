@@ -104,10 +104,13 @@ def r_vs_count_scatter(df_ref, df_alt,
 
 
 def get_gof(params, allele, fixed_c, BAD, model):
-    if model == 'NB':
+    if model == 'NB_AS_Total':
         return params[allele]['point_gofs'].get(str(fixed_c), -1)
     elif model == 'BetaNB':
         return params[allele][BAD]['stats']['rmsea'].get(fixed_c, -1)
+    else:
+        print("{} not supported".format(model))
+        return 0
 
 
 def gof_scatter(df_ref, df_alt, BAD, out, model,
@@ -177,7 +180,8 @@ def make_image_path(out, image_name, image_type):
 
 
 def get_dist(params, main_allele, fix_c, p, model, max_cover_in_stats, allele_tr):
-    if model == 'NB':
+    print(model)
+    if model in available_models[2:]:
         print(get_negbindens_by_fixc(params, main_allele, fix_c, p,
                                       max_cover_in_stats, allele_tr))
         return get_negbindens_by_fixc(params, main_allele, fix_c, p,
