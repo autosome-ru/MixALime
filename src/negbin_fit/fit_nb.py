@@ -21,8 +21,10 @@ Required:
 Optional:
     -h, --help                              Show help
     -q, --quiet                             Suppress log messages
-    --allele-reads-tr <int>                 Allelic reads threshold. Input SNPs will be filtered by ref_read_count >= x
-                                            and alt_read_count >= x. [default: 5]
+    -l <int> --reads-left-tr <int>          Left allelic reads threshold. Input SNPs will be filtered by
+                                            ref_read_count >= x and alt_read_count >= x. [default: 5]
+    -r <int> --reads-right-tr <int>         Right allelic reads threshold. Input SNPs will be filtered by
+                                            ref_read_count <= x and alt_read_count <= x. [default: 200]
 Visualize:
     -n, --no-fit                            Skip fitting procedure (use to visualize results)
     --visualize                             Perform visualization
@@ -272,7 +274,11 @@ def start_fit():
                 Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
             )
         ),
-        '--allele-reads-tr': And(
+        '--reads-left-tr': And(
+            Use(int),
+            Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
+        ),
+        '--reads-right-tr': And(
             Use(int),
             Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
         ),
@@ -308,11 +314,12 @@ def start_fit():
     #     else:
     #         print('No BADs found in {}'.format(base_out_path))
     #         exit(1)
-    allele_tr = args['--allele-reads-tr']
+    allele_tr = args['--reads-left-tr']
     model = args['--model']
     to_fit = not args['--no-fit']
     to_visualize = args['--visualize']
-    max_read_count = 100
+    max_fit_count = args['--read-right-tr']
+    max_read_count = args['--max-read-count']
     njobs = -1
     stats_dfs = {}
     for BAD in sorted(unique_BADs):
@@ -332,7 +339,7 @@ def start_fit():
                          BAD=BAD,
                          line_fit=line_fit,
                          allele_tr=allele_tr,
-                         max_read_count=max_read_count)
+                         max_read_count=max_fit_count)
                 if not line_fit:
                     convert_weights(in_df=stats_df,
                                     np_weights_dict=d,
@@ -352,7 +359,7 @@ def start_fit():
                     params=d,
                     model=model,
                     cover_list=args['--cover-list'],
-                    max_read_count=args['--max-read-count'],
+                    max_read_count=max_read_count,
                     out=bad_out_path,
                     BAD=BAD,
                     allele_tr=allele_tr)
@@ -364,7 +371,7 @@ def start_fit():
             from betanegbinfit import run
             fit_params = run(data=merged_df, output_folder=base_out_path,
                              bads=unique_BADs, model=model, left=allele_tr - 1,
-                             max_count=max_read_count, apply_weights=False,
+                             max_count=max_fit_count, apply_weights=False,
                              n_jobs=njobs)
         else:
             fit_params = read_dist_from_folder(folder=base_out_path)
@@ -377,7 +384,7 @@ def start_fit():
                     params=fit_params,
                     model=model,
                     cover_list=args['--cover-list'],
-                    max_read_count=args['--max-read-count'],
+                    max_read_count=max_read_count,
                     out=bad_out_path,
                     BAD=BAD,
                     allele_tr=allele_tr)
