@@ -341,15 +341,14 @@ def slices(df_ref, df_alt, stats_df,
                 else:
                     if model == 'BetaNB':
                         label = '{} fit for {}' \
-                                '\ntotal observations: {}\nr={:.2f},' \
-                                'p={:.2f}, w={:.2f}\ngof={:.4f}'.format(model,
+                                '\ntotal observations: {}\nngof={:.4f}'.format(model,
                                                                         main_allele,
                                                                         total_snps,
-                                                                        *unpack_dist_params(
-                                                                            params,
-                                                                            main_allele,
-                                                                            fix_c, BAD,
-                                                                            model),
+                                                                        # *unpack_dist_params(
+                                                                        #     params,
+                                                                        #     main_allele,
+                                                                        #     fix_c, BAD,
+                                                                        #     model),
                                                                         get_gof(params,
                                                                                 main_allele,
                                                                                 fix_c,
