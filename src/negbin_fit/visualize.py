@@ -178,8 +178,10 @@ def make_image_path(out, image_name, image_type):
 
 def get_dist(params, main_allele, fix_c, p, model, max_cover_in_stats, allele_tr):
     if model == 'NB':
+        print(get_negbindens_by_fixc(params, main_allele, fix_c, p,
+                                      max_cover_in_stats, allele_tr))
         return get_negbindens_by_fixc(params, main_allele, fix_c, p,
-                                      max_cover_in_stats, allele_tr)
+                                       max_cover_in_stats, allele_tr)
     elif model == 'BetaNB':
         result = [0 if np.isinf(x) or x == 0 else np.exp(x)
                   for x in
@@ -326,6 +328,7 @@ def slices(df_ref, df_alt, stats_df,
                 fit_density = get_dist(params, main_allele, fix_c, p,
                                        model=model, max_cover_in_stats=max_cover_in_stats,
                                        allele_tr=allele_tr)
+                print(fit_density)
                 current_lin_density[:min(max_read_count, max_cover_in_stats) + 1] = \
                     fit_density[:min(max_read_count, max_cover_in_stats) + 1]
                 ax.plot(sorted(x + [allele_tr]), [0] + list(current_lin_density), color='red')

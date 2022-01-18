@@ -326,17 +326,17 @@ def start_fit():
             bad_out_path = add_BAD_to_path(base_out_path, BAD)
 
             stats_df = stats_dfs[BAD]
-
-            d = main(stats_df,
-                     out=bad_out_path,
-                     BAD=BAD,
-                     line_fit=line_fit,
-                     allele_tr=allele_tr,
-                     max_read_count=max_read_count)
-            if not line_fit:
-                convert_weights(in_df=stats_df,
-                                np_weights_dict=d,
-                                out_path=bad_out_path)
+            if to_fit:
+                d = main(stats_df,
+                         out=bad_out_path,
+                         BAD=BAD,
+                         line_fit=line_fit,
+                         allele_tr=allele_tr,
+                         max_read_count=max_read_count)
+                if not line_fit:
+                    convert_weights(in_df=stats_df,
+                                    np_weights_dict=d,
+                                    out_path=bad_out_path)
             else:
                 try:
                     _, d = check_weights_path(bad_out_path, line_fit=line_fit)
