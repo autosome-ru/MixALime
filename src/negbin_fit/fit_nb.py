@@ -7,7 +7,7 @@ Arguments:
     <bad>             BAD value (can be decimal)
     <int>             Non negative integer
     <dir>             Directory with fitted weights
-    <list>            List of positive integers
+    <list>            List of positive integers "int1,int2" or slice "start:end:step"
     <file-list>       File with filenames of input file on each line
     <model>           String any of (NB_G, NB_AS, BetaNB, NB_AS_Total)
     <ext>             Extension, non-empty string
@@ -210,7 +210,10 @@ def convert_string_to_float(bad_str):
 
 
 def parse_cover_list(list_as_string):
-    cover_list = [int(x) for x in list_as_string.split(',') if int(x) > 0]
+    if re.match(r'\d+:\d+:\d+', list_as_string):
+        cover_list = list(range(*map(int, list_as_string.split(':'))))
+    else:
+        cover_list = [int(x) for x in list_as_string.split(',') if int(x) > 0]
     assert len(cover_list) > 0
     return cover_list
 
