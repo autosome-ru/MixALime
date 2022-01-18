@@ -321,7 +321,7 @@ def start_fit():
     model = args['--model']
     to_fit = not args['--no-fit']
     to_visualize = args['--visualize']
-    max_fit_count = args['--read-right-tr']
+    max_fit_count = args['--reads-right-tr']
     max_read_count = args['--max-read-count']
     njobs = -1
     stats_dfs = {}
