@@ -9,6 +9,7 @@ import pandas as pd
 
 alleles = {'ref': 'alt', 'alt': 'ref'}
 available_models = ('NB_G', 'BetaNB', 'NB_AS', 'NB_AS_Total')
+aggregation_methods = ('logit', 'fisher')
 
 
 class ParamsHandler:

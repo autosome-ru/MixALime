@@ -10,7 +10,8 @@ Arguments:
     <out>             Output file path
     <int>             Positive integer
     <ext>             Extension, non-empty string
-    <model>           String, one of (BetaNB, NB_AS_Total)
+    <model>           String, one of 'BetaNB', 'NB_AS_Total'
+    <method>          String, one of 'logit', 'fisher'
 
 Required:
     -I <file>                               Input files
@@ -22,6 +23,7 @@ Required:
 Optional:
     -h, --help                              Show help
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
+    --method <method>                       Method for p-value aggregarion
 
 Visualization
     -n, --no-fit                            Skip p-value calculation
@@ -33,12 +35,13 @@ import os
 
 from betanegbinfit import bridge_mixalime, ModelMixture
 import pandas as pd
+from scipy.stats import combine_pvalues
 from statsmodels.stats import multitest
 from scipy import stats as st
 import numpy as np
 from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path, \
     merge_dfs, read_dfs, get_key, get_counts_column, get_p, get_pvalue_file_path, parse_files_list, parse_input, \
-    available_models
+    available_models, aggregation_methods
 from schema import Schema, And, Const, Use, Or
 from tqdm import tqdm
 
@@ -298,7 +301,14 @@ def list_to_str(array):
     return '@'.join(array)
 
 
-def aggregate_dfs(merged_df, unique_snps):
+def combine_pvalues_with_method(p_array, method):
+    if method == 'logit':
+        return logit_combine_p_values(p_array)
+    else:
+        return combine_pvalues(pvalues=p_array, method=method)
+
+
+def aggregate_dfs(merged_df, unique_snps, method='logit'):
     result = []
     header = ['#CHROM', 'POS', 'ID',
               'ALT', 'REF', 'LOGITP_REF', 'ES_REF', 'LOGITP_ALT', 'ES_ALT']
@@ -308,7 +318,7 @@ def aggregate_dfs(merged_df, unique_snps):
         conc_exps = {}
         for allele in alleles:
             p_array = filtered_df[get_counts_column(allele, 'pval')].to_list()
-            snp_result.append(logit_combine_p_values(p_array))
+            snp_result.append(combine_pvalues_with_method(p_array, method))
             es_fname_array = get_es_list(filtered_df, allele)
             conc_exps[allele] = list_to_str(set([fname.strip() for es, fname in es_fname_array if es >= 0]))
             es_mean, es_most_sig = aggregate_es([es for es, _ in es_fname_array], p_array)
@@ -357,6 +367,9 @@ def main():
         ),
         '--coverage-tr': Use(lambda x: int(x)),
         '--ext': Const(lambda x: len(x) > 0),
+        '--method': Const(lambda x: x in aggregation_methods,
+                          error='Not in supported aggregation methods ({})'.format(
+                              ', '.join(aggregation_methods))),
         str: bool
     })
     args = init_docopt(__doc__, schema)
@@ -407,7 +420,7 @@ def main():
     else:
         if os.path.isdir(out):
             out = os.path.join(out, dfs[0][0] + '.tsv')
-        aggregated_df = aggregate_dfs(merged_df, unique_snps)
+        aggregated_df = aggregate_dfs(merged_df, unique_snps, args['--method'])
         if aggregated_df.empty:
             raise AssertionError('No SNPs left after aggregation')
         maxc_tr = args['--coverage-tr']
