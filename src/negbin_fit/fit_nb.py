@@ -25,6 +25,8 @@ Optional:
                                             ref_read_count >= x and alt_read_count >= x. [default: 5]
     -r <int> --reads-right-tr <int>         Right allelic reads threshold. Input SNPs will be filtered by
                                             ref_read_count <= x and alt_read_count <= x. [default: 200]
+    -c <int> --concentration <int>          Concentration parameter for BetaNB model
+
 Visualize:
     -n, --no-fit                            Skip fitting procedure (use to visualize results)
     --visualize                             Perform visualization
@@ -301,6 +303,14 @@ def start_fit():
         '--model': Const(lambda x: x in available_models,
                          error='Model not in ({})'.format(', '.join(available_models))),
         '--ext': Const(lambda x: len(x) > 0),
+        '--concentration': Or(
+            Const(lambda x: x is None),
+            And(
+                Use(int),
+                Const(lambda x: x > 0),
+                error='Max read count threshold must be a positive integer'
+            ),
+        ),
         str: bool
     })
     args = init_docopt(__doc__, schema)
@@ -373,8 +383,12 @@ def start_fit():
         if to_fit:
             from betanegbinfit import run
             fit_params = run(data=merged_df, output_folder=base_out_path,
-                             bads=unique_BADs, model=model, left=allele_tr - 1,
-                             max_count=max_fit_count, apply_weights=False,
+                             bads=unique_BADs,
+                             model=model,
+                             concentration=args['--concentration'],
+                             left=allele_tr - 1,
+                             max_count=max_fit_count,
+                             apply_weights=False,
                              n_jobs=njobs)
         else:
             fit_params = read_dist_from_folder(folder=base_out_path)
