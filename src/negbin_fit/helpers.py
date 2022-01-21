@@ -82,35 +82,45 @@ def get_p(BAD):
     return 1 / (BAD + 1)
 
 
-def get_inferred_mode_w(m, r0, p0, p):
+def get_inferred_mode_w(m, r0, p0, p1, p, fixed_allele):
+    if fixed_allele == 'ref':
+        p = p
+    else:
+        p = 1 - (1 - p) * (1 - p1)
     try:
         return 1 / (1 +
-                    np.exp(m * np.log(p) + (m + r0) * np.log((1 - p * p0) / (1 - p0 * (1 - p))) - r0 * np.log(1 - p))
+                    np.exp(m * (np.log1p(-p) - np.log(p)) + (m + r0) * (np.log1p(-(1-p)*p0) - np.log1p(-p*p0)))
                     )
     except OverflowError:
-        print(m, r0, p0, p)
+        print(m, r0, p0, p1, p)
         raise
 
 
-def make_inferred_negative_binom_density(m, r0, p0, p, max_c, min_c, w=None):
+def make_inferred_negative_binom_density(m, r0, p0, p1, p, max_c, min_c, fixed_allele, w=None):
+    if fixed_allele == 'ref':
+        p1 = p * p0 * (1 - p1) / (1 - p * p0 * p1)
+        p2 = (1 - p) * p0 * (1 - p1) / (1 - (1 - p) * p0 * p1)
+    else:
+        p1 = p * p0 / (1 - (1 - p) * p0 * p1)
+        p2 = (1 - p) * p0 / (1 - p * p0 * p1)
     if w is None:
-        w = get_inferred_mode_w(m, r0, p0, p)
+        w = get_inferred_mode_w(m, r0, p0, p1, p, fixed_allele=fixed_allele)
     return make_negative_binom_density(m + r0,
-                                       p * p0,
+                                       p1,
                                        w,
                                        max_c,
                                        min_c,
-                                       p2=(1 - p) * p0)
+                                       p_right_mode=p2)
 
 
-def make_negative_binom_density(r, p, w, size_of_counts, left_most, p2=None):
-    if p2 is None:
-        p2 = p
+def make_negative_binom_density(r, p, w, size_of_counts, left_most, p_right_mode=None):
+    if p_right_mode is None:
+        p_right_mode = 1 - p
     negative_binom_density_array = np.zeros(size_of_counts + 1, dtype=np.float64)
-    dist1 = st.nbinom(r, 1 - (1 - p2))  # 1 - p right mode
+    dist1 = st.nbinom(r, 1 - p_right_mode)  # 1 - p: right mode
     f1 = dist1.pmf
     cdf1 = dist1.cdf
-    dist2 = st.nbinom(r, 1 - p)  # p left mode
+    dist2 = st.nbinom(r, 1 - p)  # p: left mode
     f2 = dist2.pmf
     cdf2 = dist2.cdf
     negative_binom_norm = (cdf1(size_of_counts) -
@@ -123,6 +133,67 @@ def make_negative_binom_density(r, p, w, size_of_counts, left_most, p2=None):
         negative_binom_density_array[k] = \
             (w * f1(k) + (1 - w) * f2(k)) / negative_binom_norm if negative_binom_norm != 0 else 0
     return negative_binom_density_array
+
+
+def make_prior_fixed_allele_density(params, p, N, allele_tr, fixed_allele, log=True):
+    if fixed_allele == 'ref':
+        p1 = 0
+    else:
+        p1 = params.p1
+
+    dist = {
+        'nb1': st.nbinom(params.r0, 1 - (1-p)*params.p0 * (1-p1)/(1 - params.p0 * (1 - (1-p1)*(1-p)))),
+        'nb2': st.nbinom(params.r0, 1 - p*params.p0 * (1-p1)/(1 - params.p0 * (1 - (1-p1)*p))),
+    }
+
+    pmfs = {
+        label: dist[label].pmf for label in dist
+    }
+
+    cdfs = {
+        label: dist[label].cdf for label in dist
+    }
+
+    pmf = lambda x: (pmfs['nb1'](x) + pmfs['nb2'](x)) * 0.5
+
+    cdf = lambda x: (cdfs['nb1'](x) + cdfs['nb2'](x)) * 0.5
+
+    norm = cdf(N) - cdf(max(allele_tr - 1, 0))
+
+    density_array = np.zeros(N + 1, dtype=np.float64)
+    if not log:
+        if norm != 0:
+            for k in range(allele_tr, N + 1):
+                density_array[k] = \
+                    pmf(k) / norm
+    else:
+        if norm != 0:
+            norm = np.log(norm)
+            for k in range(N + 1):
+                if k < allele_tr:
+                    density_array[k] = -np.inf
+                else:
+                    density_array[k] = np.log(pmf(k)) - norm
+        else:
+            for k in range(N + 1):
+                density_array[k] = -np.inf
+    return density_array
+
+
+def make_binom_density(n, p):
+    binom = np.zeros(n + 1)
+    if p != 0.5:
+        f1 = st.binom(n, p).pmf
+        f2 = st.binom(n, 1 - p).pmf
+        binom_norm = 1 - sum(0.5 * (f1(k) + f2(k)) for k in [0, 1, 2, 3, 4, n - 4, n - 3, n - 2, n - 1, n])
+        for k in range(5, n - 4):
+            binom[k] = 0.5 * (f1(k) + f2(k)) / binom_norm
+    else:
+        f = st.binom(n, p).pmf
+        binom_norm = 1 - sum(f(k) for k in [0, 1, 2, 3, 4, n - 4, n - 3, n - 2, n - 1, n])
+        for k in range(5, n - 4):
+            binom[k] = f(k) / binom_norm
+    return binom
 
 
 def make_out_path(out, name, create=True):
@@ -200,10 +271,8 @@ def combine_densities(negbin_dens, geom_dens, w, frac, p, allele_tr=5, only_negb
         return comb_dens / comb_dens.sum()
 
 
-def make_line_negative_binom_density(fix_c, params, p, N, allele_tr, log=True):
-    neg_bin_dens1 = make_inferred_negative_binom_density(fix_c, params.r0, params.p0, p, N, allele_tr)
-    neg_bin_dens2 = make_inferred_negative_binom_density(fix_c, 1, params.th0, p, N, allele_tr)
-    neg_bin_dens = (1 - params.w0) * neg_bin_dens1 + params.w0 * neg_bin_dens2
+def make_line_negative_binom_density(fix_c, params, p, N, allele_tr, fixed_allele, log=True):
+    neg_bin_dens = make_inferred_negative_binom_density(fix_c, params.r0, params.p0, params.p1, p, N, allele_tr, fixed_allele)
     with np.errstate(divide='ignore'):
         return np.log(neg_bin_dens) if log else neg_bin_dens
 
@@ -236,7 +305,7 @@ def calculate_gof_for_point_fit(counts_array, expected, norm, number_of_params, 
     if idxs.sum() <= number_of_params + 1:
         return 0
     df = idxs.sum() - 1 - number_of_params
-    stat = np.sum(observed[idxs] * np.log(observed[idxs] / expected[idxs])) * 2
+    stat = np.sum(observed[idxs] * (np.log(observed[idxs]) - np.log(expected[idxs]))) * 2
     return rmsea_gof(stat, df, norm)
 
 

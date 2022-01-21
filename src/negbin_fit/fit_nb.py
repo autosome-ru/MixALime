@@ -43,7 +43,7 @@ from betanegbinfit.bridge_mixalime import read_dist_from_folder
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, \
     make_negative_binom_density, make_line_negative_binom_density, calculate_gof_for_point_fit, \
     ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column, \
-    parse_input, parse_files_list, available_models
+    parse_input, parse_files_list, available_models, make_prior_fixed_allele_density
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 from negbin_fit.visualize import main as visualize
 from schema import And, Const, Schema, Use, Or
@@ -91,7 +91,7 @@ def make_log_likelihood(n, counts_array, BAD, left_most):
 
 
 def get_line_params_from_x(x):
-    return ParamsHandler(r0=x[0], p0=x[1], w0=x[2], th0=x[3])
+    return ParamsHandler(r0=x[0], p0=x[1], p1=x[2])
 
 
 def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5, BAD=1):
@@ -100,16 +100,26 @@ def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5, BAD
     def target(x):
         params = get_line_params_from_x(x)
         result = 0
+        fixed_counts_array = np.zeros(upper_bound + 1, dtype=np.int64)
+
         for fix_c in range(allele_tr, upper_bound + 1):
-            stats_filtered, counts_array = preprocess_stats(stats, fix_c, N, main_allele, allele_tr)
+            stats_filtered, counts_array = preprocess_stats(stats, fix_c, N, main_allele, allele_tr, linefit=True)
             if stats_filtered is None:
                 continue
-            neg_bin_dens = make_line_negative_binom_density(fix_c, params, p, N, allele_tr)
+            fixed_counts_array[fix_c] = counts_array.sum()
+            neg_bin_dens = make_line_negative_binom_density(fix_c, params, p, N, allele_tr, fixed_allele=alleles[main_allele])
             result += -1 * sum(counts_array[k] * (
                     (neg_bin_dens[k]
-                     if neg_bin_dens[k] != -np.inf else 0) + 0)
+                     if neg_bin_dens[k] != -np.inf else 0))
                                for k in range(allele_tr, N) if counts_array[k] != 0)  # / \
             # sum(counts_array[k] for k in range(allele_tr, N) if counts_array[k] != 0)
+
+        prior_dens = make_prior_fixed_allele_density(params, p, upper_bound, allele_tr, fixed_allele=alleles[main_allele], log=True)
+        result += -1 * sum(fixed_counts_array[m] * (
+                (prior_dens[m]
+                 if prior_dens[m] != -np.inf else 0))
+                           for m in range(allele_tr, upper_bound) if fixed_counts_array[m] != 0)
+        print(params, result)
         return result
 
     return target
@@ -122,25 +132,25 @@ def fit_negative_binom_as_line(stats_df, main_allele, upper_bound, N, allele_tr,
                                                           N=N,
                                                           allele_tr=allele_tr,
                                                           BAD=BAD),
-                              x0=np.array([-2, 0.95, 0.75, 0.67]),
-                              bounds=[(-4, 10), (0.01, 0.99), (0, 1), (0.01, 0.99)])
+                              x0=np.array([1, 0.95, 0.95]),
+                              bounds=[(0.01, 10), (0.01, 0.99), (0.01, 0.99)])
     except ValueError:
         return 'NaN', 'NaN', 0
     params = get_line_params_from_x(x.x)
     density_func = lambda fix_c: make_line_negative_binom_density(fix_c, params, get_p(BAD), N,
-                                                                  allele_tr, log=False)
+                                                                  allele_tr, fixed_allele=alleles[main_allele], log=False)
     point_gofs, overall_gof = calculate_overall_gof(stats_df, density_func, params, main_allele, allele_tr, N)
     return params, point_gofs, overall_gof
 
 
-def preprocess_stats(stats, fix_c, N, main_allele, allele_tr):
+def preprocess_stats(stats, fix_c, N, main_allele, allele_tr, linefit=True):
     stats_filtered = stats[stats[alleles[main_allele]] == fix_c]
     try:
         counts, set_of_nonzero_n = make_scaled_counts(stats_filtered, main_allele, N)
     except ValueError:
         counts, set_of_nonzero_n = [], set()
 
-    if len(set_of_nonzero_n) == 0 or counts.sum() < max(set_of_nonzero_n) - allele_tr:
+    if len(set_of_nonzero_n) == 0 or (not linefit and counts.sum() < max(set_of_nonzero_n) - allele_tr):
         return None, None
     return stats_filtered, counts
 
@@ -148,12 +158,13 @@ def preprocess_stats(stats, fix_c, N, main_allele, allele_tr):
 def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=100, line_fit=False, max_read_count=100):
     print('Fitting {} distribution BAD={}...'.format(main_allele.upper(), BAD))
     N = min(max(stats[main_allele]), max_read_count)
+    N_fixed = min(max(stats[alleles[main_allele]]), upper_bound)
     if not line_fit:
-        save_array = np.zeros((upper_bound + 1, 4), dtype=np.float_)
-        for fix_c in tqdm(range(allele_tr, upper_bound + 1)):
+        save_array = np.zeros((N_fixed + 1, 4), dtype=np.float_)
+        for fix_c in tqdm(range(allele_tr, N_fixed + 1)):
             stats_filtered, counts = preprocess_stats(stats,
                                                       fix_c, N,
-                                                      main_allele, allele_tr)
+                                                      main_allele, allele_tr, linefit=line_fit)
             if stats_filtered is None:
                 continue
             weights, gof = fit_negative_binom(N, counts, fix_c, BAD, allele_tr)
