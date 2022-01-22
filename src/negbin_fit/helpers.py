@@ -272,7 +272,7 @@ def combine_densities(negbin_dens, geom_dens, w, frac, p, allele_tr=5, only_negb
 
 
 def make_line_negative_binom_density(fix_c, params, p, N, allele_tr, fixed_allele, log=True):
-    neg_bin_dens = make_inferred_negative_binom_density(fix_c, params.r0, params.p0, params.p1, p, N, allele_tr, fixed_allele)
+    neg_bin_dens = make_inferred_negative_binom_density(fix_c, params.r0, params.p0, p, params.p1, N, allele_tr, fixed_allele)
     with np.errstate(divide='ignore'):
         return np.log(neg_bin_dens) if log else neg_bin_dens
 
