@@ -133,7 +133,7 @@ def fit_negative_binom_as_line(stats_df, main_allele, upper_bound, N, allele_tr,
                                                           allele_tr=allele_tr,
                                                           BAD=BAD),
                               x0=np.array([1, 0.95, 0.1, 0.5]),
-                              bounds=[(0.001, 10), (0.001, 0.999), (0, 0.999), (0.001, 0.999)])
+                              bounds=[(0.001, 10), (0.01, 0.999), (0, 0.3), (0, 1)])
     except ValueError:
         return 'NaN', 'NaN', 0
     params = get_line_params_from_x(x.x)
