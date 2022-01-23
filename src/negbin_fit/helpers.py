@@ -139,10 +139,9 @@ def make_negative_binom_density(r, p_left_mode, w, size_of_counts, left_most, p_
 
 
 def make_prior_fixed_allele_density(params, p, N, allele_tr, fixed_allele, log=True):
+    p1, p2 = get_p12_from_mu_pc(params.mu, params.pc, p)
     if fixed_allele == 'ref':
-        p1, p2 = params.p2, params.p1
-    else:
-        p1, p2 = params.p1, params.p2
+        p1, p2 = p2, p1
 
     dist = {
         'nb1': st.nbinom(params.r0, 1 - (1-p)*params.p0 * (1-p1)/(1 - params.p0 * (1 - (1-p1)*(1-p)))),
