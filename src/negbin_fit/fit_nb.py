@@ -91,7 +91,7 @@ def make_log_likelihood(n, counts_array, BAD, left_most):
 
 
 def get_line_params_from_x(x):
-    return ParamsHandler(r0=x[0], p0=x[1], p1=x[2])
+    return ParamsHandler(r0=x[0], p0=x[1], mu=x[2], pc=x[3])
 
 
 def make_likelihood_as_line(stats, main_allele, upper_bound, N, allele_tr=5, BAD=1):

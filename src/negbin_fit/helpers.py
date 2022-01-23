@@ -82,29 +82,32 @@ def get_p(BAD):
     return 1 / (BAD + 1)
 
 
-def get_inferred_mode_w(m, r0, p0, p1, p, fixed_allele):
-    if fixed_allele == 'ref':
-        p = p
-    else:
-        p = 1 - (1 - p) * (1 - p1)
+def get_inferred_mode_w(m, r0, p0, p1, p):
     try:
         return 1 / (1 +
-                    np.exp(m * (np.log1p(-p) - np.log(p)) + (m + r0) * (np.log1p(-(1-p)*p0) - np.log1p(-p*p0)))
+                    np.exp(m * (np.log1p(-p) - np.log(p)) + (m + r0) * (np.log1p(-(1-p*(1-p1))*p0) - np.log1p(-(1 - (1-p)*(1-p1))*p0)))
                     )
     except OverflowError:
         print(m, r0, p0, p1, p)
         raise
 
 
-def make_inferred_negative_binom_density(m, r0, p0, p1, p, max_c, min_c, fixed_allele, w=None):
-    if w is None:
-        w = get_inferred_mode_w(m, r0, p0, p1, p, fixed_allele=fixed_allele)
+def get_p12_from_mu_pc(mu, pc, p):
+    return (
+        1 - (1 - pc) * (1 - mu),
+        1 - pc * (1 - mu)
+    )
+
+
+def make_inferred_negative_binom_density(m, r0, p0, mu, pc, p, max_c, min_c, fixed_allele, w=None):
+    p1, p2 = get_p12_from_mu_pc(mu, pc, p)
     if fixed_allele == 'ref':
-        p_left = p * p0 * (1 - p1) / (1 - p * p0 * p1)
-        p_right = (1 - p) * p0 * (1 - p1) / (1 - (1 - p) * p0 * p1)
-    else:
-        p_left = p * p0 / (1 - (1 - p) * p0 * p1)
-        p_right = (1 - p) * p0 / (1 - p * p0 * p1)
+        p1, p2 = p2, p1
+    if w is None:
+        w = get_inferred_mode_w(m, r0, p0, p1, p)
+
+    p_left = p * p0 * (1 - p2) / (1 - p0 * ((1 - p) * p1 + p * p2))
+    p_right = (1 - p) * p0 * (1 - p2) / (1 - p0 * (p * p1 + (1 - p) * p2))
     return make_negative_binom_density(m + r0,
                                        p_left,
                                        w,
@@ -137,9 +140,9 @@ def make_negative_binom_density(r, p_left_mode, w, size_of_counts, left_most, p_
 
 def make_prior_fixed_allele_density(params, p, N, allele_tr, fixed_allele, log=True):
     if fixed_allele == 'ref':
-        p1 = 0
+        p1, p2 = params.p2, params.p1
     else:
-        p1 = params.p1
+        p1, p2 = params.p1, params.p2
 
     dist = {
         'nb1': st.nbinom(params.r0, 1 - (1-p)*params.p0 * (1-p1)/(1 - params.p0 * (1 - (1-p1)*(1-p)))),
@@ -272,7 +275,7 @@ def combine_densities(negbin_dens, geom_dens, w, frac, p, allele_tr=5, only_negb
 
 
 def make_line_negative_binom_density(fix_c, params, p, N, allele_tr, fixed_allele, log=True):
-    neg_bin_dens = make_inferred_negative_binom_density(fix_c, params.r0, params.p0, p, params.p1, N, allele_tr, fixed_allele)
+    neg_bin_dens = make_inferred_negative_binom_density(fix_c, params.r0, params.p0, params.mu, params.pc, p, N, allele_tr, fixed_allele)
     with np.errstate(divide='ignore'):
         return np.log(neg_bin_dens) if log else neg_bin_dens
 
