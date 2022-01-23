@@ -92,7 +92,7 @@ def get_inferred_mode_w(m, r0, p0, p1, p):
         raise
 
 
-def get_p12_from_mu_pc(mu, pc, p):
+def get_p12_from_mu_pc(mu, pc):
     return (
         1 - (1 - pc) * (1 - mu),
         1 - pc * (1 - mu)
@@ -100,7 +100,7 @@ def get_p12_from_mu_pc(mu, pc, p):
 
 
 def make_inferred_negative_binom_density(m, r0, p0, mu, pc, p, max_c, min_c, fixed_allele, w=None):
-    p1, p2 = get_p12_from_mu_pc(mu, pc, p)
+    p1, p2 = get_p12_from_mu_pc(mu, pc)
     if fixed_allele == 'ref':
         p1, p2 = p2, p1
     if w is None:
@@ -139,7 +139,7 @@ def make_negative_binom_density(r, p_left_mode, w, size_of_counts, left_most, p_
 
 
 def make_prior_fixed_allele_density(params, p, N, allele_tr, fixed_allele, log=True):
-    p1, p2 = get_p12_from_mu_pc(params.mu, params.pc, p)
+    p1, p2 = get_p12_from_mu_pc(params.mu, params.pc)
     if fixed_allele == 'ref':
         p1, p2 = p2, p1
 
