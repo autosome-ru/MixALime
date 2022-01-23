@@ -192,7 +192,7 @@ def get_dist(params, main_allele, fix_c, p, model, max_cover_in_stats, allele_tr
 
 def get_negbindens_by_fixc(params, main_allele, fix_c, p, max_cover_in_stats, allele_tr):
     neg_bin_dens = make_inferred_negative_binom_density(fix_c, params[main_allele]['r0'],
-                                                         params[main_allele]['p0'], p, params[main_allele]['p1'],
+                                                         params[main_allele]['p0'], params[main_allele]['mu'], params[main_allele]['pc'], p,
                                                          max_cover_in_stats, allele_tr, fixed_allele=alleles[main_allele])
     return neg_bin_dens
 
