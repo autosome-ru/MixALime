@@ -97,30 +97,30 @@ def get_inferred_mode_w(m, r0, p0, p1, p, fixed_allele):
 
 
 def make_inferred_negative_binom_density(m, r0, p0, p1, p, max_c, min_c, fixed_allele, w=None):
-    if fixed_allele == 'ref':
-        p1 = p * p0 * (1 - p1) / (1 - p * p0 * p1)
-        p2 = (1 - p) * p0 * (1 - p1) / (1 - (1 - p) * p0 * p1)
-    else:
-        p1 = p * p0 / (1 - (1 - p) * p0 * p1)
-        p2 = (1 - p) * p0 / (1 - p * p0 * p1)
     if w is None:
         w = get_inferred_mode_w(m, r0, p0, p1, p, fixed_allele=fixed_allele)
+    if fixed_allele == 'ref':
+        p_left = p * p0 * (1 - p1) / (1 - p * p0 * p1)
+        p_right = (1 - p) * p0 * (1 - p1) / (1 - (1 - p) * p0 * p1)
+    else:
+        p_left = p * p0 / (1 - (1 - p) * p0 * p1)
+        p_right = (1 - p) * p0 / (1 - p * p0 * p1)
     return make_negative_binom_density(m + r0,
-                                       p1,
+                                       p_left,
                                        w,
                                        max_c,
                                        min_c,
-                                       p_right_mode=p2)
+                                       p_right_mode=p_right)
 
 
-def make_negative_binom_density(r, p, w, size_of_counts, left_most, p_right_mode=None):
+def make_negative_binom_density(r, p_left_mode, w, size_of_counts, left_most, p_right_mode=None):
     if p_right_mode is None:
-        p_right_mode = 1 - p
+        p_right_mode = 1 - p_left_mode
     negative_binom_density_array = np.zeros(size_of_counts + 1, dtype=np.float64)
     dist1 = st.nbinom(r, 1 - p_right_mode)  # 1 - p: right mode
     f1 = dist1.pmf
     cdf1 = dist1.cdf
-    dist2 = st.nbinom(r, 1 - p)  # p: left mode
+    dist2 = st.nbinom(r, 1 - p_left_mode)  # p: left mode
     f2 = dist2.pmf
     cdf2 = dist2.cdf
     negative_binom_norm = (cdf1(size_of_counts) -
