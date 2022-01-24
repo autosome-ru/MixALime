@@ -26,6 +26,7 @@ Optional:
     -r <int> --reads-right-tr <int>         Right allelic reads threshold. Input SNPs will be filtered by
                                             ref_read_count <= x and alt_read_count <= x. [default: 200]
     -c <int> --concentration <int>          Concentration parameter for BetaNB model
+    -N, --no-collect                        Skip collecting stats
 
 Visualize:
     -n, --no-fit                            Skip fitting procedure (use to visualize results)
@@ -326,18 +327,38 @@ def start_fit():
     })
     args = init_docopt(__doc__, schema)
     base_out_path = args['--output']
-    dfs = parse_input(args['-I'], args['-f'])
-    _, unique_BADs, merged_df = parse_args(dfs)
-    print('{} unique BADs detected'.format(len(unique_BADs)))
-    # if args['--states']:
-    #     unique_BADs = args['--states']
-    # else:
-    #     unique_BADs = search_BADs(base_out_path)
-    #     if len(unique_BADs) > 0:
-    #         print('{} unique BADs detected'.format(len(unique_BADs)))
-    #     else:
-    #         print('No BADs found in {}'.format(base_out_path))
-    #         exit(1)
+    if not args['--no-collect']:
+        dfs = parse_input(args['-I'], args['-f'])
+        _, unique_BADs, merged_df = parse_args(dfs)
+        print('{} unique BADs detected'.format(len(unique_BADs)))
+        # if args['--states']:
+        #     unique_BADs = args['--states']
+        # else:
+        #     unique_BADs = search_BADs(base_out_path)
+        #     if len(unique_BADs) > 0:
+        #         print('{} unique BADs detected'.format(len(unique_BADs)))
+        #     else:
+        #         print('No BADs found in {}'.format(base_out_path))
+        #         exit(1)
+
+        stats_dfs = {}
+        for BAD in sorted(unique_BADs):
+            bad_out_path = add_BAD_to_path(base_out_path, BAD)
+            print('Collecting stats file for BAD={:.2f} ...'.format(BAD))
+            stats_dfs[BAD] = collect_stats_df(merged_df, bad_out_path, BAD)
+    else:
+        unique_BADs = search_BADs(base_out_path)
+        if len(unique_BADs) > 0:
+            print('{} unique BADs detected'.format(len(unique_BADs)))
+        else:
+            print('No BADs found in {}'.format(base_out_path))
+            exit(1)
+        stats_dfs = {}
+        for BAD in sorted(unique_BADs):
+            bad_out_path = add_BAD_to_path(base_out_path, BAD, create=False)
+            print('Collecting stats file for BAD={:.2f} ...'.format(BAD))
+            stats_dfs[BAD] = open_stats_df(bad_out_path)
+
     allele_tr = args['--reads-left-tr']
     model = args['--model']
     to_fit = not args['--no-fit']
@@ -345,12 +366,6 @@ def start_fit():
     max_fit_count = args['--reads-right-tr']
     max_read_count = args['--max-read-count']
     njobs = -1
-    stats_dfs = {}
-    for BAD in sorted(unique_BADs):
-        bad_out_path = add_BAD_to_path(base_out_path, BAD)
-        print('Collecting stats file for BAD={:.2f} ...'.format(BAD))
-        stats_dfs[BAD] = collect_stats_df(merged_df, bad_out_path, BAD)
-
     if model in available_models[2:]:
         line_fit = model == 'NB_AS_Total'
         for BAD in sorted(unique_BADs):
