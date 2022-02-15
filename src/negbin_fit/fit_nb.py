@@ -9,7 +9,10 @@ Arguments:
     <dir>             Directory with fitted weights
     <list>            List of positive integers "int1,int2" or slice "start:end:step"
     <file-list>       File with filenames of input file on each line
-    <model>           String any of (NB_G, NB_AS, BetaNB, NB_AS_Total)
+    <model>           String any of (NB_AS, BetaNB, NB_AS_Total, line, window)
+    <conc>            String any of (line, intercept)
+    <dist>            String any of (NB, BetaNB)
+    <bh>              String any of (both, right)
     <ext>             Extension, non-empty string
 
 Required:
@@ -21,11 +24,16 @@ Required:
 Optional:
     -h, --help                              Show help
     -q, --quiet                             Suppress log messages
-    -l <int> --reads-left-tr <int>          Left allelic reads threshold. Input SNPs will be filtered by
+    -l <int>, --reads-left-tr <int>         Left allelic reads threshold. Input SNPs will be filtered by
                                             ref_read_count >= x and alt_read_count >= x. [default: 5]
-    -r <int> --reads-right-tr <int>         Right allelic reads threshold. Input SNPs will be filtered by
+    -r <int>, --reads-right-tr <int>        Right allelic reads threshold. Input SNPs will be filtered by
                                             ref_read_count <= x and alt_read_count <= x. [default: 200]
-    -c <int> --concentration <int>          Concentration parameter for BetaNB model [default: line]
+    -c <conc>, --concentration <conc>       Concentration parameter for ModelLine and ModelWindow model [default: line]
+    -d <dist>, --distribution <dist>        Distribution to be used in ModelLine or ModelWindow models. Can be either BetaNB or NB [default: BetaNB]
+    -w <int>, --window_size <int>           Minimal window size for ModelWindow [default: 1000]
+    -s <int>, --min_slices <int>            Minimal number of slices per window for ModelWindow [default: 10]
+    -b <bh>, --window_behavior <bh>         If 'both', then window is expanded into both directions. If 'right', then it expands only to the right as long as it is possible [default: both]
+    --adjust_line                           Adjust b and mu parameters estimates so they are as close as possible to those of the previous window in ModelWindow
 
 Visualize:
     -n, --no-fit                            Skip fitting procedure (use to visualize results)
@@ -43,7 +51,9 @@ from betanegbinfit.bridge_mixalime import read_dist_from_folder
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, \
     make_negative_binom_density, make_line_negative_binom_density, calculate_gof_for_point_fit, \
     ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column, \
-    parse_input, parse_files_list, available_models
+    parse_input, parse_files_list
+from negbin_fit.helpers import available_concentrations, available_models,\
+    available_dists, available_window_behaviors, available_bnb_models
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 from negbin_fit.visualize import main as visualize
 from schema import And, Const, Schema, Use, Or
@@ -303,7 +313,16 @@ def start_fit():
         '--model': Const(lambda x: x in available_models,
                          error='Model not in ({})'.format(', '.join(available_models))),
         '--ext': Const(lambda x: len(x) > 0),
-        '--concentration': str,
+        '--concentration': Const(lambda x: x in available_concentrations,
+                                 error='Concentration mode not in ({})'.format(', '.join(available_concentrations))),
+        '--distribution': Const(lambda x: x in available_dists,
+                                 error='Distribution not in ({})'.format(', '.join(available_dists))),
+        '--window_behavior': Const(lambda x: x in available_window_behaviors,
+                                 error='Concentration mode not in ({})'.format(', '.join(available_window_behaviors))),
+        '--min_slices': And(Use(int), Const(lambda x: x >= 0),
+                            error='Min_slices should be non-negative.'),
+        '--window_size': And(Use(int), Const(lambda x: x > 0),
+                            error='Min_slices should be positive.'),
         str: bool
     })
     args = init_docopt(__doc__, schema)
@@ -326,6 +345,12 @@ def start_fit():
     to_visualize = args['--visualize']
     max_fit_count = args['--reads-right-tr']
     max_read_count = args['--max-read-count']
+    dist = args['--distribution']
+    window_behavior = args['--window_behavior']
+    min_slices = args['--min_slices']
+    concentration = args['--concentration']
+    window_size = args['--window_size']
+    
     njobs = -1
     stats_dfs = {}
     for BAD in sorted(unique_BADs):
@@ -333,7 +358,7 @@ def start_fit():
         print('Collecting stats file for BAD={:.2f} ...'.format(BAD))
         stats_dfs[BAD] = collect_stats_df(merged_df, bad_out_path, BAD)
 
-    if model in available_models[2:]:
+    if model not in available_bnb_models:
         line_fit = model == 'NB_AS_Total'
         for BAD in sorted(unique_BADs):
             bad_out_path = add_BAD_to_path(base_out_path, BAD)
@@ -371,14 +396,17 @@ def start_fit():
                     allele_tr=allele_tr)
 
     else:
-        if model == 'NB_G':
-            model = 'NB'
         if to_fit:
             from betanegbinfit import run
             fit_params = run(data=merged_df, output_folder=base_out_path,
                              bads=unique_BADs,
                              model=model,
-                             concentration=args['--concentration'],
+                             window_size=window_size,
+                             window_behavior=window_behavior,
+                             min_slices=min_slices,
+                             estimate_p=False,
+                             dist=dist,
+                             concentration=concentration,
                              left=allele_tr - 1,
                              max_count=max_fit_count,
                              apply_weights=False,
@@ -394,6 +422,7 @@ def start_fit():
                     params=fit_params,
                     model=model,
                     cover_list=args['--cover-list'],
+                    image_type=args['--ext'],
                     max_read_count=max_read_count,
                     out=bad_out_path,
                     BAD=BAD,

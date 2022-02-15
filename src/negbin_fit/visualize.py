@@ -6,7 +6,7 @@ import seaborn as sns
 from negbin_fit.fit_nb import get_p, make_negative_binom_density
 from negbin_fit.helpers import alleles, get_nb_weight_path, get_counts_dist_from_df, \
     make_cover_negative_binom_density, make_geom_dens, combine_densities, make_inferred_negative_binom_density, \
-    available_models
+    available_models, available_bnb_models
 from scipy import stats as st
 
 sns.set(font_scale=1.55, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
@@ -106,7 +106,7 @@ def r_vs_count_scatter(df_ref, df_alt,
 def get_gof(params, allele, fixed_c, BAD, model):
     if model == 'NB_AS_Total':
         return params[allele]['point_gofs'].get(str(fixed_c), -1)
-    elif model == 'BetaNB':
+    elif model in available_models:
         return params[allele][BAD]['stats']['rmsea'].get(fixed_c, -1)
     else:
         print("{} not supported".format(model))
@@ -180,10 +180,10 @@ def make_image_path(out, image_name, image_type):
 
 
 def get_dist(params, main_allele, fix_c, p, model, max_cover_in_stats, allele_tr):
-    if model in available_models[2:]:
+    if model not in available_bnb_models and model != 'NB':
         return get_negbindens_by_fixc(params, main_allele, fix_c, p,
                                        max_cover_in_stats, allele_tr)
-    elif model == 'BetaNB':
+    elif model in available_models:#('BetaNB', 'NB_G', 'NB'):
         result = [0 if np.isinf(x) or x == 0 else np.exp(x)
                   for x in
                   params[main_allele][int(1 / p - 1)]['logpdf'].get(fix_c, [])]
@@ -342,7 +342,7 @@ def slices(df_ref, df_alt, stats_df,
                                                                                     get_gof(params, main_allele,
                                                                                             fix_c, BAD, model))
                 else:
-                    if model == 'BetaNB':
+                    if model in ('BetaNB', 'NB_G', 'NB'):
                         label = '{} fit for {}' \
                                 '\ntotal observations: {}\nngof={:.4f}'.format(model,
                                                                         main_allele,
