@@ -422,6 +422,7 @@ def start_fit():
                     params=fit_params,
                     model=model,
                     cover_list=args['--cover-list'],
+                    image_type=args['--ext'],
                     max_read_count=max_read_count,
                     out=bad_out_path,
                     BAD=BAD,

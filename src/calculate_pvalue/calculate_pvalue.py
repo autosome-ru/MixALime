@@ -10,7 +10,8 @@ Arguments:
     <out>             Output file path
     <int>             Positive integer
     <ext>             Extension, non-empty string
-    <model>           String, one of 'BetaNB', 'NB_AS_Total'
+    <model>           String, one of 'line', 'window', 'NB_AS_Total'
+    <dist>            String, one of 'NB', 'BetaNB'
     <method>          String, one of 'logit', 'fisher'
 
 Required:
@@ -19,6 +20,7 @@ Required:
     -O <path>, --output <path>              Output director
     -w <dir>, --weights <dir>               Directory with fitted weights for models
     -m <model>, --model <model>             Model to calculate p-value with [default: NB_AS_Total]
+    -d <dist>, --distribution <dist>        Underlying distribution to use in 'line' or 'window' models [default: BetaNB]
 
 Optional:
     -h, --help                              Show help
@@ -41,13 +43,13 @@ from scipy import stats as st
 import numpy as np
 from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path, \
     merge_dfs, read_dfs, get_key, get_counts_column, get_p, get_pvalue_file_path, parse_files_list, parse_input, \
-    available_models, aggregation_methods
+    available_models, available_bnb_models, available_dists, aggregation_methods
 from schema import Schema, And, Const, Use, Or
 from tqdm import tqdm
 
 
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5):
-    if model == 'BetaNB':
+    if model in available_bnb_models:
         params, models_dict = fit_params
         scaled_weights = {}
         for main_allele in alleles:
@@ -171,7 +173,7 @@ def get_neg_bin_params(fit_param, main_allele, BAD, err_id):
 
 def get_pmf_for_dist(params, k, m, BAD, model):
     p = get_p(BAD)
-    if model == 'BetaNB':
+    if model in available_bnb_models:
         logpdfs = list(map(lambda x: x[k] if x is not None and len(x) > k else None,
                            params['logpdf']['modes'].get(m, (None, None))))
         return logpdfs[::-1]
@@ -197,7 +199,7 @@ def get_pmf_for_dist(params, k, m, BAD, model):
 
 
 def get_params_by_model(fit_params, main_allele, BAD, model, snp):
-    if model == 'BetaNB':
+    if model in available_bnb_models:
         return fit_params[main_allele][BAD]
     else:
         return get_neg_bin_params(fit_params, main_allele, BAD, snp)
@@ -236,15 +238,15 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path):
     return result
 
 
-def start_process(dfs, merged_df, unique_snps, unique_BADs, out_path, fit_params, model):
+def start_process(dfs, merged_df, unique_snps, unique_BADs, out_path, fit_params, model, dist):
     print('Calculating posterior weights...')
     weights = get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path)
     tqdm.pandas()
-    if model == 'BetaNB':
+    if model in available_bnb_models:
         models_dict = {}
         for BAD in unique_BADs:
             # FIXME
-            models_dict[BAD] = ModelMixture(bad=BAD, left=4, model='BetaNB')
+            models_dict[BAD] = ModelMixture(bad=BAD, left=4, dist=dist)
         fit_params = fit_params, models_dict
     result = []
     for df_name, df in dfs:
@@ -354,6 +356,8 @@ def main():
         ),
         '--model': Const(lambda x: x in available_models,
                          error='Model not in ({})'.format(', '.join(available_models))),
+        '--distribution': Const(lambda x: x in available_dists,
+                                 error='Distribution not in ({})'.format(', '.join(available_dists))),
         '--output': Or(
             And(
                 Const(os.path.exists),
@@ -378,6 +382,7 @@ def main():
     ext = args['--ext']
     model = args['--model']
     weights_dir = args['--weights']
+    dist = args['--distribution']
     unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
     if not args['aggregate']:
         if not os.path.exists(out):
@@ -387,7 +392,7 @@ def main():
                 print(__doc__)
                 exit('Can not create output directory')
                 raise
-        if model == 'BetaNB':
+        if model in available_bnb_models:
             fit_params = bridge_mixalime.read_dist_from_folder(folder=weights_dir)
         else:
             try:
@@ -406,7 +411,8 @@ def main():
                 unique_snps=unique_snps,
                 unique_BADs=unique_BADs,
                 fit_params=fit_params,
-                model=args['--model']
+                model=args['--model'],
+                dist=dist
             )
         else:
             result_dfs = [pd.read_table(get_pvalue_file_path(out, df_name)) for df_name, df in dfs]
