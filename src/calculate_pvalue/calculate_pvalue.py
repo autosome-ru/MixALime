@@ -283,8 +283,12 @@ def logit_combine_p_values(pvalues):
 
 def aggregate_es(es_array, p_array):
     if len([x for x in es_array if not pd.isna(x)]) > 0:
-        weights = [-1 * np.log10(x) for x in p_array if x != 1]
-        es_mean = np.round(np.average(es_array, weights=weights), 3)
+        weights = [-1 * np.log10(x) for x in p_array if x != 1 and not pd.isna(x)]
+        try:
+            es_mean = np.round(np.average(es_array, weights=weights), 3)
+        except TypeError:
+            print(es_array, p_array)
+            raise
         es_mostsig = es_array[int(np.argmax(weights))]
     else:
         es_mean = np.nan
