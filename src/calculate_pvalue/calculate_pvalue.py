@@ -311,7 +311,7 @@ def combine_pvalues_with_method(p_array, method):
     if method == 'logit':
         return logit_combine_p_values(p_array)
     else:
-        return combine_pvalues(pvalues=p_array, method=method)
+        return combine_pvalues(pvalues=p_array, method=method)[1]
 
 
 def aggregate_dfs(merged_df, unique_snps, method='logit'):
@@ -436,12 +436,16 @@ def main():
         maxc_tr = args['--coverage-tr']
         mc_filter_array = np.array(aggregated_df['MAX_COVER'] >= maxc_tr, dtype=np.bool)
         if mc_filter_array.sum() != 0:
-            bool_ar_ref, p_val_ref, _, _ = multitest.multipletests(
-                aggregated_df[mc_filter_array]["LOGITP_REF"].to_numpy(),
-                alpha=0.05, method='fdr_bh')
-            bool_ar_alt, p_val_alt, _, _ = multitest.multipletests(
-                aggregated_df[mc_filter_array]["LOGITP_ALT"],
-                alpha=0.05, method='fdr_bh')
+            try:
+                bool_ar_ref, p_val_ref, _, _ = multitest.multipletests(
+                    aggregated_df[mc_filter_array]["LOGITP_REF"].to_numpy(),
+                    alpha=0.05, method='fdr_bh')
+                bool_ar_alt, p_val_alt, _, _ = multitest.multipletests(
+                    aggregated_df[mc_filter_array]["LOGITP_ALT"],
+                    alpha=0.05, method='fdr_bh')
+            except TypeError:
+                print(aggregated_df[mc_filter_array]["LOGITP_REF"].to_numpy())
+                raise
         else:
             p_val_ref = []
             p_val_alt = []
