@@ -1,11 +1,12 @@
 """
 Usage:
-    negbin_fit [options] (-I <file> ... | -f <file-list>) (-O <dir> -m <model>)
+    negbin_fit [options] (-O <dir> -m <model>)
+    negbin_fit collect (-I <file>... | -f <file-list>) (-O <dir> -m <model>)
 
 Arguments:
-    <file>            Path to input file in tsv format with columns: alt ref counts.
-    <bad>             BAD value (can be decimal)
+    <file>            Path to input file in tsv format with columns: alt ref counts
     <int>             Non negative integer
+    <string>          String of states separated with "," (to provide fraction use "/", e.g. 4/3). Each state must be >= 1
     <dir>             Directory with fitted weights
     <list>            List of positive integers "int1,int2" or slice "start:end:step"
     <file-list>       File with filenames of input file on each line
@@ -24,6 +25,7 @@ Required:
 Optional:
     -h, --help                              Show help
     -q, --quiet                             Suppress log messages
+    --states <string>                       Set of states to perform fit on
     -l <int>, --reads-left-tr <int>         Left allelic reads threshold. Input SNPs will be filtered by
                                             ref_read_count >= x and alt_read_count >= x. [default: 5]
     -r <int>, --reads-right-tr <int>        Right allelic reads threshold. Input SNPs will be filtered by
@@ -51,7 +53,7 @@ from betanegbinfit.bridge_mixalime import read_dist_from_folder
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, \
     make_negative_binom_density, make_line_negative_binom_density, calculate_gof_for_point_fit, \
     ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column, \
-    parse_input, parse_files_list
+    parse_input, parse_files_list, check_states
 from negbin_fit.helpers import available_concentrations, available_models,\
     available_dists, available_window_behaviors, available_bnb_models
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
@@ -297,13 +299,13 @@ def start_fit():
             Use(int),
             Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
         ),
-        # '--states': Or(
-        #     Const(lambda x: x is None),
-        #     Use(
-        #         check_states, error='''Incorrect value for --states.
-        #     Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
-        #     )
-        # ),
+        '--states': Or(
+            Const(lambda x: x is None),
+            Use(
+                check_states, error='''Incorrect value for --states.
+            Must be "," separated list of numbers or fractions in the form "x/y", each >= 1'''
+            )
+        ),
         '--cover-list': Use(parse_cover_list, error='Wrong format cover list'),
         '--max-read-count': And(
             Use(int),
@@ -327,18 +329,6 @@ def start_fit():
     })
     args = init_docopt(__doc__, schema)
     base_out_path = args['--output']
-    dfs = parse_input(args['-I'], args['-f'])
-    _, unique_BADs, merged_df = parse_args(dfs)
-    print('{} unique BADs detected'.format(len(unique_BADs)))
-    # if args['--states']:
-    #     unique_BADs = args['--states']
-    # else:
-    #     unique_BADs = search_BADs(base_out_path)
-    #     if len(unique_BADs) > 0:
-    #         print('{} unique BADs detected'.format(len(unique_BADs)))
-    #     else:
-    #         print('No BADs found in {}'.format(base_out_path))
-    #         exit(1)
     allele_tr = args['--reads-left-tr']
     model = args['--model']
     to_fit = not args['--no-fit']
@@ -353,11 +343,33 @@ def start_fit():
     
     njobs = -1
     stats_dfs = {}
+    merged_df = None
+    if args['collect']:
+        dfs = parse_input(args['-I'], args['-f'])
+        _, unique_BADs, merged_df = parse_args(dfs)
+        print('{} unique BADs detected'.format(len(unique_BADs)))
+    else:
+        if args['--states']:
+            unique_BADs = args['--states']
+        else:
+            unique_BADs = search_BADs(base_out_path)
+            if len(unique_BADs) > 0:
+                print('{} unique BADs detected'.format(len(unique_BADs)))
+            else:
+                raise ValueError('No BADs found in {}'.format(base_out_path))
+
     for BAD in sorted(unique_BADs):
         bad_out_path = add_BAD_to_path(base_out_path, BAD)
-        print('Collecting stats file for BAD={:.2f} ...'.format(BAD))
-        stats_dfs[BAD] = collect_stats_df(merged_df, bad_out_path, BAD)
-
+        if args['collect']:
+            print('Collecting stats file for BAD={:.2f} ...'.format(BAD))
+            collect_stats_df(merged_df, bad_out_path, BAD)
+        else:
+            if not os.path.isfile(get_stats_df_path(bad_out_path)):
+                raise ValueError('No stats file in {}'.format(bad_out_path))
+            stats_df = open_stats_df(bad_out_path)
+            stats_dfs[BAD] = stats_df
+    if args['collect']:
+        exit(0)
     if model not in available_bnb_models:
         line_fit = model == 'NB_AS_Total'
         for BAD in sorted(unique_BADs):
@@ -378,8 +390,6 @@ def start_fit():
             else:
                 try:
                     _, d = check_weights_path(bad_out_path, line_fit=line_fit)
-
-                    stats_df = open_stats_df(bad_out_path)
                 except Exception:
                     print(__doc__)
                     exit('Error reading weights in {}'.format(bad_out_path))
@@ -398,7 +408,9 @@ def start_fit():
     else:
         if to_fit:
             from betanegbinfit import run
-            fit_params = run(data=merged_df, output_folder=base_out_path,
+            #  FIXME change signature
+            #  stats_dfs is a dict where BAD is a key and the corresponding stats_df is a value
+            fit_params = run(data=stats_dfs, output_folder=base_out_path,
                              bads=unique_BADs,
                              model=model,
                              window_size=window_size,
