@@ -10,7 +10,7 @@ Arguments:
     <dir>             Directory with fitted weights
     <list>            List of positive integers "int1,int2" or slice "start:end:step"
     <file-list>       File with filenames of input file on each line
-    <model>           String any of (NB_AS, BetaNB, NB_AS_Total, line, window, slices)
+    <model>           String any of (NB_AS, BetaNB, NB_AS_Total, line, window)
     <conc>            String any of (line, intercept)
     <dist>            String any of (NB, BetaNB)
     <bh>              String any of (both, right)
@@ -31,7 +31,7 @@ Optional:
     -r <int>, --reads-right-tr <int>        Right allelic reads threshold. Input SNPs will be filtered by
                                             ref_read_count <= x and alt_read_count <= x. [default: 200]
     -c <conc>, --concentration <conc>       Concentration parameter for ModelLine and ModelWindow model [default: line]
-    -d <dist>, --distribution <dist>        Distribution to be used in ModelLine, ModelWindow or ModelMixtures models. Can be either BetaNB or NB [default: BetaNB]
+    -d <dist>, --distribution <dist>        Distribution to be used in ModelLine or ModelWindow models. Can be either BetaNB or NB [default: BetaNB]
     -w <int>, --window_size <int>           Minimal window size for ModelWindow [default: 1000]
     -s <int>, --min_slices <int>            Minimal number of slices per window for ModelWindow [default: 10]
     -b <bh>, --window_behavior <bh>         If 'both', then window is expanded into both directions. If 'right', then it expands only to the right as long as it is possible [default: both]
@@ -340,6 +340,7 @@ def start_fit():
     min_slices = args['--min_slices']
     concentration = args['--concentration']
     window_size = args['--window_size']
+    
     njobs = -1
     stats_dfs = {}
     merged_df = None
