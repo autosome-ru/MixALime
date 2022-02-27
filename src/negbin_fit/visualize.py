@@ -305,7 +305,7 @@ def slices(df_ref, df_alt, stats_df,
                         y=chop_counts_array / total_snps, ax=ax, color='C1')
 
             # if model == NB_AS
-            if df_ref is not None and model not in available_bnb_models:
+            if df_ref is not None:
                 df = df_ref if fixed_allele == 'ref' else df_alt
                 r, w, gof = (df['r'][fix_c],
                              df['w'][fix_c],
