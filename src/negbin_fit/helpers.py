@@ -8,8 +8,8 @@ from scipy import stats as st
 import pandas as pd
 
 alleles = {'ref': 'alt', 'alt': 'ref'}
-available_models = ('NB_G' 'NB_AS', 'NB_AS_Total', 'line', 'window', 'slices')
-available_bnb_models = ('line', 'window', 'slices')
+available_models = ('NB_G', 'NB_AS', 'NB_AS_Total', 'line', 'window', 'slices')
+available_bnb_models = ('NB_G', 'line', 'window', 'slices')
 available_dists = ('NB', 'BetaNB')
 available_concentrations = ('line', 'intercept')
 available_window_behaviors = ('both', 'right')
