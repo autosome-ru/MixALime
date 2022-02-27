@@ -212,7 +212,7 @@ def slices(df_ref, df_alt, stats_df,
            BAD, out, model,
            params=None,
            allele_tr=5,
-           max_read_count=50,
+           max_read_count=150,
            cover_list=None,
            to_show=False,
            ):
