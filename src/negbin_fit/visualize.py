@@ -141,6 +141,7 @@ def gof_scatter(df_ref, df_alt, BAD, out, model,
                    label='Ref')
 
     if params is not None:
+        max_y = 0.05
         for allele, df, color in zip(alleles, [df_ref, df_alt], ['C4', 'C3']):
             if df_ref is not None:
                 x = df.index
@@ -151,6 +152,8 @@ def gof_scatter(df_ref, df_alt, BAD, out, model,
                        y=y,
                        color=color,
                        label=allele.capitalize() + ' new')
+            max_y = max(max_y, max(y))
+        ax.set_ylim(0, max_y * 1.05)
 
     ax.set_xlabel('Read count for the fixed allele')
     ax.set_ylabel('Goodness of fit, RMSEA')
