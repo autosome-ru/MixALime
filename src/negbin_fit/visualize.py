@@ -106,7 +106,7 @@ def r_vs_count_scatter(df_ref, df_alt,
 def get_gof(params, allele, fixed_c, BAD, model):
     if model == 'NB_AS_Total':
         return params[allele]['point_gofs'].get(str(fixed_c), -1)
-    elif model in available_models:
+    elif model in available_bnb_models:
         return params[allele][BAD]['stats']['rmsea'].get(fixed_c, -1)
     else:
         print("{} not supported".format(model))
@@ -140,7 +140,7 @@ def gof_scatter(df_ref, df_alt, BAD, out, model,
                    color='C2',
                    label='Ref')
 
-    if params is not None:
+    if params is not None and model != 'NB_AS':
         max_y = 0.05
         for allele, df, color in zip(alleles, [df_ref, df_alt], ['C4', 'C3']):
             if df_ref is not None:
