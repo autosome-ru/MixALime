@@ -217,7 +217,11 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path):
         for main_allele in alleles:
             ks = filtered_df[get_counts_column(main_allele)].to_list()  # main_counts
             ms = filtered_df[get_counts_column(alleles[main_allele])].to_list()  # fixed_counts
-            params = get_params_by_model(fit_params, main_allele, BAD, model, snp)
+            try:
+                params = get_params_by_model(fit_params, main_allele, BAD, model, snp)
+            except KeyError:
+                print(fit_params, main_allele, BAD, model)
+                raise
             prod = np.float64(0)
             for k, m in zip(ks, ms):
                 if (k, m, BAD, main_allele) in cache:
