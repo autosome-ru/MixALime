@@ -212,7 +212,7 @@ def slices(df_ref, df_alt, stats_df,
            BAD, out, model,
            params=None,
            allele_tr=5,
-           max_read_count=50,
+           max_read_count=150,
            cover_list=None,
            to_show=False,
            ):
@@ -306,7 +306,7 @@ def slices(df_ref, df_alt, stats_df,
 
             # if model == NB_AS
             if df_ref is not None:
-                df = df_ref if fixed_allele == 'ref' else df_alt
+                df = df_ref if main_allele == 'ref' else df_alt
                 r, w, gof = (df['r'][fix_c],
                              df['w'][fix_c],
                              df['gof'][fix_c])
