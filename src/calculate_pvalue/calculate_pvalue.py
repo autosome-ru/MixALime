@@ -153,7 +153,7 @@ def process_df(row, weights, fit_params, model):
 
 
 def filter_df(merged_df, key):
-    return merged_df[merged_df['key'] == key]
+    return merged_df[merged_df.key.values == key] 
 
 
 def get_neg_bin_params(fit_param, main_allele, BAD, err_id):

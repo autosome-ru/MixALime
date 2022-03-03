@@ -189,7 +189,7 @@ def get_dist(params, main_allele, fix_c, p, model, max_cover_in_stats, allele_tr
     elif model in available_models:#('BetaNB', 'NB_G', 'NB'):
         result = [0 if np.isinf(x) or x == 0 else np.exp(x)
                   for x in
-                  params[main_allele][int(1 / p - 1)]['logpdf'].get(fix_c, [])]
+                  params[main_allele][round(1 / p - 1, 2)]['logpdf'].get(fix_c, [])]
         return np.array(result + [0 for i in range(max_cover_in_stats + 1 - len(result))])
 
 
