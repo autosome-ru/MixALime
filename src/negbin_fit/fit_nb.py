@@ -30,6 +30,7 @@ Optional:
                                             ref_read_count >= x and alt_read_count >= x. [default: 5]
     -r <int>, --reads-right-tr <int>        Right allelic reads threshold. Input SNPs will be filtered by
                                             ref_read_count <= x and alt_read_count <= x. [default: 200]
+    -R, --no-main-allele-limit              Only apply -r option to fixed allele read counts
     -c <conc>, --concentration <conc>       Concentration parameter for ModelLine and ModelWindow model [default: line]
     -d <dist>, --distribution <dist>        Distribution to be used in ModelLine, ModelWindow or ModelMixtures models. Can be either BetaNB or NB [default: BetaNB]
     -w <int>, --window_size <int>           Minimal window size for ModelWindow [default: 1000]
@@ -339,6 +340,7 @@ def start_fit():
     min_slices = args['--min_slices']
     concentration = args['--concentration']
     window_size = args['--window_size']
+    no_main_allele_limit = args['--no-main-allele-limit']
     njobs = -1
     stats_dfs = {}
     merged_df = None
@@ -380,7 +382,7 @@ def start_fit():
                          BAD=BAD,
                          line_fit=line_fit,
                          allele_tr=allele_tr,
-                         max_read_count=max_fit_count)
+                         max_read_count=np.inf if no_main_allele_limit else max_fit_count)
                 if not line_fit:
                     convert_weights(in_df=stats_df,
                                     np_weights_dict=d,
@@ -418,7 +420,7 @@ def start_fit():
                              dist=dist,
                              concentration=concentration,
                              left=allele_tr - 1,
-                             max_count=max_fit_count,
+                             max_count=np.inf if no_main_allele_limit else max_fit_count,
                              apply_weights=False,
                              n_jobs=njobs)
         else:
