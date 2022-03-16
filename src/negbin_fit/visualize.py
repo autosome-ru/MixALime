@@ -73,13 +73,13 @@ def r_vs_count_scatter(df_ref, df_alt,
         y_ref = []
         y_alt = []
         for count in x_list:
-            mu = params['ref']['{:.2f}'.format(BAD)]['params'].get('mu{}'.format(count))
-            b = params['ref']['{:.2f}'.format(BAD)]['params'].get('b{}'.format(count))
+            mu = params['ref'][float(round(BAD, 2))]['params'].get('mu{}'.format(count))
+            b = params['ref'][float(round(BAD, 2))]['params'].get('b{}'.format(count))
             if mu is not None and b is not None:
                 y_alt.append(b * count + mu)
 
-            mu = params['alt']['{:.2f}'.format(BAD)]['params'].get('mu{}'.format(count))
-            b = params['alt']['{:.2f}'.format(BAD)]['params'].get('b{}'.format(count))
+            mu = params['alt'][float(round(BAD, 2))]['params'].get('mu{}'.format(count))
+            b = params['alt'][float(round(BAD, 2))]['params'].get('b{}'.format(count))
             if mu is not None and b is not None:
                 y_ref.append(b * count + mu)
 
