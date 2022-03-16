@@ -70,21 +70,22 @@ def r_vs_count_scatter(df_ref, df_alt,
     y_max = 0
     if params is not None and model == 'window':
         x_list = list(range(5, max_read_count + 1))
+        x_ref = []
+        x_alt = []
         y_ref = []
         y_alt = []
         for count in x_list:
             mu = params['ref'][float(round(BAD, 2))]['params'].get('mu{}'.format(count))
             b = params['ref'][float(round(BAD, 2))]['params'].get('b{}'.format(count))
             if mu is not None and b is not None:
+                x_alt.append(count)
                 y_alt.append(b * count + mu)
 
             mu = params['alt'][float(round(BAD, 2))]['params'].get('mu{}'.format(count))
             b = params['alt'][float(round(BAD, 2))]['params'].get('b{}'.format(count))
             if mu is not None and b is not None:
+                x_ref.append(count)
                 y_ref.append(b * count + mu)
-
-        ax.scatter(x=x_list, y=y_alt, color='C3', label='new Alt')
-        ax.scatter(x=x_list, y=y_ref, color='C4', label='new Ref')
 
     #  Comparison with NB_AS
     if df_ref is not None:
@@ -93,8 +94,8 @@ def r_vs_count_scatter(df_ref, df_alt,
         x_alt, y_alt = zip(*([(x, y) for x, y in zip(df_alt.index, df_alt["r"].tolist()) if y != 0]))
         x_ref, y_ref = zip(*([(x, y) for x, y in zip(df_alt.index, df_ref["r"].tolist()) if y != 0]))
 
-        ax.scatter(x=x_alt, y=y_alt, color='C1', label='Alt')
-        ax.scatter(x=x_ref, y=y_ref, color='C2', label='Ref')
+    ax.scatter(x=x_alt, y=y_alt, color='C1', label='Alt')
+    ax.scatter(x=x_ref, y=y_ref, color='C2', label='Ref')
 
     ax.set_ylim(0, y_max * 1.05)
     ax.plot([allele_tr, y_max], [allele_tr, y_max], c='grey', label='y=x', linestyle='dashed')
