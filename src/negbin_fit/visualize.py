@@ -60,35 +60,45 @@ def r_vs_count_scatter(df_ref, df_alt,
                        out, BAD,
                        max_read_count=50,
                        allele_tr=5, to_show=False,
-                       weights_dict=None
+                       params=None,
+                       model=None,
                        ):
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
 
     ax.set_xlim(allele_tr, max_read_count)
-    y_max = max(max(df_ref['r']), max(df_alt['r']))
+    y_max = 0
+    if params is not None and model == 'window':
+        x_list = list(range(5, max_read_count + 1))
+        y_ref = []
+        y_alt = []
+        for count in x_list:
+            mu = params['ref']['{:.2f}'.format(BAD)]['params'].get('mu{}'.format(count))
+            b = params['ref']['{:.2f}'.format(BAD)]['params'].get('b{}'.format(count))
+            if mu is not None and b is not None:
+                y_alt.append(b * count + mu)
+
+            mu = params['alt']['{:.2f}'.format(BAD)]['params'].get('mu{}'.format(count))
+            b = params['alt']['{:.2f}'.format(BAD)]['params'].get('b{}'.format(count))
+            if mu is not None and b is not None:
+                y_ref.append(b * count + mu)
+
+        ax.scatter(x=x_list, y=y_alt, color='C3', label='new Alt')
+        ax.scatter(x=x_list, y=y_ref, color='C4', label='new Ref')
+
+    #  Comparison with NB_AS
+    if df_ref is not None:
+        y_max = max(max(df_ref['r']), max(df_alt['r']), y_max)
+
+        x_alt, y_alt = zip(*([(x, y) for x, y in zip(df_alt.index, df_alt["r"].tolist()) if y != 0]))
+        x_ref, y_ref = zip(*([(x, y) for x, y in zip(df_alt.index, df_ref["r"].tolist()) if y != 0]))
+
+        ax.scatter(x=x_alt, y=y_alt, color='C1', label='Alt')
+        ax.scatter(x=x_ref, y=y_ref, color='C2', label='Ref')
+
     ax.set_ylim(0, y_max * 1.05)
-    ax.grid(True)
-
     ax.plot([allele_tr, y_max], [allele_tr, y_max], c='grey', label='y=x', linestyle='dashed')
-    if weights_dict is not None:
-        line_plot_colors = {
-            'alt': 'orange',
-            'ref': 'red'
-        }
-        for allele in alleles:
-            a = weights_dict[allele]['a']
-            b = weights_dict[allele]['b']
-            ax.plot([allele_tr, max_read_count], [a * allele_tr + b, a * max_read_count + b],
-                    c=line_plot_colors[allele], label='Line fit for {}'.format(allele.upper()))
-    # if BAD == 4 / 3:
-    #     ax.plot([10 * 4 / 3, y_max * 4 / 3], [10, y_max], label='y=3/4 x', c='black', linestyle='dashed')
-
-    x_alt, y_alt = zip(*([(x, y) for x, y in zip(df_alt.index, df_alt["r"].tolist()) if y != 0]))
-    x_ref, y_ref = zip(*([(x, y) for x, y in zip(df_alt.index, df_ref["r"].tolist()) if y != 0]))
-
-    ax.scatter(x=x_alt, y=y_alt, color='C1', label='Alt')
-    ax.scatter(x=x_ref, y=y_ref, color='C2', label='Ref')
+    ax.grid(True)
 
     ax.set_xlabel('Read count for the fixed allele')
     ax.set_ylabel('Fitted r value')
@@ -397,11 +407,14 @@ def main(stats, out, BAD, model,
                    out=make_image_path(out, 'r_bias', image_type),
                    BAD=BAD,
                    to_show=to_show)
+    if model in ('NB_AS', 'window'):
         r_vs_count_scatter(df_ref, df_alt,
                            out=make_image_path(out, 'r_vs_counts', image_type),
                            BAD=BAD,
                            max_read_count=max_read_count,
                            allele_tr=allele_tr,
+                           params=params,
+                           model=model,
                            to_show=to_show)
 
     slices(df_ref, df_alt, stats_df=stats,
