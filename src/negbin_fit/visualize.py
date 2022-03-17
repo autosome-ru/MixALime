@@ -82,6 +82,7 @@ def r_vs_count_scatter(df_ref, df_alt,
 
             mu = params['alt'][float(round(BAD, 2))]['params'].get('mu{}'.format(count))
             b = params['alt'][float(round(BAD, 2))]['params'].get('b{}'.format(count))
+            print(params['alt'][float(round(BAD, 2))]['params'])
             if mu is not None and b is not None:
                 x_alt.append(count)
                 y_alt.append(b * count + mu)
