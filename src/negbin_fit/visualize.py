@@ -156,6 +156,7 @@ def modes_vs_count_scatter(df_ref, df_alt,  # TODO: add comparison with NB_AS
                 left_mode = np.argmax([BetaNB.logprob(x, p, k, r) for x in range(int(1.5*count*BAD))])
                 y_ref_left.append(left_mode)
                 right_mode = np.argmax([BetaNB.logprob(x, 1 - p, k, r) for x in range(int(1.5*count*BAD))])
+                print(right_mode)
                 y_ref_right.append(right_mode)
 
             mu = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
