@@ -106,7 +106,7 @@ def r_vs_count_scatter(df_ref, df_alt,
         ax.scatter(x=x_ref, y=y_ref, color='C4', label='Ref new')
 
     ax.set_ylim(0, y_max * 1.05)
-    ax.plot([allele_tr, y_max], [allele_tr, y_max], c='grey', label='y=x', linestyle='dashed')
+    ax.plot([allele_tr, max_read_count], [allele_tr, max_read_count], c='grey', label='y=x', linestyle='dashed')
     ax.grid(True)
 
     ax.set_xlabel('Read count for the fixed allele')
@@ -156,6 +156,7 @@ def modes_vs_count_scatter(df_ref, df_alt,  # TODO: add comparison with NB_AS
                 left_mode = max(BetaNB.logprob(x, p, k, r) for x in range(int(1.5*count*BAD)))
                 y_ref_left.append(left_mode)
                 right_mode = max(BetaNB.logprob(x, 1 - p, k, r) for x in range(int(1.5*count*BAD)))
+                print(right_mode)
                 y_ref_right.append(right_mode)
 
             mu = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
@@ -174,19 +175,19 @@ def modes_vs_count_scatter(df_ref, df_alt,  # TODO: add comparison with NB_AS
 
         y_max = max(max(y_ref_right, default=10), max(y_alt_right, default=10), y_max)
 
-        ax.scatter(x=x_alt, y=y_alt_right, color='C3', label='Alt right')
-        ax.scatter(x=x_ref, y=y_ref_right, color='C4', label='Ref right')
-        ax.scatter(x=x_alt, y=y_alt_left, color='C2', label='Alt left')
-        ax.scatter(x=x_ref, y=y_ref_left, color='C1', label='Ref left')
+        ax.scatter(x=x_alt, y=y_alt_right, color='C3', label='Alt, right mode')
+        ax.scatter(x=x_ref, y=y_ref_right, color='C4', label='Ref, right mode')
+        ax.scatter(x=x_alt, y=y_alt_left, color='C2', label='Alt, left mode')
+        ax.scatter(x=x_ref, y=y_ref_left, color='C1', label='Ref, left mode')
 
     ax.set_ylim(0, y_max * 1.05)
-    ax.plot([allele_tr, y_max], [allele_tr, y_max], c='grey', label='y=x', linestyle='dashed')
-    ax.plot([allele_tr, y_max], [allele_tr*BAD, y_max*BAD], c='grey', label='y=x*BAD', linestyle='dashed')
-    ax.plot([allele_tr, y_max], [allele_tr/BAD, y_max/BAD], c='grey', label='y=x/BAD', linestyle='dashed')
+    ax.plot([allele_tr, max_read_count], [allele_tr, max_read_count], c='grey', label='y=x', linestyle='dashed')
+    ax.plot([allele_tr, max_read_count], [allele_tr*BAD, max_read_count*BAD], c='grey', label='y=x*BAD', linestyle='dashed')
+    ax.plot([allele_tr, max_read_count], [allele_tr/BAD, max_read_count/BAD], c='grey', label='y=x/BAD', linestyle='dashed')
     ax.grid(True)
 
     ax.set_xlabel('Read count for the fixed allele')
-    ax.set_ylabel('Fitted r value')
+    ax.set_ylabel('Fitted distribution modes')
 
     ax.legend(title='Main allele')
 
@@ -206,7 +207,7 @@ def concentration_vs_count_scatter(out, BAD,
                        ):
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
-    y_max = 10
+    y_max = 1
     ax.set_xlim(allele_tr, max_read_count)
 
     # window
