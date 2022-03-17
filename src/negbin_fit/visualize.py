@@ -92,7 +92,7 @@ def r_vs_count_scatter(df_ref, df_alt,
         x_alt, y_alt = zip(*([(x, y) for x, y in zip(df_alt.index, df_alt["r"].tolist()) if y != 0]))
         x_ref, y_ref = zip(*([(x, y) for x, y in zip(df_alt.index, df_ref["r"].tolist()) if y != 0]))
 
-    y_max = max(max(y_ref), max(y_alt))
+    y_max = max(max(y_ref, default=10), max(y_alt, default=10))
 
     ax.scatter(x=x_alt, y=y_alt, color='C1', label='Alt')
     ax.scatter(x=x_ref, y=y_ref, color='C2', label='Ref')
