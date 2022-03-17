@@ -67,7 +67,6 @@ def r_vs_count_scatter(df_ref, df_alt,
     fig.tight_layout(pad=2)
 
     ax.set_xlim(allele_tr, max_read_count)
-    y_max = 0
     if params is not None and model == 'window':
         x_list = list(range(5, max_read_count + 1))
         x_ref = []
@@ -89,10 +88,11 @@ def r_vs_count_scatter(df_ref, df_alt,
 
     #  Comparison with NB_AS
     if df_ref is not None:
-        y_max = max(max(df_ref['r']), max(df_alt['r']), y_max)
 
         x_alt, y_alt = zip(*([(x, y) for x, y in zip(df_alt.index, df_alt["r"].tolist()) if y != 0]))
         x_ref, y_ref = zip(*([(x, y) for x, y in zip(df_alt.index, df_ref["r"].tolist()) if y != 0]))
+
+    y_max = max(max(y_ref), max(y_alt))
 
     ax.scatter(x=x_alt, y=y_alt, color='C1', label='Alt')
     ax.scatter(x=x_ref, y=y_ref, color='C2', label='Ref')
