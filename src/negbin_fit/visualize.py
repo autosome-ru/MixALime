@@ -65,7 +65,7 @@ def r_vs_count_scatter(df_ref, df_alt,
                        ):
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
-
+    y_max = 10
     ax.set_xlim(allele_tr, max_read_count)
     if params is not None and model == 'window':
         x_list = list(range(5, max_read_count + 1))
@@ -77,25 +77,30 @@ def r_vs_count_scatter(df_ref, df_alt,
             mu = params['ref'][float(round(BAD, 2))]['params'].get('mu{}'.format(count))
             b = params['ref'][float(round(BAD, 2))]['params'].get('b{}'.format(count))
             if mu is not None and b is not None:
-                x_alt.append(count)
-                y_alt.append(b * count + mu)
+                x_ref.append(count)
+                y_ref.append(b * count + mu)
 
             mu = params['alt'][float(round(BAD, 2))]['params'].get('mu{}'.format(count))
             b = params['alt'][float(round(BAD, 2))]['params'].get('b{}'.format(count))
             if mu is not None and b is not None:
-                x_ref.append(count)
-                y_ref.append(b * count + mu)
+                x_alt.append(count)
+                y_alt.append(b * count + mu)
+
+        y_max = max(max(y_ref, default=10), max(y_alt, default=10), y_max)
+
+        ax.scatter(x=x_alt, y=y_alt, color='C3', label='Alt new')
+        ax.scatter(x=x_ref, y=y_ref, color='C4', label='Ref new')
 
     #  Comparison with NB_AS
     if df_ref is not None:
 
         x_alt, y_alt = zip(*([(x, y) for x, y in zip(df_alt.index, df_alt["r"].tolist()) if y != 0]))
-        x_ref, y_ref = zip(*([(x, y) for x, y in zip(df_alt.index, df_ref["r"].tolist()) if y != 0]))
+        x_ref, y_ref = zip(*([(x, y) for x, y in zip(df_ref.index, df_ref["r"].tolist()) if y != 0]))
 
-    y_max = max(max(y_ref, default=10), max(y_alt, default=10))
+        y_max = max(max(y_ref, default=10), max(y_alt, default=10), y_max)
 
-    ax.scatter(x=x_alt, y=y_alt, color='C1', label='Alt')
-    ax.scatter(x=x_ref, y=y_ref, color='C2', label='Ref')
+        ax.scatter(x=x_alt, y=y_alt, color='C2', label='Alt')
+        ax.scatter(x=x_ref, y=y_ref, color='C1', label='Ref')
 
     ax.set_ylim(0, y_max * 1.05)
     ax.plot([allele_tr, y_max], [allele_tr, y_max], c='grey', label='y=x', linestyle='dashed')
@@ -104,7 +109,7 @@ def r_vs_count_scatter(df_ref, df_alt,
     ax.set_xlabel('Read count for the fixed allele')
     ax.set_ylabel('Fitted r value')
 
-    ax.legend()
+    ax.legend(title='Main allele')
 
     plt.title('BAD={}'.format(BAD))
 
@@ -144,25 +149,25 @@ def gof_scatter(df_ref, df_alt, BAD, out, model,
         ax.set_ylim(0, max(max(df_ref['gof']), max(df_alt['gof'])) * 1.05)
         ax.scatter(x=df_alt.index,
                    y=df_alt["gof"].tolist(),
-                   color='C1',
+                   color='C2',
                    label='Alt')
         ax.scatter(x=df_ref.index,
                    y=df_ref["gof"].tolist(),
-                   color='C2',
+                   color='C1',
                    label='Ref')
 
     if params is not None and model != 'NB_AS':
         max_y = 0.05
-        for allele, df, color in zip(alleles, [df_ref, df_alt], ['C4', 'C3']):
+        for main_allele, df, color in zip(alleles, [df_ref, df_alt], ['C4', 'C3']):
             if df_ref is not None:
                 x = df.index
             else:
                 x = [x for x in range(max_read_count)]
-            y = [get_gof(params, allele, k, BAD, model) for k in x]
+            y = [get_gof(params, main_allele, k, BAD, model) for k in x]
             ax.scatter(x=x,
                        y=y,
                        color=color,
-                       label=allele.capitalize() + ' new')
+                       label=main_allele.capitalize() + ' new')
             max_y = max(max_y, max(y))
         ax.set_ylim(0, max_y * 1.05)
 
@@ -171,7 +176,7 @@ def gof_scatter(df_ref, df_alt, BAD, out, model,
 
     plt.title('BAD={}'.format(BAD))
 
-    ax.legend(title='Fixed allele')
+    ax.legend(title='Main allele')
 
     plt.savefig(out)
     if to_show:
