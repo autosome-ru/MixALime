@@ -7,6 +7,7 @@ from negbin_fit.fit_nb import get_p, make_negative_binom_density
 from negbin_fit.helpers import alleles, get_nb_weight_path, get_counts_dist_from_df, \
     make_cover_negative_binom_density, make_geom_dens, combine_densities, make_inferred_negative_binom_density, \
     available_models, available_bnb_models
+from betanegbinfit.distributions import BetaNB
 from scipy import stats as st
 
 sns.set(font_scale=1.55, style="ticks", font="lato", palette=('#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2',
@@ -67,6 +68,19 @@ def r_vs_count_scatter(df_ref, df_alt,
     fig.tight_layout(pad=2)
     y_max = 10
     ax.set_xlim(allele_tr, max_read_count)
+
+    #  Comparison with NB_AS
+    if df_ref is not None:
+
+        x_alt, y_alt = zip(*([(x, y) for x, y in zip(df_alt.index, df_alt["r"].tolist()) if y != 0]))
+        x_ref, y_ref = zip(*([(x, y) for x, y in zip(df_ref.index, df_ref["r"].tolist()) if y != 0]))
+
+        y_max = max(max(y_ref, default=10), max(y_alt, default=10), y_max)
+
+        ax.scatter(x=x_alt, y=y_alt, color='C2', label='Alt')
+        ax.scatter(x=x_ref, y=y_ref, color='C1', label='Ref')
+
+    # window
     if params is not None and model == 'window':
         x_list = list(range(5, max_read_count + 1))
         x_ref = []
@@ -91,23 +105,187 @@ def r_vs_count_scatter(df_ref, df_alt,
         ax.scatter(x=x_alt, y=y_alt, color='C3', label='Alt new')
         ax.scatter(x=x_ref, y=y_ref, color='C4', label='Ref new')
 
-    #  Comparison with NB_AS
-    if df_ref is not None:
-
-        x_alt, y_alt = zip(*([(x, y) for x, y in zip(df_alt.index, df_alt["r"].tolist()) if y != 0]))
-        x_ref, y_ref = zip(*([(x, y) for x, y in zip(df_ref.index, df_ref["r"].tolist()) if y != 0]))
-
-        y_max = max(max(y_ref, default=10), max(y_alt, default=10), y_max)
-
-        ax.scatter(x=x_alt, y=y_alt, color='C2', label='Alt')
-        ax.scatter(x=x_ref, y=y_ref, color='C1', label='Ref')
-
     ax.set_ylim(0, y_max * 1.05)
     ax.plot([allele_tr, y_max], [allele_tr, y_max], c='grey', label='y=x', linestyle='dashed')
     ax.grid(True)
 
     ax.set_xlabel('Read count for the fixed allele')
     ax.set_ylabel('Fitted r value')
+
+    ax.legend(title='Main allele')
+
+    plt.title('BAD={}'.format(BAD))
+
+    plt.savefig(out)
+    if to_show:
+        plt.show()
+    plt.close(fig)
+
+
+def modes_vs_count_scatter(df_ref, df_alt,  # TODO: add comparison with NB_AS
+                       out, BAD,
+                       max_read_count=50,
+                       allele_tr=5, to_show=False,
+                       params=None,
+                       model=None,
+                       ):
+    fig, ax = plt.subplots(figsize=(6, 5))
+    fig.tight_layout(pad=2)
+    y_max = 10
+    ax.set_xlim(allele_tr, max_read_count)
+
+    # window
+    if params is not None and model == 'window':
+        x_list = list(range(5, max_read_count + 1))
+        x_ref = []
+        x_alt = []
+        y_ref_left = []
+        y_alt_left = []
+        y_ref_right = []
+        y_alt_right = []
+        for count in x_list:
+            mu = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
+            b = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
+            mu_k = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('mu_k{}'.format(count))
+            b_k = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('b_k{}'.format(count))
+            if mu is not None and b is not None and mu_k is not None and b_k is not None:
+                x_ref.append(count)
+                r = b * count + mu
+                p = 1 / (BAD + 1)
+                k = b_k * count + mu_k
+                left_mode = max(BetaNB.logprob(x, p, k, r) for x in range(int(1.5*count*BAD)))
+                y_ref_left.append(left_mode)
+                right_mode = max(BetaNB.logprob(x, 1 - p, k, r) for x in range(int(1.5*count*BAD)))
+                y_ref_right.append(right_mode)
+
+            mu = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
+            b = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
+            mu_k = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
+            b_k = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
+            if mu is not None and b is not None:
+                x_alt.append(count)
+                r = b * count + mu
+                p = 1 / (BAD + 1)
+                k = b_k * count + mu_k
+                left_mode = max(BetaNB.logprob(x, p, k, r) for x in range(int(1.5*count*BAD)))
+                y_alt_left.append(left_mode)
+                right_mode = max(BetaNB.logprob(x, 1 - p, k, r) for x in range(int(1.5*count*BAD)))
+                y_alt_right.append(right_mode)
+
+        y_max = max(max(y_ref_right, default=10), max(y_alt_right, default=10), y_max)
+
+        ax.scatter(x=x_alt, y=y_alt_right, color='C3', label='Alt right')
+        ax.scatter(x=x_ref, y=y_ref_right, color='C4', label='Ref right')
+        ax.scatter(x=x_alt, y=y_alt_left, color='C2', label='Alt left')
+        ax.scatter(x=x_ref, y=y_ref_left, color='C1', label='Ref left')
+
+    ax.set_ylim(0, y_max * 1.05)
+    ax.plot([allele_tr, y_max], [allele_tr, y_max], c='grey', label='y=x', linestyle='dashed')
+    ax.plot([allele_tr, y_max], [allele_tr*BAD, y_max*BAD], c='grey', label='y=x*BAD', linestyle='dashed')
+    ax.plot([allele_tr, y_max], [allele_tr/BAD, y_max/BAD], c='grey', label='y=x/BAD', linestyle='dashed')
+    ax.grid(True)
+
+    ax.set_xlabel('Read count for the fixed allele')
+    ax.set_ylabel('Fitted r value')
+
+    ax.legend(title='Main allele')
+
+    plt.title('BAD={}'.format(BAD))
+
+    plt.savefig(out)
+    if to_show:
+        plt.show()
+    plt.close(fig)
+
+
+def concentration_vs_count_scatter(out, BAD,
+                       max_read_count=50,
+                       allele_tr=5, to_show=False,
+                       params=None,
+                       model=None,
+                       ):
+    fig, ax = plt.subplots(figsize=(6, 5))
+    fig.tight_layout(pad=2)
+    y_max = 10
+    ax.set_xlim(allele_tr, max_read_count)
+
+    # window
+    if params is not None and model == 'window':
+        x_list = list(range(5, max_read_count + 1))
+        x_ref = []
+        x_alt = []
+        y_ref = []
+        y_alt = []
+        for count in x_list:
+            mu = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('mu_k{}'.format(count))
+            b = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('b_k{}'.format(count))
+            if mu is not None and b is not None:
+                x_ref.append(count)
+                y_ref.append(1 / (b * count + mu))
+
+            mu = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu_k{}'.format(count))
+            b = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('b_k{}'.format(count))
+            if mu is not None and b is not None:
+                x_alt.append(count)
+                y_alt.append(1 / (b * count + mu))
+
+        y_max = max(max(y_ref, default=10), max(y_alt, default=10), y_max)
+
+        ax.scatter(x=x_alt, y=y_alt, color='C3', label='Alt new')
+        ax.scatter(x=x_ref, y=y_ref, color='C4', label='Ref new')
+
+    ax.set_ylim(0, y_max * 1.05)
+    ax.grid(True)
+
+    ax.set_xlabel('Read count for the fixed allele')
+    ax.set_ylabel('Fitted 1/K value')
+
+    ax.legend(title='Main allele')
+
+    plt.title('BAD={}'.format(BAD))
+
+    plt.savefig(out)
+    if to_show:
+        plt.show()
+    plt.close(fig)
+
+
+def w_vs_count_scatter(out, BAD,
+                       max_read_count=50,
+                       allele_tr=5, to_show=False,
+                       params=None,
+                       model=None,
+                       ):
+    fig, ax = plt.subplots(figsize=(6, 5))
+    fig.tight_layout(pad=2)
+    ax.set_xlim(allele_tr, max_read_count)
+
+    # window
+    if params is not None and model == 'window':
+        x_list = list(range(5, max_read_count + 1))
+        x_ref = []
+        x_alt = []
+        y_ref = []
+        y_alt = []
+        for count in x_list:
+            w = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('w{}'.format(count))
+            if w is not None:
+                x_ref.append(count)
+                y_ref.append(w)
+
+            w = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('w{}'.format(count))
+            if w is not None:
+                x_alt.append(count)
+                y_alt.append(w)
+
+        ax.scatter(x=x_alt, y=y_alt, color='C3', label='Alt new')
+        ax.scatter(x=x_ref, y=y_ref, color='C4', label='Ref new')
+
+    ax.set_ylim(0, 1)
+    ax.grid(True)
+
+    ax.set_xlabel('Read count for the fixed allele')
+    ax.set_ylabel('Fitted 1/K value')
 
     ax.legend(title='Main allele')
 
@@ -416,6 +594,37 @@ def main(stats, out, BAD, model,
     if model in ('NB_AS', 'window'):
         r_vs_count_scatter(df_ref, df_alt,
                            out=make_image_path(out, 'r_vs_counts', image_type),
+                           BAD=BAD,
+                           max_read_count=max_read_count,
+                           allele_tr=allele_tr,
+                           params=params,
+                           model=model,
+                           to_show=to_show)
+    if model == 'window':
+        r_vs_count_scatter(df_ref, df_alt,
+                           out=make_image_path(out, 'r_vs_counts', image_type),
+                           BAD=BAD,
+                           max_read_count=max_read_count,
+                           allele_tr=allele_tr,
+                           params=params,
+                           model=model,
+                           to_show=to_show)
+        concentration_vs_count_scatter(out=make_image_path(out, 'K_vs_counts', image_type),
+                           BAD=BAD,
+                           max_read_count=max_read_count,
+                           allele_tr=allele_tr,
+                           params=params,
+                           model=model,
+                           to_show=to_show)
+        w_vs_count_scatter(out=make_image_path(out, 'w_vs_counts', image_type),
+                           BAD=BAD,
+                           max_read_count=max_read_count,
+                           allele_tr=allele_tr,
+                           params=params,
+                           model=model,
+                           to_show=to_show)
+        modes_vs_count_scatter(df_ref, df_alt,
+                           out=make_image_path(out, 'modes_vs_counts', image_type),
                            BAD=BAD,
                            max_read_count=max_read_count,
                            allele_tr=allele_tr,
