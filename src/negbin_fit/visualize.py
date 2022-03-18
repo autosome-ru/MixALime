@@ -160,8 +160,8 @@ def modes_vs_count_scatter(df_ref, df_alt,  # TODO: add comparison with NB_AS
 
             mu = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
             b = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
-            mu_k = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
-            b_k = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
+            mu_k = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu_k{}'.format(count))
+            b_k = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('b_k{}'.format(count))
             if mu is not None and b is not None and mu_k is not None:
                 x_alt.append(count)
                 r = b * count + mu
