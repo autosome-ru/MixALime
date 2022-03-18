@@ -23,19 +23,21 @@ Required:
     -m <model>, --model <model>             Model to fit data with [default: NB_AS_Total]
 
 Optional:
-    -h, --help                              Show help
-    -q, --quiet                             Suppress log messages
-    --states <string>                       Set of states to perform fit on
-    -l <int>, --reads-left-tr <int>         Left allelic reads threshold. Input SNPs will be filtered by
-                                            ref_read_count >= x and alt_read_count >= x. [default: 5]
-    -r <int>, --reads-right-tr <int>        Right allelic reads threshold. Input SNPs will be filtered by
-                                            ref_read_count <= x and alt_read_count <= x. [default: 200]
-    -R, --no-main-allele-limit              Only apply -r option to fixed allele read counts
-    -c <conc>, --concentration <conc>       Concentration parameter for ModelLine and ModelWindow model [default: line]
-    -d <dist>, --distribution <dist>        Distribution to be used in ModelLine, ModelWindow or ModelMixtures models. Can be either BetaNB or NB [default: BetaNB]
-    -w <int>, --window_size <int>           Minimal window size for ModelWindow [default: 1000]
-    -s <int>, --min_slices <int>            Minimal number of slices per window for ModelWindow [default: 10]
-    -b <bh>, --window_behavior <bh>         If 'both', then window is expanded into both directions. If 'right', then it expands only to the right as long as it is possible [default: both]
+    -h, --help                                  Show help
+    -q, --quiet                                 Suppress log messages
+    --states <string>                           Set of states to perform fit on
+    -l <int>, --reads-left-tr <int>             Left allelic reads threshold. Input SNPs will be filtered by
+                                                ref_read_count >= x and alt_read_count >= x. [default: 5]
+    -r <int>, --reads-right-tr <int>            Right main allelic reads threshold. Input SNPs will be filtered by
+                                                ref_read_count <= x. If 'inf', then no threshould is applied.[default: inf]
+    -R <int>, --reads-right-tr-alt <int>        Right alternative allelic reads threshold. Input SNPs will be filtered by
+                                                alt_read_count <= x. If 'inf', then no threshold is applied. If 'none', 
+                                                then it is the same as reads-right-tr. [default: none]
+    -c <conc>, --concentration <conc>           Concentration parameter for ModelLine and ModelWindow model [default: line]
+    -d <dist>, --distribution <dist>            Distribution to be used in ModelLine, ModelWindow or ModelMixtures models. Can be either BetaNB or NB [default: BetaNB]
+    -w <int>, --window_size <int>               Minimal window size for ModelWindow [default: 1000]
+    -s <int>, --min_slices <int>                Minimal number of slices per window for ModelWindow [default: 10]
+    -b <bh>, --window_behavior <bh>             If 'both', then window is expanded into both directions. If 'right', then it expands only to the right as long as it is possible [default: both]
 
 Visualize:
     -n, --no-fit                            Skip fitting procedure (use to visualize results)
@@ -291,13 +293,16 @@ def start_fit():
                 Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
             )
         ),
-        '--reads-left-tr': And(
-            Use(int),
-            Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
+        '--reads-left-tr': And(Use(int),  Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'),
+        '--reads-right-tr': Or(
+            And(Use(int),  Const(lambda x: x >= 0)),
+            And(Use(str), Const(lambda x: x in ('inf', ))),
+            error='Main allelic reads threshold must be a non negative integer',
         ),
-        '--reads-right-tr': And(
-            Use(int),
-            Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'
+        '--reads-right-tr-alt':Or(
+            And(Use(int),  Const(lambda x: x >= 0)),
+            And(Use(str), Const(lambda x: x in ('inf', 'none'))),
+            error='Alternative allelic reads threshold must be a non negative integer',
         ),
         '--states': Or(
             Const(lambda x: x is None),
@@ -334,13 +339,19 @@ def start_fit():
     to_fit = not args['--no-fit']
     to_visualize = args['--visualize']
     max_fit_count = args['--reads-right-tr']
+    if max_fit_count == 'inf':
+        max_fit_count = np.inf
+    max_fit_count_alt = args['--reads-right-tr-alt']
+    if max_fit_count_alt == 'inf':
+        max_fit_count_alt = np.inf
+    elif max_fit_count_alt == 'none':
+        max_fit_count_alt = max_fit_count
     max_read_count = args['--max-read-count']
     dist = args['--distribution']
     window_behavior = args['--window_behavior']
     min_slices = args['--min_slices']
     concentration = args['--concentration']
     window_size = args['--window_size']
-    no_main_allele_limit = args['--no-main-allele-limit']
     njobs = -1
     stats_dfs = {}
     merged_df = None
@@ -382,7 +393,7 @@ def start_fit():
                          BAD=BAD,
                          line_fit=line_fit,
                          allele_tr=allele_tr,
-                         max_read_count=np.inf if no_main_allele_limit else max_fit_count)
+                         max_read_count=max_fit_count)
                 if not line_fit:
                     convert_weights(in_df=stats_df,
                                     np_weights_dict=d,
@@ -420,7 +431,8 @@ def start_fit():
                              dist=dist,
                              concentration=concentration,
                              left=allele_tr - 1,
-                             max_count=np.inf if no_main_allele_limit else max_fit_count,
+                             max_count=max_fit_count,
+                             max_count_alt=max_fit_count_alt,
                              apply_weights=False,
                              n_jobs=njobs)
         else:
