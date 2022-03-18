@@ -148,26 +148,25 @@ def modes_vs_count_scatter(df_ref, df_alt,  # TODO: add comparison with NB_AS
             b = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
             mu_k = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('mu_k{}'.format(count))
             b_k = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('b_k{}'.format(count))
-            if mu is not None and b is not None and mu_k is not None and b_k is not None:
+            if mu is not None and b is not None and mu_k is not None:
                 x_ref.append(count)
                 r = b * count + mu
                 p = 1 / (BAD + 1)
-                k = b_k * count + mu_k
+                k = mu_k
                 left_mode = np.argmax([BetaNB.logprob(x, p, k, r) for x in range(int(1.5*count*BAD))])
                 y_ref_left.append(left_mode)
                 right_mode = np.argmax([BetaNB.logprob(x, 1 - p, k, r) for x in range(int(1.5*count*BAD))])
-                print(right_mode)
                 y_ref_right.append(right_mode)
 
             mu = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
             b = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
             mu_k = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
             b_k = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
-            if mu is not None and b is not None:
+            if mu is not None and b is not None and mu_k is not None:
                 x_alt.append(count)
                 r = b * count + mu
                 p = 1 / (BAD + 1)
-                k = b_k * count + mu_k
+                k = mu_k
                 left_mode = max(BetaNB.logprob(x, p, k, r) for x in range(int(1.5*count*BAD)))
                 y_alt_left.append(left_mode)
                 right_mode = max(BetaNB.logprob(x, 1 - p, k, r) for x in range(int(1.5*count*BAD)))
@@ -220,15 +219,15 @@ def concentration_vs_count_scatter(out, BAD,
         for count in x_list:
             mu = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('mu_k{}'.format(count))
             b = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('b_k{}'.format(count))
-            if mu is not None and b is not None:
+            if mu is not None:
                 x_ref.append(count)
-                y_ref.append(1 / (b * count + mu))
+                y_ref.append(1 / mu)
 
             mu = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu_k{}'.format(count))
             b = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('b_k{}'.format(count))
-            if mu is not None and b is not None:
+            if mu is not None:
                 x_alt.append(count)
-                y_alt.append(1 / (b * count + mu))
+                y_alt.append(1 / mu)
 
         y_max = max(max(y_ref, default=10), max(y_alt, default=10), y_max)
 
