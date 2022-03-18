@@ -153,26 +153,27 @@ def modes_vs_count_scatter(df_ref, df_alt,  # TODO: add comparison with NB_AS
                 r = b * count + mu
                 p = 1 / (BAD + 1)
                 k = mu_k
-                left_mode = np.argmax([BetaNB.logprob(x, p, k, r) for x in range(int(1.5*count*BAD))])
+                left_mode = np.argmax([BetaNB.logprob(x, 1 - p, k, r) for x in range(int(1.5*count*BAD))])
                 y_ref_left.append(left_mode)
-                right_mode = np.argmax([BetaNB.logprob(x, 1 - p, k, r) for x in range(int(1.5*count*BAD))])
+                right_mode = np.argmax([BetaNB.logprob(x, p, k, r) for x in range(int(1.5*count*BAD))])
                 y_ref_right.append(right_mode)
 
             mu = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
             b = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
-            mu_k = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
-            b_k = params['ref'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
+            mu_k = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('mu{}'.format(count))
+            b_k = params['alt'][float(round(BAD, 2))]['params']['Estimate'].get('b{}'.format(count))
             if mu is not None and b is not None and mu_k is not None:
                 x_alt.append(count)
                 r = b * count + mu
                 p = 1 / (BAD + 1)
                 k = mu_k
-                left_mode = np.argmax([BetaNB.logprob(x, p, k, r) for x in range(int(1.5*count*BAD))])
+                left_mode = np.argmax([BetaNB.logprob(x, 1 - p, k, r) for x in range(int(1.5*count*BAD))])
                 y_alt_left.append(left_mode)
-                right_mode = np.argmax([BetaNB.logprob(x, 1 - p, k, r) for x in range(int(1.5*count*BAD))])
+                right_mode = np.argmax([BetaNB.logprob(x, p, k, r) for x in range(int(1.5*count*BAD))])
                 y_alt_right.append(right_mode)
 
         y_max = max(max(y_ref_right, default=10), max(y_alt_right, default=10), y_max)
+        y_max = max(max(y_ref_left, default=10), max(y_alt_left, default=10), y_max)
 
         ax.scatter(x=x_alt, y=y_alt_right, color='C3', label='Alt, right mode')
         ax.scatter(x=x_ref, y=y_ref_right, color='C4', label='Ref, right mode')
@@ -258,6 +259,7 @@ def w_vs_count_scatter(out, BAD,
                        ):
     fig, ax = plt.subplots(figsize=(6, 5))
     fig.tight_layout(pad=2)
+    y_max = 0.05
     ax.set_xlim(allele_tr, max_read_count)
 
     # window
@@ -281,11 +283,13 @@ def w_vs_count_scatter(out, BAD,
         ax.scatter(x=x_alt, y=y_alt, color='C3', label='Alt new')
         ax.scatter(x=x_ref, y=y_ref, color='C4', label='Ref new')
 
-    ax.set_ylim(0, 1)
+        y_max = max(max(y_ref, default=10), max(y_alt, default=10), y_max)
+
+    ax.set_ylim(0, y_max)
     ax.grid(True)
 
     ax.set_xlabel('Read count for the fixed allele')
-    ax.set_ylabel('Fitted 1/K value')
+    ax.set_ylabel('Fitted w value')
 
     ax.legend(title='Main allele')
 
