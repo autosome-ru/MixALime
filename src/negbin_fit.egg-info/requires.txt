@@ -1,0 +1,16 @@
+docopt>=0.6.2
+numpy>=1.18.0
+schema>=0.7.2
+contextlib2>=0.5.5
+pandas>=1.0.4
+matplotlib>=3.2.1
+seaborn>=0.10.1
+scipy>=1.5.2
+tqdm>=4.62.3
+statsmodels>=0.12.2
+betanegbinfit>=0.28
+
+[dev]
+wheel
+twine
+setuptools_scm
