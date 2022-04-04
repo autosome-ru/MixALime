@@ -56,8 +56,8 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
             w = params[main_allele][row['BAD']]['params']['Estimate'].get('w{}'.format(
                 row['{}_COUNTS'.format(alleles[main_allele].upper())]), 0.5)
             scaled_weights[main_allele] = modify_w_with_bayes_factor(w, row_weights[main_allele])
-        pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row['REF_COUNTS'],
-                                                      alt_count=row['ALT_COUNTS'],
+        pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row[get_counts_column('ref')],
+                                                      alt_count=row[get_counts_column('alt')],
                                                       params=params,
                                                       w_ref=scaled_weights['ref'],
                                                       w_alt=scaled_weights['alt'],

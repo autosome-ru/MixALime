@@ -269,7 +269,8 @@ def merge_dfs(dfs):
 
 def get_counts_column(allele, for_what='counts'):
     if for_what == 'counts':
-        result = allele + '_counts'
+        result = allele + '_read_counts'
+        return result
     elif for_what == 'pval':
         result = 'PVAL_' + allele
     elif for_what == 'es':

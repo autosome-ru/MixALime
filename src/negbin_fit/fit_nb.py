@@ -56,7 +56,7 @@ from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, 
     make_negative_binom_density, make_line_negative_binom_density, calculate_gof_for_point_fit, \
     ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column, \
     parse_input, parse_files_list, check_states
-from negbin_fit.helpers import available_concentrations, available_models,\
+from negbin_fit.helpers import available_concentrations, available_models, \
     available_dists, available_window_behaviors, available_bnb_models
 from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 from negbin_fit.visualize import main as visualize
@@ -293,14 +293,15 @@ def start_fit():
                 Const(lambda x: os.access(x, os.W_OK), error='No write permissions')
             )
         ),
-        '--reads-left-tr': And(Use(int),  Const(lambda x: x >= 0), error='Allelic reads threshold must be a non negative integer'),
+        '--reads-left-tr': And(Use(int), Const(lambda x: x >= 0),
+                               error='Allelic reads threshold must be a non negative integer'),
         '--reads-right-tr': Or(
-            And(Use(int),  Const(lambda x: x >= 0)),
-            And(Use(str), Const(lambda x: x in ('inf', ))),
+            And(Use(int), Const(lambda x: x >= 0)),
+            And(Use(str), Const(lambda x: x in ('inf',))),
             error='Main allelic reads threshold must be a non negative integer',
         ),
-        '--reads-right-tr-alt':Or(
-            And(Use(int),  Const(lambda x: x >= 0)),
+        '--reads-right-tr-alt': Or(
+            And(Use(int), Const(lambda x: x >= 0)),
             And(Use(str), Const(lambda x: x in ('inf', 'none'))),
             error='Alternative allelic reads threshold must be a non negative integer',
         ),
@@ -323,13 +324,14 @@ def start_fit():
         '--concentration': Const(lambda x: x in available_concentrations,
                                  error='Concentration mode not in ({})'.format(', '.join(available_concentrations))),
         '--distribution': Const(lambda x: x in available_dists,
-                                 error='Distribution not in ({})'.format(', '.join(available_dists))),
+                                error='Distribution not in ({})'.format(', '.join(available_dists))),
         '--window_behavior': Const(lambda x: x in available_window_behaviors,
-                                 error='Concentration mode not in ({})'.format(', '.join(available_window_behaviors))),
+                                   error='Concentration mode not in ({})'.format(
+                                       ', '.join(available_window_behaviors))),
         '--min_slices': And(Use(int), Const(lambda x: x >= 0),
                             error='Min_slices should be non-negative.'),
         '--window_size': And(Use(int), Const(lambda x: x > 0),
-                            error='Min_slices should be positive.'),
+                             error='Min_slices should be positive.'),
         str: bool
     })
     args = init_docopt(__doc__, schema)
