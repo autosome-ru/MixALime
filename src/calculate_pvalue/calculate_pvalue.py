@@ -406,6 +406,8 @@ def main():
     if min_samples == 'inf':
         min_samples = np.inf
     unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
+    if unique_snps is None:
+        return
     if not args['aggregate']:
         if not os.path.exists(out):
             try:

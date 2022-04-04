@@ -263,6 +263,8 @@ def calculate_overall_gof(stats_df, density_func, params, main_allele, min_tr, m
 
 
 def merge_dfs(dfs):
+    if len(dfs) == 0:
+        return None, None, None
     merged_df = pd.concat(dfs, ignore_index=True)
     return merged_df['key'].unique(), merged_df['BAD'].unique(), merged_df
 
