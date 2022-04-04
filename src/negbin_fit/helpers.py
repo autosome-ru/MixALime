@@ -305,7 +305,7 @@ def read_dfs(filenames):
 def read_df(filename):
     try:
         df = pd.read_table(filename)
-        df = df[df[(get_counts_column('ref') >= 5) & (get_counts_column('alt') >= 5)]]
+        df = df[(df[get_counts_column('ref')] >= 5) & (df[get_counts_column('alt')] >= 5)]
         if df.empty:
             print('No SNPs found in {}'.format(filename))
             return None
