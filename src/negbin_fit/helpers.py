@@ -285,7 +285,7 @@ def get_pvalue_file_path(out_path, df_name):
 
 
 def get_required_df_fields():
-    return '#CHROM', 'POS', 'ID', 'REF', 'ALT'
+    return '#chr', 'pos', 'ID', 'ref', 'alt'
 
 
 def get_key(row):
