@@ -21,6 +21,8 @@ Required:
     -w <dir>, --weights <dir>               Directory with fitted weights for models
     -m <model>, --model <model>             Model to calculate p-value with [default: NB_AS_Total]
     -d <dist>, --distribution <dist>        Underlying distribution to use in 'line' or 'window' models [default: BetaNB]
+    -s <int>, --samples <int>               Minimal number of p-value samples required to run power-regression. Recommended
+                                            values are 10-30. If 'inf', then power regression is disabled [default: inf].
 
 Optional:
     -h, --help                              Show help
@@ -48,7 +50,8 @@ from schema import Schema, And, Const, Use, Or
 from tqdm import tqdm
 
 
-def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5):
+def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5,
+                        min_samples=np.inf):
     if model in available_bnb_models:
         params, models_dict = fit_params
         scaled_weights = {}
@@ -61,7 +64,8 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
                                                       params=params,
                                                       w_ref=scaled_weights['ref'],
                                                       w_alt=scaled_weights['alt'],
-                                                      m=models_dict[row['BAD']]
+                                                      m=models_dict[row['BAD']],
+                                                      min_samples=min_samples
                                                       )
 
         if abs(pval[0]) > 1:
@@ -143,8 +147,9 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
     return get_function_mixture(nb, geom, w0)
 
 
-def process_df(row, weights, fit_params, model):
-    p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row)), fit_params, model)
+def process_df(row, weights, fit_params, model, min_samples=np.inf):
+    p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row)), fit_params,
+                                                       model, min_samples=min_samples)
     row[get_counts_column('ref', 'pval')] = p_ref
     row[get_counts_column('alt', 'pval')] = p_alt
     row[get_counts_column('ref', 'es')] = es_ref
@@ -242,7 +247,8 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path):
     return result
 
 
-def start_process(dfs, merged_df, unique_snps, unique_BADs, out_path, fit_params, model, dist):
+def start_process(dfs, merged_df, unique_snps, unique_BADs, out_path, fit_params, model, dist,
+                  min_samples=np.inf):
     print('Calculating posterior weights...')
     weights = get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path)
     tqdm.pandas()
@@ -255,7 +261,7 @@ def start_process(dfs, merged_df, unique_snps, unique_BADs, out_path, fit_params
     result = []
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
-        df = df.progress_apply(lambda x: process_df(x, weights, fit_params, model), axis=1)
+        df = df.progress_apply(lambda x: process_df(x, weights, fit_params, model, min_samples=min_samples), axis=1)
         df[[x for x in df.columns if x not in ('key', 'fname')]].to_csv(get_pvalue_file_path(out_path, df_name),
                                                                         sep='\t', index=False)
         result.append((df_name, df))
@@ -366,6 +372,11 @@ def main():
                          error='Model not in ({})'.format(', '.join(available_models))),
         '--distribution': Const(lambda x: x in available_dists,
                                  error='Distribution not in ({})'.format(', '.join(available_dists))),
+        '--samples': Or(
+            And(Use(int),  Const(lambda x: x >= 0)),
+            And(Use(str), Const(lambda x: x in ('inf', ))),
+            error='Samples must be a non negative integer or "inf" string',
+        ),
         '--output': Or(
             And(
                 Const(os.path.exists),
@@ -391,6 +402,9 @@ def main():
     model = args['--model']
     weights_dir = args['--weights']
     dist = args['--distribution']
+    min_samples = args['--samples']
+    if min_samples == 'inf':
+        min_samples = np.inf
     unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
     if not args['aggregate']:
         if not os.path.exists(out):
@@ -420,7 +434,8 @@ def main():
                 unique_BADs=unique_BADs,
                 fit_params=fit_params,
                 model=args['--model'],
-                dist=dist
+                dist=dist,
+                min_samples=min_samples
             )
         else:
             result_dfs = [pd.read_table(get_pvalue_file_path(out, df_name)) for df_name, df in dfs]
