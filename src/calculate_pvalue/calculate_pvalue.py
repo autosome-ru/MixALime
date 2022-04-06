@@ -28,6 +28,7 @@ Optional:
     -h, --help                              Show help
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
     --method <method>                       Method for p-value aggregation [default: logit]
+    --njobs <int>                           Number of jobs to use [default: 1]
 
 Visualization
     -n, --no-fit                            Skip p-value calculation
@@ -36,18 +37,23 @@ Visualization
 """
 
 import os
+from collections import namedtuple
 
 from betanegbinfit import bridge_mixalime, ModelMixture
 import pandas as pd
 from scipy.stats import combine_pvalues
 from statsmodels.stats import multitest
 from scipy import stats as st
+import multiprocessing as mp
 import numpy as np
 from negbin_fit.helpers import init_docopt, alleles, check_weights_path, get_inferred_mode_w, add_BAD_to_path, \
     merge_dfs, read_dfs, get_key, get_counts_column, get_p, get_pvalue_file_path, parse_files_list, parse_input, \
     available_models, available_bnb_models, available_dists, aggregation_methods
 from schema import Schema, And, Const, Use, Or
 from tqdm import tqdm
+
+
+Params = namedtuple('Params', ['filtered_df', 'model', 'fit_params', 'snp'])
 
 
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5,
@@ -210,47 +216,70 @@ def get_params_by_model(fit_params, main_allele, BAD, model, snp):
         return get_neg_bin_params(fit_params, main_allele, BAD, snp)
 
 
-def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path):
-    result = {}
+def process_snp(data: Params):
+    result = {'ref': 0, 'alt': 0}
     cache = {}
-    for snp in tqdm(unique_snps):
-        result[snp] = {'ref': 0, 'alt': 0}
-        filtered_df = filter_df(merged_df, snp)
-        BAD = filtered_df['BAD'].unique()
-        assert len(BAD) == 1
-        BAD = BAD[0]
-        for main_allele in alleles:
-            ks = filtered_df[get_counts_column(main_allele)].to_list()  # main_counts
-            ms = filtered_df[get_counts_column(alleles[main_allele])].to_list()  # fixed_counts
-            try:
-                params = get_params_by_model(fit_params, main_allele, BAD, model, snp)
-            except KeyError:
-                print(fit_params, main_allele, BAD, model)
-                raise
-            prod = np.float64(0)
-            for k, m in zip(ks, ms):
-                if (k, m, BAD, main_allele) in cache:
-                    add = cache[(k, m, BAD, main_allele)]
+    filtered_df = data.filtered_df
+    fit_params = data.fit_params
+    model = data.model
+    BAD = data.filtered_df['BAD'].unique()
+    assert len(BAD) == 1
+    BAD = BAD[0]
+    for main_allele in alleles:
+        ks = filtered_df[get_counts_column(main_allele)].to_list()  # main_counts
+        ms = filtered_df[get_counts_column(alleles[main_allele])].to_list()  # fixed_counts
+        try:
+            params = get_params_by_model(fit_params, main_allele, BAD, model, data.snp)
+        except KeyError:
+            print(fit_params, main_allele, BAD, model)
+            raise
+        prod = np.float64(0)
+        for k, m in zip(ks, ms):
+            if (k, m, BAD, main_allele) in cache:
+                add = cache[(k, m, BAD, main_allele)]
+            else:
+                pm1, pm2 = get_pmf_for_dist(params, k, m, BAD, model)
+                if pm1 is None or pm2 is None:
+                    add = 1
                 else:
-                    pm1, pm2 = get_pmf_for_dist(params, k, m, BAD, model)
-                    if pm1 is None or pm2 is None:
-                        add = 1
-                    else:
-                        add = pm1 - pm2  # log (1 - w) / w bayes factor
-                    if k + m <= 200:  # FIXME
-                        cache[(k, m, BAD, main_allele)] = add
-                prod += add
-            with np.errstate(over='ignore'):
-                prod = np.exp(prod)
-            result[snp][main_allele] = prod
+                    add = pm1 - pm2  # log (1 - w) / w bayes factor
+                if k + m <= 200:  # FIXME
+                    cache[(k, m, BAD, main_allele)] = add
+            prod += add
+        with np.errstate(over='ignore'):
+            prod = np.exp(prod)
+        result[main_allele] = prod
+    return result
 
+
+def make_params(merged_df, unique_snps, model, fit_params):
+    result = []
+    for snp in unique_snps:
+        filtered_df = filter_df(merged_df, snp)
+
+        result.append(
+            Params(fit_params=fit_params,
+                   filtered_df=filtered_df,
+                   snp=snp,
+                   model=model)
+        )
+    return result
+
+
+def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path, jobs=1):
+    result = {}
+    ctx = mp.get_context('forkserver')
+    parallel_params = make_params(merged_df, unique_snps, model, fit_params)
+    with ctx.Pool(jobs) as p:
+        for snp, res in zip(unique_snps, p.map(process_snp, parallel_params)):
+            result[snp] = res
     return result
 
 
 def start_process(dfs, merged_df, unique_snps, unique_BADs, out_path, fit_params, model, dist,
-                  min_samples=np.inf):
+                  min_samples=np.inf, jobs=1):
     print('Calculating posterior weights...')
-    weights = get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path)
+    weights = get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path, jobs=jobs)
     tqdm.pandas()
     if model in available_bnb_models:
         models_dict = {}
@@ -388,6 +417,7 @@ def main():
                       error='No write permissions')
             ),
         ),
+        '--njobs': Use(lambda x: int(x)),
         '--coverage-tr': Use(lambda x: int(x)),
         '--ext': Const(lambda x: len(x) > 0),
         '--method': Const(lambda x: x in aggregation_methods,
@@ -437,6 +467,7 @@ def main():
                 fit_params=fit_params,
                 model=args['--model'],
                 dist=dist,
+                jobs=args['--njobs'],
                 min_samples=min_samples
             )
         else:
