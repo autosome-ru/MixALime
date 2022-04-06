@@ -53,9 +53,6 @@ from schema import Schema, And, Const, Use, Or
 from tqdm import tqdm
 
 
-Params = namedtuple('Params', ['filtered_df', 'model', 'fit_params'])
-
-
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5,
                         min_samples=np.inf):
     if model in available_bnb_models:
@@ -216,12 +213,9 @@ def get_params_by_model(fit_params, main_allele, BAD, model, snp):
         return get_neg_bin_params(fit_params, main_allele, BAD, snp)
 
 
-def process_snp(data: Params):
+def calculate_posterior_weight_for_snp(filtered_df, model, fit_params):
     result = {'ref': 0, 'alt': 0}
     cache = {}
-    filtered_df = data.filtered_df
-    fit_params = data.fit_params
-    model = data.model
     snp = filtered_df['key'].tolist()[0]
     BAD = filtered_df['BAD'].unique()
     assert len(BAD) == 1
@@ -253,34 +247,22 @@ def process_snp(data: Params):
     return result
 
 
-def make_params(merged_df, model, fit_params):
-    result = []
-    print('Crafting params')
+def get_posterior_weights(merged_df, model, fit_params):
+    result = {}
     gb = merged_df.groupby('key')
-    for filtered_df in tqdm(gb.get_group(x) for x in gb.groups):
-        result.append(
-            Params(fit_params=fit_params,
-                   filtered_df=filtered_df,
-                   model=model)
+    for filtered_df in tqdm([gb.get_group(x) for x in gb.groups]):
+        result[filtered_df['key'].tolist(0)] = calculate_posterior_weight_for_snp(
+            filtered_df=filtered_df,
+            model=model,
+            fit_params=fit_params
         )
     return result
 
 
-def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path, jobs=1):
-    result = {}
-    ctx = mp.get_context('forkserver')
-    parallel_params = make_params(merged_df, model, fit_params)
-    print(f'Using {jobs} with {unique_snps}')
-    with ctx.Pool(jobs) as p:
-        for snp, res in zip(unique_snps, p.map(process_snp, parallel_params)):
-            result[snp] = res
-    return result
-
-
-def start_process(dfs, merged_df, unique_snps, unique_BADs, out_path, fit_params, model, dist,
-                  min_samples=np.inf, jobs=1):
+def start_process(dfs, merged_df, unique_BADs, out_path, fit_params, model, dist,
+                  min_samples=np.inf):
     print('Calculating posterior weights...')
-    weights = get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path, jobs=jobs)
+    weights = get_posterior_weights(merged_df, model, fit_params)
     tqdm.pandas()
     if model in available_bnb_models:
         models_dict = {}
@@ -463,12 +445,10 @@ def main():
                 merged_df=merged_df,
                 out_path=out,
                 dfs=dfs,
-                unique_snps=unique_snps,
                 unique_BADs=unique_BADs,
                 fit_params=fit_params,
                 model=args['--model'],
                 dist=dist,
-                jobs=args['--njobs'],
                 min_samples=min_samples
             )
         else:
