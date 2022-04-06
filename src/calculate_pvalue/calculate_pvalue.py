@@ -53,7 +53,7 @@ from schema import Schema, And, Const, Use, Or
 from tqdm import tqdm
 
 
-Params = namedtuple('Params', ['filtered_df', 'model', 'fit_params', 'snp'])
+Params = namedtuple('Params', ['filtered_df', 'model', 'fit_params'])
 
 
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5,
@@ -222,14 +222,15 @@ def process_snp(data: Params):
     filtered_df = data.filtered_df
     fit_params = data.fit_params
     model = data.model
-    BAD = data.filtered_df['BAD'].unique()
+    snp = filtered_df['key'].tolist()[0]
+    BAD = filtered_df['BAD'].unique()
     assert len(BAD) == 1
     BAD = BAD[0]
     for main_allele in alleles:
         ks = filtered_df[get_counts_column(main_allele)].to_list()  # main_counts
         ms = filtered_df[get_counts_column(alleles[main_allele])].to_list()  # fixed_counts
         try:
-            params = get_params_by_model(fit_params, main_allele, BAD, model, data.snp)
+            params = get_params_by_model(fit_params, main_allele, BAD, model, snp)
         except KeyError:
             print(fit_params, main_allele, BAD, model)
             raise
@@ -252,16 +253,14 @@ def process_snp(data: Params):
     return result
 
 
-def make_params(merged_df, unique_snps, model, fit_params):
+def make_params(merged_df, model, fit_params):
     result = []
     print('Crafting params')
-    for snp in tqdm(unique_snps):
-        filtered_df = filter_df(merged_df, snp)
-
+    gb = merged_df.groupby('key')
+    for filtered_df in tqdm(gb.get_group(x) for x in gb.groups):
         result.append(
             Params(fit_params=fit_params,
                    filtered_df=filtered_df,
-                   snp=snp,
                    model=model)
         )
     return result
@@ -270,7 +269,7 @@ def make_params(merged_df, unique_snps, model, fit_params):
 def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path, jobs=1):
     result = {}
     ctx = mp.get_context('forkserver')
-    parallel_params = make_params(merged_df, unique_snps, model, fit_params)
+    parallel_params = make_params(merged_df, model, fit_params)
     print(f'Using {jobs} with {unique_snps}')
     with ctx.Pool(jobs) as p:
         for snp, res in zip(unique_snps, p.map(process_snp, parallel_params)):
