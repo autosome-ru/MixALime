@@ -254,7 +254,8 @@ def process_snp(data: Params):
 
 def make_params(merged_df, unique_snps, model, fit_params):
     result = []
-    for snp in unique_snps:
+    print('Crafting params')
+    for snp in tqdm(unique_snps):
         filtered_df = filter_df(merged_df, snp)
 
         result.append(
