@@ -270,6 +270,7 @@ def get_posterior_weights(merged_df, unique_snps, model, fit_params, out_path, j
     result = {}
     ctx = mp.get_context('forkserver')
     parallel_params = make_params(merged_df, unique_snps, model, fit_params)
+    print(f'Using {jobs} with {unique_snps}')
     with ctx.Pool(jobs) as p:
         for snp, res in zip(unique_snps, p.map(process_snp, parallel_params)):
             result[snp] = res
