@@ -251,7 +251,7 @@ def get_posterior_weights(merged_df, model, fit_params):
     result = {}
     gb = merged_df.groupby('key')
     for filtered_df in tqdm([gb.get_group(x) for x in gb.groups]):
-        result[filtered_df['key'].tolist(0)] = calculate_posterior_weight_for_snp(
+        result[filtered_df['key'].tolist()[0]] = calculate_posterior_weight_for_snp(
             filtered_df=filtered_df,
             model=model,
             fit_params=fit_params
