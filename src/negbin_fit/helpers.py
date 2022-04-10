@@ -290,12 +290,15 @@ def get_pvalue_file_path(out_path, df_name):
     return os.path.join(out_path, df_name + '.pvalue_table')
 
 
-def get_required_df_fields():
-    return '#chr', 'pos', 'ID', 'ref', 'alt'
+def get_required_df_fields(is_deprecated=False):
+    if is_deprecated:
+        return '#chr', 'pos', 'ID', 'ref', 'alt'
+    else:
+        return '#CHROM', 'POS', 'ID', 'REF', 'ALT'
 
 
-def get_key(row):
-    return '@'.join(map(str, [row[field] for field in get_required_df_fields()]))
+def get_key(row, is_deprecated=False):
+    return '@'.join(map(str, [row[field] for field in get_required_df_fields(is_deprecated)]))
 
 
 def read_dfs(filenames, allele_tr, is_deprecated):
@@ -316,7 +319,7 @@ def read_df(filename, allele_tr, is_deprecated=False):
         if df.empty:
             print('No SNPs found in {}'.format(filename))
             return None
-        df['key'] = df.apply(get_key, axis=1)
+        df['key'] = df.apply(lambda x: get_key(x, is_deprecated), axis=1)
         df['fname'] = filename
     except Exception:
         raise ValueError('Cannot read {}'.format(filename))
