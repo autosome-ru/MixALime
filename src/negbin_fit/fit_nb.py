@@ -25,6 +25,7 @@ Required:
 Optional:
     -h, --help                                  Show help
     -q, --quiet                                 Suppress log messages
+    -d, --deprecated                            Use deprecated name for read count column (ADASTRA)
     --states <string>                           Set of states to perform fit on
     -l <int>, --reads-left-tr <int>             Left allelic reads threshold. Input SNPs will be filtered by
                                                 ref_read_count >= x and alt_read_count >= x. [default: 5]
@@ -279,7 +280,6 @@ def start_fit():
             And(
                 Const(lambda x: sum(os.path.exists(y) for y in x),
                       error='Input file(s) should exist'),
-                Use(read_dfs, error='Wrong format stats file')
             )
         ),
         '-f': Or(
@@ -357,8 +357,9 @@ def start_fit():
     njobs = -1
     stats_dfs = {}
     merged_df = None
+    is_deprecated = args['--deprecated']
     if args['collect']:
-        dfs = parse_input(args['-I'], args['-f'])
+        dfs = parse_input(args['-I'], args['-f'], allele_tr=allele_tr, is_deprecated=is_deprecated)
         _, unique_BADs, merged_df = parse_args(dfs)
         print('{} unique BADs detected'.format(len(unique_BADs)))
     else:

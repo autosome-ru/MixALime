@@ -26,6 +26,7 @@ Required:
 
 Optional:
     -h, --help                              Show help
+    -d, --deprecated                        Use deprecated name for read count column (ADASTRA)
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
     --method <method>                       Method for p-value aggregation [default: logit]
     --njobs <int>                           Number of jobs to use [default: 1]
@@ -54,16 +55,16 @@ from tqdm import tqdm
 
 
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5,
-                        min_samples=np.inf):
+                        min_samples=np.inf, is_deprecated=False):
     if model in available_bnb_models:
         params, models_dict = fit_params
         scaled_weights = {}
         for main_allele in alleles:
             w = params[main_allele][round(row['BAD'], 2)]['params']['Estimate'].get('w{}'.format(
-                row[get_counts_column(alleles[main_allele])]), 0.5)
+                row[get_counts_column(alleles[main_allele], is_deprecated=is_deprecated)]), 0.5)
             scaled_weights[main_allele] = modify_w_with_bayes_factor(w, row_weights[main_allele])
-        pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row[get_counts_column('ref')],
-                                                      alt_count=row[get_counts_column('alt')],
+        pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row[get_counts_column('ref', is_deprecated=is_deprecated)],
+                                                      alt_count=row[get_counts_column('alt', is_deprecated=is_deprecated)],
                                                       params=params,
                                                       w_ref=scaled_weights['ref'],
                                                       w_alt=scaled_weights['alt'],
@@ -150,9 +151,9 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
     return get_function_mixture(nb, geom, w0)
 
 
-def process_df(row, weights, fit_params, model, min_samples=np.inf):
+def process_df(row, weights, fit_params, model, min_samples=np.inf, is_deprecated=False):
     p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row)), fit_params,
-                                                       model, min_samples=min_samples)
+                                                       model, min_samples=min_samples, is_deprecated=is_deprecated)
     row[get_counts_column('ref', 'pval')] = p_ref
     row[get_counts_column('alt', 'pval')] = p_alt
     row[get_counts_column('ref', 'es')] = es_ref
@@ -213,7 +214,7 @@ def get_params_by_model(fit_params, main_allele, BAD, model, snp):
         return get_neg_bin_params(fit_params, main_allele, BAD, snp)
 
 
-def calculate_posterior_weight_for_snp(filtered_df, model, fit_params):
+def calculate_posterior_weight_for_snp(filtered_df, model, fit_params, is_deprecated=False):
     result = {'ref': 0, 'alt': 0}
     cache = {}
     snp = filtered_df['key'].tolist()[0]
@@ -221,8 +222,8 @@ def calculate_posterior_weight_for_snp(filtered_df, model, fit_params):
     assert len(BAD) == 1
     BAD = BAD[0]
     for main_allele in alleles:
-        ks = filtered_df[get_counts_column(main_allele)].to_list()  # main_counts
-        ms = filtered_df[get_counts_column(alleles[main_allele])].to_list()  # fixed_counts
+        ks = filtered_df[get_counts_column(main_allele, is_deprecated=is_deprecated)].to_list()  # main_counts
+        ms = filtered_df[get_counts_column(alleles[main_allele], is_deprecated=is_deprecated)].to_list()  # fixed_counts
         try:
             params = get_params_by_model(fit_params, main_allele, BAD, model, snp)
         except KeyError:
@@ -247,22 +248,23 @@ def calculate_posterior_weight_for_snp(filtered_df, model, fit_params):
     return result
 
 
-def get_posterior_weights(merged_df, model, fit_params):
+def get_posterior_weights(merged_df, model, fit_params, is_deprecated=False):
     result = {}
     gb = merged_df.groupby('key')
     for filtered_df in tqdm([gb.get_group(x) for x in gb.groups]):
         result[filtered_df['key'].tolist()[0]] = calculate_posterior_weight_for_snp(
             filtered_df=filtered_df,
             model=model,
-            fit_params=fit_params
+            fit_params=fit_params,
+            is_deprecated=is_deprecated
         )
     return result
 
 
 def start_process(dfs, merged_df, unique_BADs, out_path, fit_params, model, dist,
-                  min_samples=np.inf):
+                  min_samples=np.inf, is_deprecated=False):
     print('Calculating posterior weights...')
-    weights = get_posterior_weights(merged_df, model, fit_params)
+    weights = get_posterior_weights(merged_df, model, fit_params, is_deprecated=is_deprecated)
     tqdm.pandas()
     if model in available_bnb_models:
         models_dict = {}
@@ -273,7 +275,8 @@ def start_process(dfs, merged_df, unique_BADs, out_path, fit_params, model, dist
     result = []
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
-        df = df.progress_apply(lambda x: process_df(x, weights, fit_params, model, min_samples=min_samples), axis=1)
+        df = df.progress_apply(lambda x: process_df(x, weights, fit_params, model,
+                                                    min_samples=min_samples, is_deprecated=is_deprecated), axis=1)
         df[[x for x in df.columns if x not in ('key', 'fname')]].to_csv(get_pvalue_file_path(out_path, df_name),
                                                                         sep='\t', index=False)
         result.append((df_name, df))
@@ -409,7 +412,8 @@ def main():
         str: bool
     })
     args = init_docopt(__doc__, schema)
-    dfs = parse_input(args['-I'], args['-f'])
+    is_deprecated = args['--deprecated']
+    dfs = parse_input(args['-I'], args['-f'], 0, is_deprecated=is_deprecated)
     out = args['--output']
     ext = args['--ext']
     model = args['--model']
@@ -449,7 +453,8 @@ def main():
                 fit_params=fit_params,
                 model=args['--model'],
                 dist=dist,
-                min_samples=min_samples
+                min_samples=min_samples,
+                is_deprecated=is_deprecated
             )
         else:
             result_dfs = [pd.read_table(get_pvalue_file_path(out, df_name)) for df_name, df in dfs]

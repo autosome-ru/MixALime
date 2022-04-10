@@ -36,14 +36,15 @@ def make_np_array_path(out, allele, line_fit=False):
     return os.path.join(out, allele + '.' + ('npy' if not line_fit else 'json'))
 
 
-def parse_input(dfs, filenames):
+def parse_input(dfs, filenames, allele_tr, is_deprecated):
     if filenames is not None:
-        return read_dfs(filenames)
+        files = filenames
     elif dfs:
-        return dfs
+        files = dfs
     else:
         exit('No input files provided, consider using -I or -f options')
         raise AssertionError
+    return read_dfs(files, allele_tr, is_deprecated)
 
 
 def parse_files_list(filename):
@@ -269,10 +270,13 @@ def merge_dfs(dfs):
     return merged_df['key'].unique(), merged_df['BAD'].unique(), merged_df
 
 
-def get_counts_column(allele, for_what='counts'):
+def get_counts_column(allele, for_what='counts', is_deprecated=False):
     if for_what == 'counts':
-        result = allele + '_read_counts'
-        return result
+        if is_deprecated:
+            result = allele + '_read_counts'
+            return result
+        else:
+            result = allele + '_counts'
     elif for_what == 'pval':
         result = 'PVAL_' + allele
     elif for_what == 'es':
@@ -294,20 +298,21 @@ def get_key(row):
     return '@'.join(map(str, [row[field] for field in get_required_df_fields()]))
 
 
-def read_dfs(filenames):
+def read_dfs(filenames, allele_tr, is_deprecated):
     result = []
     print('Reading tables...')
     for filename in filenames:
-        df = read_df(filename)
+        df = read_df(filename, allele_tr, is_deprecated)
         if df is not None:
             result.append(df)
     return result
 
 
-def read_df(filename):
+def read_df(filename, allele_tr, is_deprecated=False):
     try:
         df = pd.read_table(filename)
-        df = df[(df[get_counts_column('ref')] >= 5) & (df[get_counts_column('alt')] >= 5)]
+        df = df[(df[get_counts_column('ref', is_deprecated=is_deprecated)] >= allele_tr)
+                & (df[get_counts_column('alt', is_deprecated=is_deprecated)] >= allele_tr)]
         if df.empty:
             print('No SNPs found in {}'.format(filename))
             return None
