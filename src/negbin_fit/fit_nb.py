@@ -25,7 +25,7 @@ Required:
 Optional:
     -h, --help                                  Show help
     -q, --quiet                                 Suppress log messages
-    -d, --deprecated                            Use deprecated name for read count column (ADASTRA)
+    --deprecated                                Use deprecated name for read count column (ADASTRA)
     --states <string>                           Set of states to perform fit on
     -l <int>, --reads-left-tr <int>             Left allelic reads threshold. Input SNPs will be filtered by
                                                 ref_read_count >= x and alt_read_count >= x. [default: 5]

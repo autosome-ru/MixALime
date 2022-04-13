@@ -26,7 +26,7 @@ Required:
 
 Optional:
     -h, --help                              Show help
-    -d, --deprecated                        Use deprecated name for read count column (ADASTRA)
+    --deprecated                            Use deprecated name for read count column (ADASTRA)
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
     --method <method>                       Method for p-value aggregation [default: logit]
     --njobs <int>                           Number of jobs to use [default: 1]
