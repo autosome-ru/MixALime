@@ -26,7 +26,7 @@ Required:
 
 Optional:
     -h, --help                              Show help
-    --deprecated                        Use deprecated name for read count column (ADASTRA)
+    --deprecated                            Use deprecated name for read count column (ADASTRA)
     --no-rescale                            Do not rescale mode weights using a bayes factor form observations
                                             obtained from SNPs at the respective position from all datasets
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
@@ -381,7 +381,6 @@ def main():
             Const(lambda x: x == []),
             And(
                 Const(lambda x: sum(os.path.exists(y) for y in x), error='Input file(s) should exist'),
-                Use(read_dfs, error='Wrong format stats file')
             )
         ),
         '-f': Or(
