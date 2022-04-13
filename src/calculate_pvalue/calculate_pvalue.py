@@ -84,6 +84,8 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
                                                       w_ref=scaled_weights['ref'],
                                                       w_alt=scaled_weights['alt'],
                                                       m=models_dict[row['BAD']],
+                                                      gof_tr=0.05,
+                                                      concentration=50,
                                                       min_samples=min_samples
                                                       )
 
