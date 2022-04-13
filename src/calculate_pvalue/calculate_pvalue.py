@@ -27,7 +27,7 @@ Required:
 Optional:
     -h, --help                              Show help
     -d, --deprecated                        Use deprecated name for read count column (ADASTRA)
-    --rescale-weights                       Rescale mode weights using a bayes factor form observations
+    --no-rescale                            Do not rescale mode weights using a bayes factor form observations
                                             obtained from SNPs at the respective position from all datasets
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
     --method <method>                       Method for p-value aggregation [default: logit]
@@ -424,7 +424,7 @@ def main():
     })
     args = init_docopt(__doc__, schema)
     is_deprecated = args['--deprecated']
-    rescale_weights = args['--rescale-weights']
+    rescale_weights = not args['--no-rescale']
     dfs = parse_input(args['-I'], args['-f'], 0, is_deprecated=is_deprecated)
     out = args['--output']
     ext = args['--ext']
