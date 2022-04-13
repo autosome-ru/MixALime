@@ -27,7 +27,7 @@ Required:
 Optional:
     -h, --help                              Show help
     --deprecated                            Use deprecated name for read count column (ADASTRA)
-    --no-rescale                            Do not rescale mode weights using a bayes factor form observations
+    --rescale-mode <mode>                   Mode for rescaling weights, one of (none, single, group) [default: None]
                                             obtained from SNPs at the respective position from all datasets
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
     --method <method>                       Method for p-value aggregation [default: logit]
@@ -57,15 +57,25 @@ from tqdm import tqdm
 
 
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5,
-                        min_samples=np.inf, is_deprecated=False, rescale_weights=True):
+                        min_samples=np.inf, is_deprecated=False, rescale_mode='group'):
     if model in available_bnb_models:
         params, models_dict = fit_params
         scaled_weights = {}
+        BAD = row['BAD']
         for main_allele in alleles:
-            w = params[main_allele][round(row['BAD'], 2)]['params']['Estimate'].get('w{}'.format(
+            w = params[main_allele][round(BAD, 2)]['params']['Estimate'].get('w{}'.format(
                 row[get_counts_column(alleles[main_allele], is_deprecated=is_deprecated)]), 0.5)
-            if rescale_weights:
+            if rescale_mode == 'group':
                 scaled_weights[main_allele] = modify_w_with_bayes_factor(w, row_weights[main_allele])
+            elif rescale_mode == 'single':
+                bayes_factor = np.exp(calc_log_bayes_factor(
+                    k=row[get_counts_column(main_allele)],
+                    m=row[get_counts_column(alleles[main_allele])],
+                    BAD=BAD,
+                    params=get_params_by_model(fit_params, main_allele, BAD, model),
+                    model=model
+                ))
+                scaled_weights[main_allele] = modify_w_with_bayes_factor(w, bayes_factor)
             else:
                 scaled_weights[main_allele] = w
         pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row[get_counts_column('ref', is_deprecated=is_deprecated)],
@@ -95,7 +105,7 @@ def calculate_pval_negbin(row, row_weights, fit_params, gof_tr=0.1, allele_tr=5)
         gof = None
         BAD = row['BAD']
         p = 1 / (BAD + 1)
-        r0, p0, w0, th0, gofs = get_neg_bin_params(fit_params, main_allele, BAD, row['key'])
+        r0, p0, w0, th0, gofs = get_neg_bin_params(fit_params, main_allele, BAD)
         k = row[get_counts_column(main_allele)]
         m = row[get_counts_column(alleles[main_allele])]
         if gofs is not None:
@@ -157,10 +167,10 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
 
 
 def process_df(row, weights, fit_params, model, min_samples=np.inf, is_deprecated=False,
-               rescale_weights=True):
+               rescale_mode='group'):
     p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row, is_deprecated)), fit_params,
                                                        model, min_samples=min_samples, is_deprecated=is_deprecated,
-                                                       rescale_weights=rescale_weights)
+                                                       rescale_mode=rescale_mode)
     row[get_counts_column('ref', 'pval')] = p_ref
     row[get_counts_column('alt', 'pval')] = p_alt
     row[get_counts_column('ref', 'es')] = es_ref
@@ -172,11 +182,11 @@ def filter_df(merged_df, key):
     return merged_df[merged_df.key.values == key] 
 
 
-def get_neg_bin_params(fit_param, main_allele, BAD, err_id):
+def get_neg_bin_params(fit_param, main_allele, BAD):
     try:
         fit_params = fit_param[BAD]
     except KeyError:
-        print('No fit weights for BAD={}, {} skipping ...'.format(BAD, err_id))
+        print('No fit weights for BAD={} skipping ...'.format(BAD))
         return [None] * 5
     fit_params = fit_params[alleles[main_allele]]
     r0 = fit_params['r0']
@@ -214,11 +224,20 @@ def get_pmf_for_dist(params, k, m, BAD, model):
     return pm1, pm2
 
 
-def get_params_by_model(fit_params, main_allele, BAD, model, snp):
+def get_params_by_model(fit_params, main_allele, BAD, model):
     if model in available_bnb_models:
         return fit_params[main_allele][round(BAD, 2)]
     else:
-        return get_neg_bin_params(fit_params, main_allele, BAD, snp)
+        return get_neg_bin_params(fit_params, main_allele, BAD)
+
+
+def calc_log_bayes_factor(k, m, BAD, params, model):
+    pm1, pm2 = get_pmf_for_dist(params, k, m, BAD, model)
+    if pm1 is None or pm2 is None:
+        add = 1
+    else:
+        add = pm1 - pm2  # log (1 - w) / w bayes factor
+    return add
 
 
 def calculate_posterior_weight_for_snp(filtered_df, model, fit_params, is_deprecated=False):
@@ -232,7 +251,7 @@ def calculate_posterior_weight_for_snp(filtered_df, model, fit_params, is_deprec
         ks = filtered_df[get_counts_column(main_allele, is_deprecated=is_deprecated)].to_list()  # main_counts
         ms = filtered_df[get_counts_column(alleles[main_allele], is_deprecated=is_deprecated)].to_list()  # fixed_counts
         try:
-            params = get_params_by_model(fit_params, main_allele, BAD, model, snp)
+            params = get_params_by_model(fit_params, main_allele, BAD, model)
         except KeyError:
             print(fit_params, main_allele, BAD, model)
             raise
@@ -241,11 +260,7 @@ def calculate_posterior_weight_for_snp(filtered_df, model, fit_params, is_deprec
             if (k, m, BAD, main_allele) in cache:
                 add = cache[(k, m, BAD, main_allele)]
             else:
-                pm1, pm2 = get_pmf_for_dist(params, k, m, BAD, model)
-                if pm1 is None or pm2 is None:
-                    add = 1
-                else:
-                    add = pm1 - pm2  # log (1 - w) / w bayes factor
+                add = calc_log_bayes_factor(k, m, BAD, params, model)
                 if k + m <= 200:  # FIXME
                     cache[(k, m, BAD, main_allele)] = add
             prod += add
@@ -269,8 +284,8 @@ def get_posterior_weights(merged_df, model, fit_params, is_deprecated=False):
 
 
 def start_process(dfs, merged_df, unique_BADs, out_path, fit_params, model, dist,
-                  min_samples=np.inf, is_deprecated=False, rescale_weights=True):
-    if rescale_weights:
+                  min_samples=np.inf, is_deprecated=False, rescale_mode=True):
+    if rescale_mode == 'group':
         print('Calculating posterior weights...')
         weights = get_posterior_weights(merged_df, model, fit_params, is_deprecated=is_deprecated)
     else:
@@ -287,7 +302,7 @@ def start_process(dfs, merged_df, unique_BADs, out_path, fit_params, model, dist
         print('Calculating p-value for {}'.format(df_name))
         df = df.progress_apply(lambda x: process_df(x, weights, fit_params, model,
                                                     min_samples=min_samples, is_deprecated=is_deprecated,
-                                                    rescale_weights=rescale_weights), axis=1)
+                                                    rescale_mode=rescale_mode), axis=1)
         df[[x for x in df.columns if x not in ('key', 'fname')]].to_csv(get_pvalue_file_path(out_path, df_name),
                                                                         sep='\t', index=False)
         result.append((df_name, df))
@@ -419,11 +434,12 @@ def main():
         '--method': Const(lambda x: x in aggregation_methods,
                           error='Not in supported aggregation methods ({})'.format(
                               ', '.join(aggregation_methods))),
+        '--rescale-mode': Const(lambda x: x in ('none', 'single', 'group')),
         str: bool
     })
     args = init_docopt(__doc__, schema)
     is_deprecated = args['--deprecated']
-    rescale_weights = not args['--no-rescale']
+    rescale_mode = args['--rescale-mode']
     dfs = parse_input(args['-I'], args['-f'], 0, is_deprecated=is_deprecated)
     out = args['--output']
     ext = args['--ext']
@@ -466,7 +482,7 @@ def main():
                 dist=dist,
                 min_samples=min_samples,
                 is_deprecated=is_deprecated,
-                rescale_weights=rescale_weights,
+                rescale_mode=rescale_mode,
             )
         else:
             result_dfs = [pd.read_table(get_pvalue_file_path(out, df_name)) for df_name, df in dfs]
