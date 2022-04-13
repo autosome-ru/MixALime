@@ -158,7 +158,7 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
 
 def process_df(row, weights, fit_params, model, min_samples=np.inf, is_deprecated=False,
                rescale_weights=True):
-    p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row)), fit_params,
+    p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row, is_deprecated)), fit_params,
                                                        model, min_samples=min_samples, is_deprecated=is_deprecated,
                                                        rescale_weights=rescale_weights)
     row[get_counts_column('ref', 'pval')] = p_ref
