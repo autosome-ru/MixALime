@@ -72,7 +72,7 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
                     k=row[get_counts_column(main_allele, is_deprecated=is_deprecated)],
                     m=row[get_counts_column(alleles[main_allele], is_deprecated=is_deprecated)],
                     BAD=BAD,
-                    params=get_params_by_model(fit_params, main_allele, BAD, model),
+                    params=get_params_by_model(params, main_allele, BAD, model),
                     model=model
                 ))
                 scaled_weights[main_allele] = modify_w_with_bayes_factor(w, bayes_factor)
