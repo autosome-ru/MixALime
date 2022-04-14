@@ -460,7 +460,7 @@ def main():
                 os.mkdir(out)
             except Exception:
                 print(__doc__)
-                exit('Can not create output directory')
+                print('Can not create output directory')
                 raise
         if model in available_bnb_models:
             fit_params = bridge_mixalime.read_dist_from_folder(folder=weights_dir)
@@ -470,7 +470,7 @@ def main():
                                                        unique_BADs)
             except Exception as e:
                 print(__doc__)
-                exit('Wrong format weights')
+                print('Wrong format weights')
                 raise e
 
         if not args['--no-fit']:
