@@ -315,7 +315,7 @@ def check_fit_params_for_BADs(weights_path, BADs):
     result = {}
     for BAD in BADs:
         bad_weight_path = add_BAD_to_path(weights_path, BAD, create=False)
-        result[BAD] = check_weights_path(bad_weight_path, True)[1]
+        result[BAD] = check_weights_path(bad_weight_path, False)[1]
     return result
 
 
