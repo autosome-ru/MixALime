@@ -57,6 +57,7 @@ from tqdm import tqdm
 
 
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5,
+                        dist='Beta',
                         min_samples=np.inf, is_deprecated=False, rescale_mode='group'):
     if model in available_bnb_models:
         params, models_dict = fit_params
@@ -81,6 +82,7 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
         pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row[get_counts_column('ref', is_deprecated=is_deprecated)],
                                                       alt_count=row[get_counts_column('alt', is_deprecated=is_deprecated)],
                                                       params=params,
+                                                      dist=dist,
                                                       w_ref=scaled_weights['ref'],
                                                       w_alt=scaled_weights['alt'],
                                                       m=models_dict[row['BAD']],
@@ -168,10 +170,12 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
     return get_function_mixture(nb, geom, w0)
 
 
-def process_df(row, weights, fit_params, model, min_samples=np.inf, is_deprecated=False,
+def process_df(row, weights, fit_params, model, min_samples=np.inf, is_deprecated=False, dist='Beta',
                rescale_mode='group'):
     p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row, is_deprecated)), fit_params,
-                                                       model, min_samples=min_samples, is_deprecated=is_deprecated,
+                                                       model, min_samples=min_samples,
+                                                       dist=dist,
+                                                       is_deprecated=is_deprecated,
                                                        rescale_mode=rescale_mode)
     row[get_counts_column('ref', 'pval')] = p_ref
     row[get_counts_column('alt', 'pval')] = p_alt
@@ -303,6 +307,7 @@ def start_process(dfs, merged_df, unique_BADs, out_path, fit_params, model, dist
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
         df = df.progress_apply(lambda x: process_df(x, weights, fit_params, model,
+                                                    dist=dist,
                                                     min_samples=min_samples, is_deprecated=is_deprecated,
                                                     rescale_mode=rescale_mode), axis=1)
         df[[x for x in df.columns if x not in ('key', 'fname')]].to_csv(get_pvalue_file_path(out_path, df_name),
