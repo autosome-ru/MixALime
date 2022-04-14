@@ -451,7 +451,7 @@ def main():
     min_samples = args['--samples']
     if min_samples == 'inf':
         min_samples = np.inf
-    unique_snps, unique_BADs, merged_df = merge_dfs([x[1] for x in dfs])
+    unique_snps, unique_BADs, merged_df = merge_dfs(dfs)
     if unique_snps is None:
         return
     if not args['aggregate']:
@@ -471,7 +471,7 @@ def main():
             except Exception:
                 print(__doc__)
                 exit('Wrong format weights')
-                raise
+                raise Exception
 
         if not args['--no-fit']:
             result_dfs = start_process(
