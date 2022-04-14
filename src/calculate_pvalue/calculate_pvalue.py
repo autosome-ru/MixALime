@@ -468,10 +468,10 @@ def main():
             try:
                 fit_params = check_fit_params_for_BADs(weights_dir,
                                                        unique_BADs)
-            except Exception:
+            except Exception as e:
                 print(__doc__)
                 exit('Wrong format weights')
-                raise Exception
+                raise e
 
         if not args['--no-fit']:
             result_dfs = start_process(
