@@ -39,6 +39,7 @@ Optional:
     -w <int>, --window_size <int>               Minimal window size for ModelWindow [default: 1000]
     -s <int>, --min_slices <int>                Minimal number of slices per window for ModelWindow [default: 10]
     -b <bh>, --window_behavior <bh>             If 'both', then window is expanded into both directions. If 'right', then it expands only to the right as long as it is possible [default: both]
+    --jobs <number>                             Number of jobs to run fit with [default: 2]
 
 Visualize:
     -n, --no-fit                            Skip fitting procedure (use to visualize results)
@@ -404,13 +405,15 @@ def start_fit():
         if to_fit:
 
             ctx = mp.get_context("forkserver")
-            jobs = 1
+            jobs = args['--jobs']
+
+            bads_alleles = [(bad, allele) for bad in unique_BADs for allele in alleles]
             jobs = min(jobs,
-                       len(unique_BADs),
+                       len(bads_alleles),
                        max(1, mp.cpu_count()))
-            params = [(stats_dfs[BAD], BAD, add_BAD_to_path(base_out_path, BAD),
+            params = [(stats_dfs[BAD], BAD, allele, add_BAD_to_path(base_out_path, BAD),
                        line_fit, allele_tr, max_fit_count, max_fit_count_alt)
-                      for BAD in unique_BADs]
+                      for BAD, allele in bads_alleles]
             with ctx.Pool(jobs) as p:
                 for (BAD, allele), res in zip(bads_alleles, p.map(run_fit_for_bad, params)):
                     fit_params.setdefault(BAD, {})[allele] = res
