@@ -27,7 +27,7 @@ Required:
 Optional:
     -h, --help                              Show help
     --deprecated                            Use deprecated name for read count column (ADASTRA)
-    --rescale-mode <mode>                   Mode for rescaling weights, one of (none, single, group) [default: None]
+    --rescale-mode <mode>                   Mode for rescaling weights, one of (none, single, group) [default: none]
                                             obtained from SNPs at the respective position from all datasets
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
     --method <method>                       Method for p-value aggregation [default: logit]
