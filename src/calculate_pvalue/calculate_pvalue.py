@@ -203,7 +203,7 @@ def get_pmf_for_dist(params, k, m, BAD, model):
     p = get_p(BAD)
     if model in available_bnb_models:
         logpdfs = list(map(lambda x: x[k] if x is not None and len(x) > k else None,
-                           params['logpdf']['modes'].get(m, (None, None))))
+                           params['logpdf_notrunc']['modes'].get(m, (None, None))))
         return logpdfs[::-1]
     else:
         r0, p0, w0, th0, _ = params
