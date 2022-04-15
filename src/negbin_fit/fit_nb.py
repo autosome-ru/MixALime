@@ -53,6 +53,7 @@ import re
 import numpy as np
 import pandas as pd
 from betanegbinfit.bridge_mixalime import read_dist_from_folder
+import multiprocessing as mp
 from negbin_fit.helpers import alleles, make_np_array_path, get_p, init_docopt, \
     make_negative_binom_density, make_line_negative_binom_density, calculate_gof_for_point_fit, \
     ParamsHandler, calculate_overall_gof, check_weights_path, add_BAD_to_path, merge_dfs, read_dfs, get_counts_column, \
@@ -429,17 +430,7 @@ def start_fit():
                     print(__doc__)
                     exit('Error reading weights in {}'.format(bad_out_path))
                     raise
-            if to_visualize:
-                visualize(
-                    stats=stats_df,
-                    params=d,
-                    model=model,
-                    cover_list=args['--cover-list'],
-                    max_read_count=max_read_count,
-                    out=bad_out_path,
-                    BAD=BAD,
-                    allele_tr=allele_tr)
-
+                fit_params[BAD] = d
     else:
         if to_fit:
             from betanegbinfit import run
@@ -461,17 +452,17 @@ def start_fit():
                              n_jobs=njobs)
         else:
             fit_params = read_dist_from_folder(folder=base_out_path)
-        if to_visualize:
-            for BAD in sorted(unique_BADs):
-                bad_out_path = add_BAD_to_path(base_out_path, BAD)
-                stats_df = stats_dfs[BAD]
-                visualize(
-                    stats=stats_df,
-                    params=fit_params,
-                    model=model,
-                    cover_list=args['--cover-list'],
-                    image_type=args['--ext'],
-                    max_read_count=max_read_count,
-                    out=bad_out_path,
-                    BAD=BAD,
-                    allele_tr=allele_tr)
+    if to_visualize:
+        for BAD in sorted(unique_BADs):
+            bad_out_path = add_BAD_to_path(base_out_path, BAD)
+            stats_df = stats_dfs[BAD]
+            visualize(
+                stats=stats_df,
+                params=fit_params,
+                model=model,
+                cover_list=args['--cover-list'],
+                image_type=args['--ext'],
+                max_read_count=max_read_count,
+                out=bad_out_path,
+                BAD=BAD,
+                allele_tr=allele_tr)
