@@ -39,7 +39,7 @@ Optional:
     -w <int>, --window_size <int>               Minimal window size for ModelWindow [default: 1000]
     -s <int>, --min_slices <int>                Minimal number of slices per window for ModelWindow [default: 10]
     -b <bh>, --window_behavior <bh>             If 'both', then window is expanded into both directions. If 'right', then it expands only to the right as long as it is possible [default: both]
-    --jobs <number>                             Number of jobs to run fit with [default: 2]
+    --jobs <number>                             Number of jobs to run fit with [default: 1]
 
 Visualize:
     -n, --no-fit                            Skip fitting procedure (use to visualize results)
@@ -347,6 +347,7 @@ def start_fit():
                             error='Min_slices should be non-negative.'),
         '--window_size': And(Use(int), Const(lambda x: x > 0),
                              error='Min_slices should be positive.'),
+        '--jobs': Use(int),
         str: bool
     })
     args = init_docopt(__doc__, schema)
