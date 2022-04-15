@@ -167,7 +167,7 @@ def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=2
     max_slice = min(max(stats[alleles[main_allele]]), upper_bound)  # slice bound
     if not line_fit:
         save_array = np.zeros((max_slice + 1, 4), dtype=np.float_)
-        for fix_c in tqdm(range(allele_tr, max_slice + 1)):
+        for fix_c in range(allele_tr, max_slice + 1):
             stats_filtered, counts = preprocess_stats(stats,
                                                       fix_c, N,
                                                       main_allele, allele_tr)
@@ -193,43 +193,36 @@ def calculate_cover_dist_gof():
     return 0
 
 
-def main(stats, out=None, BAD=1, allele_tr=5, line_fit=False,
+def main(stats, main_allele, out=None, BAD=1, allele_tr=5, line_fit=False,
          max_read_count=200, max_slice_count=200):
-    d = {}
-    for main_allele in alleles:
-        save_array = fit_neg_bin_for_allele(stats,
-                                            main_allele,
-                                            BAD=BAD,
-                                            line_fit=line_fit,
-                                            upper_bound=max_slice_count,
-                                            allele_tr=allele_tr,
-                                            max_read_count=max_read_count)
+    save_array = fit_neg_bin_for_allele(stats,
+                                        main_allele,
+                                        BAD=BAD,
+                                        line_fit=line_fit,
+                                        upper_bound=max_slice_count,
+                                        allele_tr=allele_tr,
+                                        max_read_count=max_read_count)
 
-        d[main_allele] = save_array
-        if not line_fit:
-            np.save(make_np_array_path(out, main_allele), save_array)
-        else:
-            with open(make_np_array_path(out, main_allele, line_fit=line_fit), 'w') as f:
-                json.dump(save_array, f)
-    return d
+    if not line_fit:
+        np.save(make_np_array_path(out, main_allele), save_array)
+    else:
+        with open(make_np_array_path(out, main_allele, line_fit=line_fit), 'w') as f:
+            json.dump(save_array, f)
+    return save_array
 
 
 def run_fit_for_bad(data):
-    stats_df, BAD, bad_out_path, line_fit, allele_tr, max_fit_count, max_fit_count_alt = data
+    stats_df, BAD, allele, bad_out_path, line_fit, allele_tr, max_fit_count, max_fit_count_alt = data
 
-    d = main(stats_df,
-             out=bad_out_path,
-             BAD=BAD,
-             line_fit=line_fit,
-             allele_tr=allele_tr,
-             max_read_count=max_fit_count,
-             max_slice_count=max_fit_count_alt)
-    if not line_fit:
-        convert_weights(in_df=stats_df,
-                        np_weights_dict=d,
-                        out_path=bad_out_path)
-
-    return d
+    save_array = main(stats_df,
+         main_allele=allele,
+         out=bad_out_path,
+         BAD=BAD,
+         line_fit=line_fit,
+         allele_tr=allele_tr,
+         max_read_count=max_fit_count,
+         max_slice_count=max_fit_count_alt)
+    return save_array
 
 
 def convert_string_to_float(bad_str):
@@ -419,8 +412,13 @@ def start_fit():
                        line_fit, allele_tr, max_fit_count, max_fit_count_alt)
                       for BAD in unique_BADs]
             with ctx.Pool(jobs) as p:
-                for BAD, res in zip(unique_BADs, p.map(run_fit_for_bad, params)):
-                    fit_params[BAD] = res
+                for (BAD, allele), res in zip(bads_alleles, p.map(run_fit_for_bad, params)):
+                    fit_params.setdefault(BAD, {})[allele] = res
+            for BAD in sorted(unique_BADs):
+                if not line_fit:
+                    convert_weights(in_df=stats_dfs[BAD],
+                                    np_weights_dict=fit_params[BAD],
+                                    out_path=add_BAD_to_path(base_out_path, BAD))
         else:
             for BAD in sorted(unique_BADs):
                 bad_out_path = add_BAD_to_path(base_out_path, BAD)
