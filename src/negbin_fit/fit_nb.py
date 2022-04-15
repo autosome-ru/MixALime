@@ -160,12 +160,13 @@ def preprocess_stats(stats, fix_c, N, main_allele, allele_tr):
     return stats_filtered, counts
 
 
-def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=100, line_fit=False, max_read_count=100):
+def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=200, line_fit=False, max_read_count=200):
     print('Fitting {} distribution BAD={}...'.format(main_allele.upper(), BAD))
-    N = min(max(stats[main_allele]), max_read_count)
+    N = min(max(stats[main_allele]), max_read_count)  # right bound
+    max_slice = min(max(stats[alleles[main_allele]]), upper_bound)  # slice bound
     if not line_fit:
-        save_array = np.zeros((upper_bound + 1, 4), dtype=np.float_)
-        for fix_c in tqdm(range(allele_tr, upper_bound + 1)):
+        save_array = np.zeros((max_slice + 1, 4), dtype=np.float_)
+        for fix_c in tqdm(range(allele_tr, max_slice + 1)):
             stats_filtered, counts = preprocess_stats(stats,
                                                       fix_c, N,
                                                       main_allele, allele_tr)
@@ -179,7 +180,7 @@ def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=1
     else:
         params, point_gofs, gof = fit_negative_binom_as_line(stats,
                                                              main_allele,
-                                                             upper_bound=upper_bound,
+                                                             upper_bound=max_slice,
                                                              N=N,
                                                              allele_tr=allele_tr,
                                                              BAD=BAD,
@@ -191,14 +192,15 @@ def calculate_cover_dist_gof():
     return 0
 
 
-def main(stats, out=None, BAD=1, allele_tr=5, line_fit=False, max_read_count=100):
+def main(stats, out=None, BAD=1, allele_tr=5, line_fit=False,
+         max_read_count=200, max_slice_count=200):
     d = {}
     for main_allele in alleles:
         save_array = fit_neg_bin_for_allele(stats,
                                             main_allele,
                                             BAD=BAD,
                                             line_fit=line_fit,
-                                            upper_bound=200,
+                                            upper_bound=max_slice_count,
                                             allele_tr=allele_tr,
                                             max_read_count=max_read_count)
 
@@ -208,6 +210,24 @@ def main(stats, out=None, BAD=1, allele_tr=5, line_fit=False, max_read_count=100
         else:
             with open(make_np_array_path(out, main_allele, line_fit=line_fit), 'w') as f:
                 json.dump(save_array, f)
+    return d
+
+
+def run_fit_for_bad(data):
+    stats_df, BAD, bad_out_path, line_fit, allele_tr, max_fit_count, max_fit_count_alt = data
+
+    d = main(stats_df,
+             out=bad_out_path,
+             BAD=BAD,
+             line_fit=line_fit,
+             allele_tr=allele_tr,
+             max_read_count=max_fit_count,
+             max_slice_count=max_fit_count_alt)
+    if not line_fit:
+        convert_weights(in_df=stats_df,
+                        np_weights_dict=d,
+                        out_path=bad_out_path)
+
     return d
 
 
@@ -386,22 +406,23 @@ def start_fit():
         exit(0)
     if model not in available_bnb_models:
         line_fit = model == 'NB_AS_Total'
-        for BAD in sorted(unique_BADs):
-            bad_out_path = add_BAD_to_path(base_out_path, BAD)
+        fit_params = {}
+        if to_fit:
 
-            stats_df = stats_dfs[BAD]
-            if to_fit:
-                d = main(stats_df,
-                         out=bad_out_path,
-                         BAD=BAD,
-                         line_fit=line_fit,
-                         allele_tr=allele_tr,
-                         max_read_count=max_fit_count)
-                if not line_fit:
-                    convert_weights(in_df=stats_df,
-                                    np_weights_dict=d,
-                                    out_path=bad_out_path)
-            else:
+            ctx = mp.get_context("forkserver")
+            jobs = 1
+            jobs = min(jobs,
+                       len(unique_BADs),
+                       max(1, mp.cpu_count()))
+            params = [(stats_dfs[BAD], BAD, add_BAD_to_path(base_out_path, BAD),
+                       line_fit, allele_tr, max_fit_count, max_fit_count_alt)
+                      for BAD in unique_BADs]
+            with ctx.Pool(jobs) as p:
+                for BAD, res in zip(unique_BADs, p.map(run_fit_for_bad, params)):
+                    fit_params[BAD] = res
+        else:
+            for BAD in sorted(unique_BADs):
+                bad_out_path = add_BAD_to_path(base_out_path, BAD)
                 try:
                     _, d = check_weights_path(bad_out_path, line_fit=line_fit)
                 except Exception:
