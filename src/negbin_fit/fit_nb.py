@@ -39,6 +39,7 @@ Optional:
     -w <int>, --window_size <int>               Minimal window size for ModelWindow [default: 1000]
     -s <int>, --min_slices <int>                Minimal number of slices per window for ModelWindow [default: 10]
     -b <bh>, --window_behavior <bh>             If 'both', then window is expanded into both directions. If 'right', then it expands only to the right as long as it is possible [default: both]
+    -k <int>, --k_left_bound <int>              Sets left bound for concentration parameter K [default: 1]
     --jobs <number>                             Number of jobs to run fit with [default: 1]
 
 Visualize:
@@ -345,6 +346,8 @@ def start_fit():
                                        ', '.join(available_window_behaviors))),
         '--min_slices': And(Use(int), Const(lambda x: x >= 0),
                             error='Min_slices should be non-negative.'),
+        '--k_left_bound': And(Use(int), Const(lambda x: x >= 1),
+                            error='K_left_bound should be >= 1.'),
         '--window_size': And(Use(int), Const(lambda x: x > 0),
                              error='Min_slices should be positive.'),
         '--jobs': Use(int),
@@ -370,6 +373,7 @@ def start_fit():
     min_slices = args['--min_slices']
     concentration = args['--concentration']
     window_size = args['--window_size']
+    k_left_bound = args['--k_left_bound']
     njobs = -1
     stats_dfs = {}
     merged_df = None
@@ -450,6 +454,7 @@ def start_fit():
                              left=allele_tr - 1,
                              max_count=max_fit_count,
                              max_count_alt=max_fit_count_alt,
+                             k_left_bound=k_left_bound,
                              apply_weights=False,
                              n_jobs=njobs)
         else:

@@ -352,7 +352,6 @@ def gof_scatter(df_ref, df_alt, BAD, out, model,
                        label=main_allele.capitalize() + ' new')
             max_y = max(max_y, max(y))
         ax.set_ylim(0, max_y * 1.05)
-
     ax.set_xlabel('Read count for the fixed allele')
     ax.set_ylabel('Goodness of fit, RMSEA')
 
