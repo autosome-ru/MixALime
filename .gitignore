@@ -1,2 +1,2 @@
 build/
-src/*.egg
+src/*.egg*
