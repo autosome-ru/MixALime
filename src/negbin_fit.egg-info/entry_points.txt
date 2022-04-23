@@ -1,5 +1,0 @@
-[console_scripts]
-calc_pval = calculate_pvalue.calculate_pvalue:main
-cover_fit = negbin_fit.fit_cover:main
-negbin_fit = negbin_fit.fit_nb:start_fit
-
