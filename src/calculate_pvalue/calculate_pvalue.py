@@ -32,6 +32,7 @@ Optional:
     --coverage-tr <int>                     Coverage threshold for aggregation step [default: 20]
     --method <method>                       Method for p-value aggregation [default: logit]
     --njobs <int>                           Number of jobs to use [default: 1]
+    --gof-tr <float>                        Goodness of fit threshold [default: None]
 
 Visualization
     -n, --no-fit                            Skip p-value calculation
@@ -59,6 +60,8 @@ from tqdm import tqdm
 def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_tr=5,
                         min_samples=np.inf, is_deprecated=False, rescale_mode='group'):
     if model in available_bnb_models:
+        if gof_tr is None:
+            gof_tr = np.inf
         params, models_dict = fit_params
         scaled_weights = {}
         BAD = row['BAD']
@@ -84,6 +87,7 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
                                                       w_ref=scaled_weights['ref'],
                                                       w_alt=scaled_weights['alt'],
                                                       m=models_dict[row['BAD']],
+                                                      gof_tr=gof_tr,
                                                       concentration=50,
                                                       min_samples=min_samples
                                                       )
@@ -167,10 +171,10 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
     return get_function_mixture(nb, geom, w0)
 
 
-def process_df(row, weights, fit_params, model, min_samples=np.inf, is_deprecated=False,
+def process_df(row, weights, fit_params, model, min_samples=np.inf, is_deprecated=False, gof_tr=None,
                rescale_mode='group'):
     p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row, is_deprecated)), fit_params,
-                                                       model, min_samples=min_samples, is_deprecated=is_deprecated,
+                                                       model, gof_tr=gof_tr, min_samples=min_samples, is_deprecated=is_deprecated,
                                                        rescale_mode=rescale_mode)
     row[get_counts_column('ref', 'pval')] = p_ref
     row[get_counts_column('alt', 'pval')] = p_alt
@@ -285,7 +289,7 @@ def get_posterior_weights(merged_df, model, fit_params, is_deprecated=False):
 
 
 def start_process(dfs, merged_df, unique_BADs, out_path, fit_params, model, dist,
-                  min_samples=np.inf, is_deprecated=False, rescale_mode=True):
+                  min_samples=np.inf, gof_tr=None, is_deprecated=False, rescale_mode=True):
     if rescale_mode == 'group':
         print('Calculating posterior weights...')
         weights = get_posterior_weights(merged_df, model, fit_params, is_deprecated=is_deprecated)
@@ -302,6 +306,7 @@ def start_process(dfs, merged_df, unique_BADs, out_path, fit_params, model, dist
     for df_name, df in dfs:
         print('Calculating p-value for {}'.format(df_name))
         df = df.progress_apply(lambda x: process_df(x, weights, fit_params, model,
+                                                    gof_tr=gof_tr,
                                                     min_samples=min_samples, is_deprecated=is_deprecated,
                                                     rescale_mode=rescale_mode), axis=1)
         df[[x for x in df.columns if x not in ('key', 'fname')]].to_csv(get_pvalue_file_path(out_path, df_name),
@@ -409,6 +414,9 @@ def main():
                 Const(os.path.exists, error='Weights dir should exist'),
             )
         ),
+        '--gof-tr': Or(
+            Const(lambda x: x is None),
+            Use(float)),
         '--model': Const(lambda x: x in available_models,
                          error='Model not in ({})'.format(', '.join(available_models))),
         '--distribution': Const(lambda x: x in available_dists,
@@ -480,6 +488,7 @@ def main():
                 unique_BADs=unique_BADs,
                 fit_params=fit_params,
                 model=args['--model'],
+                gof_tr=args['--gof-tr'],
                 dist=dist,
                 min_samples=min_samples,
                 is_deprecated=is_deprecated,
