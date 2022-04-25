@@ -359,11 +359,15 @@ def start_fit():
     max_fit_count = args['--reads-right-tr']
     if max_fit_count == 'inf':
         max_fit_count = np.inf
+    else:
+        max_fit_count = int(max_fit_count)
     max_fit_count_alt = args['--reads-right-tr-alt']
     if max_fit_count_alt == 'inf':
         max_fit_count_alt = np.inf
     elif max_fit_count_alt == 'none':
         max_fit_count_alt = max_fit_count
+    else:
+        max_fit_count_alt = int(max_fit_count_alt)
     max_read_count = args['--max-read-count']
     dist = args['--distribution']
     window_behavior = args['--window_behavior']
