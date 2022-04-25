@@ -165,6 +165,7 @@ def preprocess_stats(stats, fix_c, N, main_allele, allele_tr):
 
 def fit_neg_bin_for_allele(stats, main_allele, BAD=1, allele_tr=5, upper_bound=200, line_fit=False, max_read_count=200):
     print('Fitting {} distribution BAD={}...'.format(main_allele.upper(), BAD))
+    print(max_read_count)
     N = min(max(stats[main_allele]), max_read_count)  # right bound
     max_slice = min(max(stats[alleles[main_allele]]), upper_bound)  # slice bound
     if not line_fit:
@@ -362,15 +363,11 @@ def start_fit():
     max_fit_count = args['--reads-right-tr']
     if max_fit_count == 'inf':
         max_fit_count = np.inf
-    else:
-        max_fit_count = int(max_fit_count)
     max_fit_count_alt = args['--reads-right-tr-alt']
     if max_fit_count_alt == 'inf':
         max_fit_count_alt = np.inf
     elif max_fit_count_alt == 'none':
         max_fit_count_alt = max_fit_count
-    else:
-        max_fit_count_alt = int(max_fit_count_alt)
     max_read_count = args['--max-read-count']
     dist = args['--distribution']
     window_behavior = args['--window_behavior']
