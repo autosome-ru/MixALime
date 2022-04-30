@@ -418,7 +418,10 @@ def main():
             )
         ),
         '--gof-tr': Or(
-            Const(lambda x: x is None or x == 'None'),
+            And(
+                Const(lambda x: x is None or x == 'None'),
+                Use(lambda x: None)
+            ),
             Use(float)),
         '--model': Const(lambda x: x in available_models,
                          error='Model not in ({})'.format(', '.join(available_models))),
