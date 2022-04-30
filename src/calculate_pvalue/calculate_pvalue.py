@@ -66,7 +66,7 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
         scaled_weights = {}
         BAD = row['BAD']
         for main_allele in alleles:
-            w = params[main_allele][round(BAD, 2)]['params']['Estimate'].get('w{}'.format(
+            w = params[main_allele][f'{BAD:.2f}']['params']['Estimate'].get('w{}'.format(
                 row[get_counts_column(alleles[main_allele], is_deprecated=is_deprecated)]), 0.5)
             if rescale_mode == 'group':
                 scaled_weights[main_allele] = modify_w_with_bayes_factor(w, row_weights[main_allele])
