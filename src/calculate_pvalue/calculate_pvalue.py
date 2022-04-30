@@ -66,7 +66,7 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
         scaled_weights = {}
         BAD = row['BAD']
         for main_allele in alleles:
-            w = params[main_allele][f'{BAD:.2f}']['params']['Estimate'].get('w{}'.format(
+            w = params[main_allele][round(BAD, 2)]['params']['Estimate'].get('w{}'.format(
                 row[get_counts_column(alleles[main_allele], is_deprecated=is_deprecated)]), 0.5)
             if rescale_mode == 'group':
                 scaled_weights[main_allele] = modify_w_with_bayes_factor(w, row_weights[main_allele])
@@ -81,22 +81,20 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
                 scaled_weights[main_allele] = modify_w_with_bayes_factor(w, bayes_factor)
             else:
                 scaled_weights[main_allele] = w
-        pval, es = bridge_mixalime.calc_pvalue_and_es(
-            ref_count=row[get_counts_column('ref', is_deprecated=is_deprecated)],
-            alt_count=row[get_counts_column('alt', is_deprecated=is_deprecated)],
-            params=params,
-            w_ref=scaled_weights['ref'],
-            w_alt=scaled_weights['alt'],
-            m=models_dict[row['BAD']],
-            gof_tr=gof_tr,
-            concentration=250,
-            min_samples=min_samples
-            )
+        pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row[get_counts_column('ref', is_deprecated=is_deprecated)],
+                                                      alt_count=row[get_counts_column('alt', is_deprecated=is_deprecated)],
+                                                      params=params,
+                                                      w_ref=scaled_weights['ref'],
+                                                      w_alt=scaled_weights['alt'],
+                                                      m=models_dict[row['BAD']],
+                                                      gof_tr=gof_tr,
+                                                      concentration=250,
+                                                      min_samples=min_samples
+                                                      )
 
         if abs(pval[0]) > 1:
-            print(row, pval, es, scaled_weights,
-                  params['ref'][round(row['BAD'], 2)]['params']['Estimate'].get('w{}'.format(
-                      row['{}_COUNTS'.format('alt'.upper())]), 0.5))
+            print(row, pval, es, scaled_weights, params['ref'][round(row['BAD'], 2)]['params']['Estimate'].get('w{}'.format(
+                row['{}_COUNTS'.format('alt'.upper())]), 0.5))
         return (*pval, *es)
     else:
         return calculate_pval_negbin(row, row_weights, fit_params, gof_tr, allele_tr)
@@ -176,8 +174,7 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
 def process_df(row, weights, fit_params, model, min_samples=np.inf, is_deprecated=False, gof_tr=None,
                rescale_mode='group'):
     p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row, is_deprecated)), fit_params,
-                                                       model, gof_tr=gof_tr, min_samples=min_samples,
-                                                       is_deprecated=is_deprecated,
+                                                       model, gof_tr=gof_tr, min_samples=min_samples, is_deprecated=is_deprecated,
                                                        rescale_mode=rescale_mode)
     row[get_counts_column('ref', 'pval')] = p_ref
     row[get_counts_column('alt', 'pval')] = p_alt
@@ -418,18 +415,15 @@ def main():
             )
         ),
         '--gof-tr': Or(
-            And(
-                Const(lambda x: x is None or x == 'None'),
-                Use(lambda x: None)
-            ),
+            Const(lambda x: x is None),
             Use(float)),
         '--model': Const(lambda x: x in available_models,
                          error='Model not in ({})'.format(', '.join(available_models))),
         '--distribution': Const(lambda x: x in available_dists,
-                                error='Distribution not in ({})'.format(', '.join(available_dists))),
+                                 error='Distribution not in ({})'.format(', '.join(available_dists))),
         '--samples': Or(
-            And(Use(int), Const(lambda x: x >= 0)),
-            And(Use(str), Const(lambda x: x in ('inf',))),
+            And(Use(int),  Const(lambda x: x >= 0)),
+            And(Use(str), Const(lambda x: x in ('inf', ))),
             error='Samples must be a non negative integer or "inf" string',
         ),
         '--output': Or(
