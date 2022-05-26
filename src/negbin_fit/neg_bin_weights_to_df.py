@@ -11,6 +11,7 @@ def main(out_path, BAD, in_file=None, in_df=None, np_weights_path=None,
         counts_df = in_df
     else:
         raise AssertionError('No input file provided')
+    all_df_list = []
     for main_allele in alleles:
         np_weights = read_weights(
             np_weights_path=np_weights_path,
@@ -26,3 +27,10 @@ def main(out_path, BAD, in_file=None, in_df=None, np_weights_path=None,
         df['allele_reads'] = counts
         df.to_csv(get_nb_weight_path(out_path, main_allele, BAD),
                   index=False, sep='\t')
+        df['allele'] = main_allele
+        all_df_list.append(df)
+    all_df = pd.concat(all_df_list)
+    all_df['BAD'] = BAD
+    all_df.to_csv(get_nb_weight_path(out_path, main_allele, BAD, result=True),
+                  index=False, sep='\t')
+
