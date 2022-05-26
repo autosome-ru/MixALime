@@ -28,6 +28,7 @@ def main(out_path, BAD, in_file=None, in_df=None, np_weights_path=None,
         df.to_csv(get_nb_weight_path(out_path, main_allele, BAD),
                   index=False, sep='\t')
         df['allele'] = main_allele
+        df = df.reset_index().rename(columns={'index': 'fix_c'})
         all_df_list.append(df)
     all_df = pd.concat(all_df_list)
     all_df['BAD'] = BAD
