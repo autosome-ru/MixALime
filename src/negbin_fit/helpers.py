@@ -57,8 +57,8 @@ def add_BAD_to_path(out_path, BAD, create=True):
     return make_out_path(out_path, 'BAD{:.2f}'.format(BAD), create=create)
 
 
-def get_nb_weight_path(out, allele):
-    return os.path.join(out, 'NBweights_{}.tsv'.format(allele))
+def get_nb_weight_path(out, allele, BAD):
+    return os.path.join(out, 'NBweights_{}.{:.2f}.tsv'.format(allele, BAD))
 
 
 def check_weights_path(weights_path, line_fit):

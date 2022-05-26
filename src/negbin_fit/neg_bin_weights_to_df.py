@@ -2,7 +2,7 @@ import pandas as pd
 from negbin_fit.helpers import alleles, read_weights, get_nb_weight_path
 
 
-def main(out_path, in_file=None, in_df=None, np_weights_path=None,
+def main(out_path, BAD, in_file=None, in_df=None, np_weights_path=None,
          np_weights_dict=None, line_fit=False):
     column_names = ['r', 'w', 'status', 'gof']
     if in_file is not None:
@@ -24,5 +24,5 @@ def main(out_path, in_file=None, in_df=None, np_weights_path=None,
         for fix_c in df.index:
             counts.append(counts_df[counts_df[alleles[main_allele]] == fix_c]['counts'].sum())
         df['allele_reads'] = counts
-        df.to_csv(get_nb_weight_path(out_path, main_allele),
+        df.to_csv(get_nb_weight_path(out_path, main_allele, BAD),
                   index=False, sep='\t')

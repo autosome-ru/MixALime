@@ -66,7 +66,6 @@ from negbin_fit.neg_bin_weights_to_df import main as convert_weights
 from negbin_fit.visualize import main as visualize
 from schema import And, Const, Schema, Use, Or
 from scipy import optimize
-from tqdm import tqdm
 
 
 def make_scaled_counts(stats_pandas_dataframe, main_allele, max_cover_in_stats):
@@ -425,6 +424,7 @@ def start_fit():
             for BAD in sorted(unique_BADs):
                 if not line_fit:
                     convert_weights(in_df=stats_dfs[BAD],
+                                    BAD=BAD,
                                     np_weights_dict=fit_params[BAD],
                                     out_path=add_BAD_to_path(base_out_path, BAD))
         else:
