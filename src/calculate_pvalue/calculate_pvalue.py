@@ -81,20 +81,22 @@ def calc_pval_for_model(row, row_weights, fit_params, model, gof_tr=0.1, allele_
                 scaled_weights[main_allele] = modify_w_with_bayes_factor(w, bayes_factor)
             else:
                 scaled_weights[main_allele] = w
-        pval, es = bridge_mixalime.calc_pvalue_and_es(ref_count=row[get_counts_column('ref', is_deprecated=is_deprecated)],
-                                                      alt_count=row[get_counts_column('alt', is_deprecated=is_deprecated)],
-                                                      params=params,
-                                                      w_ref=scaled_weights['ref'],
-                                                      w_alt=scaled_weights['alt'],
-                                                      m=models_dict[row['BAD']],
-                                                      gof_tr=gof_tr,
-                                                      concentration=250,
-                                                      min_samples=min_samples
-                                                      )
+        pval, es = bridge_mixalime.calc_pvalue_and_es(
+            ref_count=row[get_counts_column('ref', is_deprecated=is_deprecated)],
+            alt_count=row[get_counts_column('alt', is_deprecated=is_deprecated)],
+            params=params,
+            w_ref=scaled_weights['ref'],
+            w_alt=scaled_weights['alt'],
+            m=models_dict[row['BAD']],
+            gof_tr=gof_tr,
+            concentration=250,
+            min_samples=min_samples
+            )
 
         if abs(pval[0]) > 1:
-            print(row, pval, es, scaled_weights, params['ref'][round(row['BAD'], 2)]['params']['Estimate'].get('w{}'.format(
-                row['{}_COUNTS'.format('alt'.upper())]), 0.5))
+            print(row, pval, es, scaled_weights,
+                  params['ref'][round(row['BAD'], 2)]['params']['Estimate'].get('w{}'.format(
+                      row['{}_COUNTS'.format('alt'.upper())]), 0.5))
         return (*pval, *es)
     else:
         return calculate_pval_negbin(row, row_weights, fit_params, gof_tr, allele_tr)
@@ -375,7 +377,7 @@ def combine_pvalues_with_method(p_array, method):
 def aggregate_dfs(merged_df, unique_snps, method='logit'):
     result = []
     header = ['#CHROM', 'POS', 'ID',
-              'ALT', 'REF', 'LOGITP_REF', 'ES_REF', 'LOGITP_ALT', 'ES_ALT']
+              'REF', 'ALT', 'LOGITP_REF', 'ES_REF', 'LOGITP_ALT', 'ES_ALT']
     for snp in tqdm(unique_snps, unit='SNPs'):
         snp_result = snp.split('@')
         filtered_df = filter_df(merged_df, snp)
@@ -395,6 +397,26 @@ def aggregate_dfs(merged_df, unique_snps, method='logit'):
 
         result.append(row_dict)
     return pd.DataFrame(result)
+
+
+def calc_fdr(aggr_df, max_cover_tr):
+    mc_filter_array = np.array(aggr_df['MAX_COVER'] >= max_cover_tr)
+    for allele in alleles:
+        if sum(mc_filter_array) != 0:
+            try:
+                _, pval_arr, _, _ = multitest.multipletests(
+                    aggr_df[mc_filter_array][f'LOGIT_P_{allele.upper()}'],
+                    alpha=0.05, method='fdr_bh')
+            except TypeError:
+                print(aggr_df, aggr_df[mc_filter_array][f'LOGIT_P_{allele.upper()}'])
+                raise
+        else:
+            pval_arr = []
+        fdr_arr = np.empty(len(aggr_df.index), dtype=np.float128)
+        fdr_arr[:] = np.nan
+        fdr_arr[mc_filter_array] = pval_arr
+        aggr_df[f"FDRP_BH_REF_{allele.upper()}"] = fdr_arr
+    return aggr_df
 
 
 def main():
@@ -424,10 +446,10 @@ def main():
         '--model': Const(lambda x: x in available_models,
                          error='Model not in ({})'.format(', '.join(available_models))),
         '--distribution': Const(lambda x: x in available_dists,
-                                 error='Distribution not in ({})'.format(', '.join(available_dists))),
+                                error='Distribution not in ({})'.format(', '.join(available_dists))),
         '--samples': Or(
-            And(Use(int),  Const(lambda x: x >= 0)),
-            And(Use(str), Const(lambda x: x in ('inf', ))),
+            And(Use(int), Const(lambda x: x >= 0)),
+            And(Use(str), Const(lambda x: x in ('inf',))),
             error='Samples must be a non negative integer or "inf" string',
         ),
         '--output': Or(
@@ -513,28 +535,5 @@ def main():
         aggregated_df = aggregate_dfs(merged_df, unique_snps, args['--method'])
         if aggregated_df.empty:
             raise AssertionError('No SNPs left after aggregation')
-        maxc_tr = args['--coverage-tr']
-        mc_filter_array = np.array(aggregated_df['MAX_COVER'] >= maxc_tr, dtype=np.bool)
-        if mc_filter_array.sum() != 0:
-            try:
-                bool_ar_ref, p_val_ref, _, _ = multitest.multipletests(
-                    aggregated_df[mc_filter_array]["LOGITP_REF"].to_numpy(),
-                    alpha=0.05, method='fdr_bh')
-                bool_ar_alt, p_val_alt, _, _ = multitest.multipletests(
-                    aggregated_df[mc_filter_array]["LOGITP_ALT"],
-                    alpha=0.05, method='fdr_bh')
-            except TypeError:
-                print(aggregated_df[mc_filter_array]["LOGITP_REF"].to_numpy())
-                raise
-        else:
-            p_val_ref = []
-            p_val_alt = []
-
-        fdr_by_ref = np.array(['NaN'] * len(aggregated_df.index), dtype=np.float64)
-        fdr_by_ref[mc_filter_array] = p_val_ref
-        aggregated_df["FDRP_BH_REF"] = fdr_by_ref
-
-        fdr_by_alt = np.array(['NaN'] * len(aggregated_df.index), dtype=np.float64)
-        fdr_by_alt[mc_filter_array] = p_val_alt
-        aggregated_df["FDRP_BH_ALT"] = fdr_by_alt
-        aggregated_df.to_csv(out, index=False, sep='\t')
+        fdr_df = calc_fdr(aggr_df=aggregated_df, max_cover_tr=args['--coverage-tr'])
+        fdr_df.to_csv(out, index=False, sep='\t')
