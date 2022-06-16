@@ -174,7 +174,8 @@ def get_dist_mixture(nb1, nb2, geom1, geom2, nb_w, geom_w, w0):
 def process_df(row, weights, fit_params, model, min_samples=np.inf, is_deprecated=False, gof_tr=None,
                rescale_mode='group'):
     p_ref, p_alt, es_ref, es_alt = calc_pval_for_model(row, weights.get(get_key(row, is_deprecated)), fit_params,
-                                                       model, gof_tr=gof_tr, min_samples=min_samples, is_deprecated=is_deprecated,
+                                                       model, gof_tr=gof_tr, min_samples=min_samples,
+                                                       is_deprecated=is_deprecated,
                                                        rescale_mode=rescale_mode)
     row[get_counts_column('ref', 'pval')] = p_ref
     row[get_counts_column('alt', 'pval')] = p_alt
@@ -388,7 +389,7 @@ def aggregate_dfs(merged_df, unique_snps, method='logit'):
             snp_result.append(es_mean)
         row_dict = dict(zip(header, snp_result))
         row_dict['MAX_COVER'] = filtered_df[[get_counts_column(allele) for allele in alleles]].sum(axis=1).max()
-
+        row_dict['MEAN_BAD'] = filtered_df['BAD'].mean()
         for allele in alleles:
             row_dict['{}_EXPS'.format(allele.upper())] = conc_exps[allele]
 
