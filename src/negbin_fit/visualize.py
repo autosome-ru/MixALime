@@ -365,10 +365,10 @@ def gof_scatter(df_ref, df_alt, BAD, out, model,
     plt.close(fig)
 
 
-def read_dfs(out):
-    if sum([os.path.exists(get_nb_weight_path(out, allele)) for allele in alleles]) == 2:
+def read_dfs(out, BAD):
+    if sum([os.path.exists(get_nb_weight_path(out, allele, BAD)) for allele in alleles]) == 2:
         try:
-            result = [pd.read_table(get_nb_weight_path(out, allele)) for allele in alleles]
+            result = [pd.read_table(get_nb_weight_path(out, allele, BAD)) for allele in alleles]
         except Exception:
             raise AssertionError("No weight dfs found in directory {}".format(out))
         return result
@@ -588,7 +588,7 @@ def main(stats, out, BAD, model,
          ):
     if cover_list is None:
         cover_list = [5, 10]
-    df_ref, df_alt = read_dfs(out)
+    df_ref, df_alt = read_dfs(out, BAD)
     if model == 'NB_AS':
         r_ref_bias(df_ref, df_alt,
                    out=make_image_path(out, 'r_bias', image_type),
