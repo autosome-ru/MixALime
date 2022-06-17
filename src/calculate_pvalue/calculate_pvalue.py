@@ -405,10 +405,10 @@ def calc_fdr(aggr_df, max_cover_tr):
         if sum(mc_filter_array) != 0:
             try:
                 _, pval_arr, _, _ = multitest.multipletests(
-                    aggr_df[mc_filter_array][f'LOGIT_P_{allele.upper()}'],
+                    aggr_df[mc_filter_array][f'LOGITP_{allele.upper()}'],
                     alpha=0.05, method='fdr_bh')
             except TypeError:
-                print(aggr_df, aggr_df[mc_filter_array][f'LOGIT_P_{allele.upper()}'])
+                print(aggr_df, aggr_df[mc_filter_array][f'LOGITP_{allele.upper()}'])
                 raise
         else:
             pval_arr = []
