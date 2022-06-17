@@ -415,7 +415,7 @@ def calc_fdr(aggr_df, max_cover_tr):
         fdr_arr = np.empty(len(aggr_df.index), dtype=np.float128)
         fdr_arr[:] = np.nan
         fdr_arr[mc_filter_array] = pval_arr
-        aggr_df[f"FDRP_BH_REF_{allele.upper()}"] = fdr_arr
+        aggr_df[f"FDRP_BH_{allele.upper()}"] = fdr_arr
     return aggr_df
 
 
@@ -539,7 +539,7 @@ def main():
         fdr_df['POS'] = fdr_df['POS'].astype(int)
         fdr_df['START'] = fdr_df['POS']
         fdr_df['END'] = fdr_df['POS'] + 1
-        fdr_df.rename(columns={'REF_EXPS': 'SUP_REF_EXPS', 'ALT_EXPS': 'SUP_ALT_EXPS'})
+        fdr_df.rename(columns={'REF_EXPS': 'SUP_REF_EXPS', 'ALT_EXPS': 'SUP_ALT_EXPS'}, inplace=True)
         fdr_df[['#CHROM', 'START', 'END', 'ID', 'REF', 'ALT', 'MEAN_BAD', 'MAX_COVER',
                 'LOGITP_REF', 'ES_REF', 'LOGITP_ALT', 'ES_ALT', 'SUP_REF_EXPS', 'SUP_ALT_EXPS',
                 'FDRP_BH_REF', 'FDRP_BH_ALT'
