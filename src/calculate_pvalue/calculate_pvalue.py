@@ -536,6 +536,7 @@ def main():
         if aggregated_df.empty:
             raise AssertionError('No SNPs left after aggregation')
         fdr_df = calc_fdr(aggr_df=aggregated_df, max_cover_tr=args['--coverage-tr'])
+        fdr_df['POS'] = fdr_df['POS'].astype(int)
         fdr_df['START'] = fdr_df['POS']
         fdr_df['END'] = fdr_df['POS'] + 1
         fdr_df.rename(columns={'REF_EXPS': 'SUP_REF_EXPS', 'ALT_EXPS': 'SUP_ALT_EXPS'})
