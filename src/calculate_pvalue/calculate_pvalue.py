@@ -383,17 +383,22 @@ def aggregate_dfs(merged_df, unique_snps, method='logit'):
         filtered_df = filter_df(merged_df, snp)
         conc_exps = {}
         for allele in alleles:
+            conc_exps[allele] = {}
+            fnames = set(filtered_df['fname'].unique())
             p_array = filtered_df[get_counts_column(allele, 'pval')].to_list()
             snp_result.append(combine_pvalues_with_method(p_array, method))
             es_fname_array = get_es_list(filtered_df, allele)
-            conc_exps[allele] = list_to_str(set([fname.strip() for es, fname in es_fname_array if es >= 0]))
+            sup_fnames = set([fname.strip() for es, fname in es_fname_array if es >= 0])
+            conc_exps[allele]['sup'] = '@'.join(sup_fnames)
+            conc_exps[allele]['non_sup'] = '@'.join(fnames - sup_fnames)
             es_mean, es_most_sig = aggregate_es([es for es, _ in es_fname_array], p_array)
             snp_result.append(es_mean)
         row_dict = dict(zip(header, snp_result))
         row_dict['MAX_COVER'] = filtered_df[[get_counts_column(allele) for allele in alleles]].sum(axis=1).max()
         row_dict['MEAN_BAD'] = filtered_df['BAD'].mean()
         for allele in alleles:
-            row_dict['{}_EXPS'.format(allele.upper())] = conc_exps[allele]
+            for sup_type in 'sup', 'non_sup':
+                row_dict[f'{sup_type.upper()}_{allele.upper()}_EXPS'] = conc_exps[allele][sup_type]
 
         result.append(row_dict)
     return pd.DataFrame(result)
@@ -539,8 +544,8 @@ def main():
         fdr_df['POS'] = fdr_df['POS'].astype(int)
         fdr_df['START'] = fdr_df['POS'] - 1
         fdr_df['END'] = fdr_df['POS']
-        fdr_df.rename(columns={'REF_EXPS': 'SUP_REF_EXPS', 'ALT_EXPS': 'SUP_ALT_EXPS'}, inplace=True)
         fdr_df[['#CHROM', 'START', 'END', 'ID', 'REF', 'ALT', 'MEAN_BAD', 'MAX_COVER',
-                'LOGITP_REF', 'ES_REF', 'LOGITP_ALT', 'ES_ALT', 'SUP_REF_EXPS', 'SUP_ALT_EXPS',
+                'LOGITP_REF', 'ES_REF', 'LOGITP_ALT', 'ES_ALT', 'SUP_REF_EXPS', 'NON_SUP_REF_EXPS',
+                'SUP_ALT_EXPS', 'NON_SUP_ALT_EXPS',
                 'FDRP_BH_REF', 'FDRP_BH_ALT'
                 ]].to_csv(out, index=False, sep='\t')
