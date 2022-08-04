@@ -296,9 +296,9 @@ def get_pvalue_file_path(out_path, df_name):
 
 def get_required_df_fields(is_deprecated=False):
     if is_deprecated:
-        return '#chr', 'pos', 'ID', 'ref', 'alt'
+        return '#chr', 'start', 'ID', 'ref', 'alt'
     else:
-        return '#CHROM', 'POS', 'ID', 'REF', 'ALT'
+        return '#CHROM', 'START', 'ID', 'REF', 'ALT'
 
 
 def get_key(row, is_deprecated=False):

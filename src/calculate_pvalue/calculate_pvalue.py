@@ -376,7 +376,7 @@ def combine_pvalues_with_method(p_array, method):
 
 def aggregate_dfs(merged_df, unique_snps, method='logit'):
     result = []
-    header = ['#CHROM', 'POS', 'ID',
+    header = ['#CHROM', 'START', 'ID',
               'REF', 'ALT', 'LOGITP_REF', 'ES_REF', 'LOGITP_ALT', 'ES_ALT']
     for snp in tqdm(unique_snps, unit='SNPs'):
         snp_result = snp.split('@')
@@ -541,9 +541,8 @@ def main():
         if aggregated_df.empty:
             raise AssertionError('No SNPs left after aggregation')
         fdr_df = calc_fdr(aggr_df=aggregated_df, max_cover_tr=args['--coverage-tr'])
-        fdr_df['POS'] = fdr_df['POS'].astype(int)
-        fdr_df['START'] = fdr_df['POS'] - 1
-        fdr_df['END'] = fdr_df['POS']
+        fdr_df['START'] = fdr_df['START'].astype(int)
+        fdr_df['END'] = fdr_df['START'] + 1
         fdr_df[['#CHROM', 'START', 'END', 'ID', 'REF', 'ALT', 'MEAN_BAD', 'MAX_COVER',
                 'LOGITP_REF', 'ES_REF', 'LOGITP_ALT', 'ES_ALT', 'SUP_REF_EXPS', 'NON_SUP_REF_EXPS',
                 'SUP_ALT_EXPS', 'NON_SUP_ALT_EXPS',
