@@ -1,4 +1,5 @@
 # README
+[![DOI](https://zenodo.org/badge/423606910.svg)](https://zenodo.org/badge/latestdoi/423606910)
 ## Installation
 1) ```git clone https://github.com/wish1/neg_bin_fit```
 2) ```cd neg_bin_fit```
