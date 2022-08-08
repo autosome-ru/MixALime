@@ -39,7 +39,7 @@ setup(
         'scipy>=1.5.2',
         'tqdm>=4.62.3',
         'statsmodels>=0.12.2',
-        'betanegbinfit>=0.28'
+        'betanegbinfit==0.74'
     ],
     extras_require={
         'dev': ['wheel', 'twine', 'setuptools_scm'],
