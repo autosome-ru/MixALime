@@ -343,13 +343,16 @@ def logit_combine_p_values(pvalues):
 
 def aggregate_es(es_array, p_array):
     if len([x for x in es_array if not pd.isna(x)]) > 0:
-        weights = [-1 * np.log10(x) for x in p_array if x != 1 and not pd.isna(x)]
-        try:
-            es_mean = np.round(np.average(es_array, weights=weights), 3)
-        except TypeError:
-            print(es_array, p_array)
-            raise
-        es_mostsig = es_array[int(np.argmax(weights))]
+        weights = -np.log10(p_array)
+        inds = np.isfinite(weights)
+        weights = weights[inds]
+        if weights.sum() == 0:
+            weights = 1 / len(weights)
+        else:
+            weights /= weights.sum()
+        es_array = np.array(es_array)[inds]
+        es_mean = np.sum(es_array * weights)
+        es_mostsig = es_array[np.argmax(weights)]
     else:
         es_mean = np.nan
         es_mostsig = np.nan
@@ -358,9 +361,8 @@ def aggregate_es(es_array, p_array):
 
 def get_es_list(filtered_df, allele):
     es_col = get_counts_column(allele, 'es')
-    pval_col = get_counts_column(allele, 'pval')
     return [(row[es_col], row['fname']) for _, row in filtered_df.iterrows()
-            if not pd.isna(row[es_col]) and row[pval_col] != 1]
+            if not pd.isna(row[es_col])]
 
 
 def list_to_str(array):
