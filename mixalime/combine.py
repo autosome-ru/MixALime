@@ -3,6 +3,7 @@ from scipy import stats as st
 import numpy as np
 import dill
 import os
+import re
 from .utils import get_init_file, openers, parse_filenames
 from multiprocessing import cpu_count, Pool
 from functools import partial
@@ -57,11 +58,15 @@ def combine_stats(t, stats, groups):
     
 
 
-def combine(name: str, group_files=None, alpha=0.05, id_startswith=None, subname=None, n_jobs=1, save_to_file=True):
+def combine(name: str, group_files=None, alpha=0.05, filter_id=None, filter_chr=None, subname=None, n_jobs=1, save_to_file=True):
     if group_files is None:
         group_files = list()
     else:
         group_files = parse_filenames(group_files)
+    if filter_chr is not None:
+        filter_chr = re.compile(filter_chr)
+    if filter_id is not None:
+        filter_id = re.compile(filter_id)
     n_jobs = cpu_count() - 1 if n_jobs == -1 else n_jobs
     filename = get_init_file(name)
     compressor = filename.split('.')[-1]
@@ -87,8 +92,10 @@ def combine(name: str, group_files=None, alpha=0.05, id_startswith=None, subname
     alt_comb_es = list() 
     comb_names = list()
     its = snvs.items()
-    if id_startswith:
-        its = list(filter(lambda x: x[1][0][1] and x[1][0][1].lower().startswith(id_startswith), its))
+    if filter_id:
+        its = list(filter(lambda x: x[1][0][1] and filter_id.match(x[1][0][1]), its))
+    if filter_chr:
+        its = list(filter(lambda x: filter_chr.match(x[0]), its))
     with Pool(n_jobs) as p:
         sz = len(its) // n_jobs
         f = partial(combine_stats, stats=stats, groups=groups)
@@ -104,6 +111,7 @@ def combine(name: str, group_files=None, alpha=0.05, id_startswith=None, subname
     _, alt_fdr_pvals, _, _ = multitest.multipletests(alt_comb_pvals, alpha=alpha, method='fdr_bh')
     res = dict()
     for i in range(len(comb_names)):
+        
         res[comb_names[i]] = ((ref_comb_pvals[i], alt_comb_pvals[i]), 
                               (ref_comb_es[i], alt_comb_es[i]),
                               (ref_fdr_pvals[i], alt_fdr_pvals[i]))

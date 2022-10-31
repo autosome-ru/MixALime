@@ -173,10 +173,10 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
         for filename_id, ref_count, alt_count in its[1:]:
             scores_f.append(scorefiles[filename_id])
             ref_counts.append(str(ref_count)); alt_counts.append(str(alt_count))
-            (pval_ref, es_ref) = test['ref'][bad][(ref_count, alt_count)]
-            (pval_alt, es_alt) = test['alt'][bad][(ref_count, alt_count)]
-            ref_pvals.append(str(pval_ref)); alt_pvals.append(str(pval_alt))
-            ref_eses.append(str(es_ref)); alt_eses.append(str(es_alt))
+            (pval_r, es_r) = test['ref'][bad][(ref_count, alt_count)]
+            (pval_a, es_a) = test['alt'][bad][(ref_count, alt_count)]
+            ref_pvals.append(str(pval_r)); alt_pvals.append(str(pval_a))
+            ref_eses.append(str(es_r)); alt_eses.append(str(es_a))
         ref_counts = ','.join(ref_counts);alt_counts = ','.join(alt_counts)
         ref_pvals = ','.join(ref_pvals); alt_pvals = ','.join(alt_pvals)
         ref_eses = ','.join(ref_eses); alt_eses = ','.join(alt_eses)
@@ -192,9 +192,10 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
         d['ref_comb_pval'].append(pval_ref); d['alt_comb_pval'].append(pval_alt)
         d['ref_fdr_comb_pval'].append(fdr_ref); d['alt_fdr_comb_pval'].append(fdr_alt)
         if fdr_ref < fdr_alt:
-            fdr = fdr_ref; es = es_ref; pval = pval_ref
+            min_allele = 'ref'; fdr = fdr_ref; es = es_ref; pval = pval_ref
         else:
-            fdr = fdr_alt; es = es_alt; pval = pval_alt
+            min_allele = 'alt'; fdr = fdr_alt; es = es_alt; pval = pval_alt
+        d['min_allele'].append(min_allele)
         d['comb_es'].append(es); d['comb_pval'].append(pval); d['fdr_comb_pval'].append(fdr)
         
     folder, _ = os.path.split(out)

@@ -1,10 +1,8 @@
+from mixalime import __version__
 from setuptools import setup, find_packages
 import os
 
-with open(os.path.join('mixalime', '__init__.py')) as f:
-    __version__ = f.read().split('\n')[0].split('=')[-1].strip()[1:-1]
-
-with open('README.md', 'r') as fh:
+with open('README.md', 'r', encoding="utf8") as fh:
     long_description = fh.read()
 
 setup(

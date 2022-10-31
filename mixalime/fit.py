@@ -40,7 +40,6 @@ def _run(aux: tuple, data: dict, left: int,
     stds = list()
     ests = list()
     names = list()
-    # fit = finalize_w(model, fit)
     if 'std' in fit:
         for n, std in fit['std'].items():
             fn = fit[n]
@@ -67,8 +66,6 @@ def _run(aux: tuple, data: dict, left: int,
     logging.info(f'[BAD={bad}, {prefix[:-1]}] Calculating fit indices...')
     stats = collect_stats(model, calc_pvals=False, calc_es=False, calc_adjusted_loglik=adjusted_loglik)
     r =  {'params': params, 'stats': stats, 'inst_params': inst_params}
-    # r =  {'params': params, 'logpdf': logpdf, 'stats': stats,
-    #       'logpdf_notrunc': logpdf_notrunc}
     return r
     
 
@@ -171,5 +168,9 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
             for (bad, alt), res in zip(aux, p.map(fun, aux)):
                 result[ralt[alt]][bad] = res
     fit_filename = f'{name}.fit.{compression}'
+    for f in ('test', 'comb'):
+        filename = f'{name}.{f}.{compression}'
+        if os.path.isfile(filename):
+            os.remove(filename)
     with open(fit_filename, 'wb') as f:
         dill.dump(result, f)

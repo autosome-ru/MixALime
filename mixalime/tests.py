@@ -6,6 +6,7 @@ from multiprocessing import cpu_count, Pool
 from functools import partial
 import numpy as np
 import dill
+import os
 
 
 def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
@@ -89,7 +90,7 @@ def test(name: str, correction: str = None, gof_tr: float = None, n_jobs: int = 
             st = fit[allele][bad]['stats']
             counts = counts_d[bad][:, (1, 0) if swap else (0, 1)]
             alt = counts[:, 1]
-            sub_c = [(u, counts[alt == u, 0], st[u]['rmsea']) for u in np.unique(alt)]
+            sub_c = [(u, counts[alt == u, 0], st.get(u, {'rsmea': np.nan})) for u in np.unique(alt)]
             max_size = max(map(lambda x: len(x[1]), sub_c))
             chunksize = int(np.ceil(len(sub_c) / n_jobs))
             with Pool(n_jobs) as p:
@@ -97,6 +98,9 @@ def test(name: str, correction: str = None, gof_tr: float = None, n_jobs: int = 
                             max_size=max_size)
                 for r in p.imap_unordered(f, sub_c, chunksize=chunksize):
                     sub_res.update(r)
+    filename = f'{name}.comb.{compressor}'
+    if os.path.isfile(filename):
+        os.remove(filename)
     with open(f'{name}.test.{compressor}', 'wb') as f:
         dill.dump(res, f)
     return res

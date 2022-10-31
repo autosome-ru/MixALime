@@ -83,8 +83,8 @@ def _read_bedlike(filename: str):
 
 
 def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
-                 cnt_max_sum=1000, filter_db=True,
-                 filter_rs=True, filter_name=None, bad_maps=None, default_bad=1.0,
+                 cnt_max_sum=1000, filter_db=True, filter_rs=True, filter_name=None,
+                 filter_chr=None, bad_maps=None, default_bad=1.0,
                  drop_bads=None, snps_set=None, sample_counter=0, snps_pos=None,
                  filename_id=None):
     """
@@ -109,6 +109,10 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
         If True, then SNV IDs should start with 'rs'. The default is True.
     filter_name : str, optional
         If provided, then SNV IDs should match this regex-pattern. The default is None.
+    filter_chr : str, optional
+        If provided, then chr column should math this regex-pattern. Possible applications
+        omitting scaffold data, i.e. those chr whose pattern doesnt align with the 'chr\d+'
+        pattern.
     bad_maps : IntervalDict or dict, optional
         Mapping chr->pos->BAD. The default is None.
     default_bad : float, optional
@@ -145,6 +149,8 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
     #          'BAD': list()}
     if filter_name is not None:
         filter_name = re.compile(filter_name)
+    if filter_chr is not None:
+        filter_chr = re.compile(filter_chr)
     save = pysam.set_verbosity(0)
     try:
         file = pysam.VariantFile(filename, 'r')
@@ -169,6 +175,8 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
         if len(row.alts[0]) != 1:
             continue
         chrom = row.chrom
+        if filter_chr and not filter_chr.match(str(chrom)):
+            continue
         name = row.id
         if filter_rs and (not name or not name.startswith('rs')):
             continue
@@ -259,8 +267,8 @@ def read_bad_maps(filename: str, start_open=False, end_open=True, ):
 def create_project(name: str, snvs: list, bad_maps=None, drop_bads=None,
                    compression='lzma', min_qual=10, min_cnt=5,
                    cnt_max_sum=1000, filter_db=False, symmetrify=False,
-                   filter_rs=False, filter_name=None, default_bad=1.0,
-                   count_snvs=False):
+                   filter_rs=False, filter_name=None, filter_chr=None,
+                   default_bad=1.0, count_snvs=False, progress_bar=True):
     """
     Initialize MixALime projects initial files.
 
@@ -288,6 +296,10 @@ def create_project(name: str, snvs: list, bad_maps=None, drop_bads=None,
         If True, then SNV IDs should start with 'rs'. The default is False.
     filter_name : str, optional
         If provided, then SNV IDs should match this regex-pattern. The default is None.
+    filter_chr : str, optional
+        If provided, then chr column should math this regex-pattern. Possible applications
+        omitting scaffold data, i.e. those chr whose pattern doesnt align with the 'chr\d+'
+        pattern.
     bad_maps : IntervalDict or dict, optional
         Mapping chr->pos->BAD. The default is None.
     default_bad : float, optional
@@ -326,13 +338,14 @@ def create_project(name: str, snvs: list, bad_maps=None, drop_bads=None,
     scorefiles = list()
     snps_pos = defaultdict(list)
     file_count = 0
-    for filename in track(snvs, description='Processing files...'):
+    its = track(snvs, description='Processing files...') if progress_bar else snvs
+    for filename in its:
         try:
             counts = file_to_table(filename, counts, bad_maps=bad_maps, min_qual=min_qual, min_cnt=min_cnt,
                                    cnt_max_sum=cnt_max_sum, filter_db=filter_db, drop_bads=drop_bads,
-                                   filter_rs=filter_rs, filter_name=filter_name, default_bad=default_bad,
-                                   snps_set=snps_set, sample_counter=sample_counter, snps_pos=snps_pos,
-                                   filename_id=file_count)
+                                   filter_rs=filter_rs, filter_name=filter_name, filter_chr=filter_chr,
+                                   default_bad=default_bad, snps_set=snps_set, sample_counter=sample_counter,
+                                   snps_pos=snps_pos, filename_id=file_count)
         except ValueError:
             logging.warning(f'Incorrect file: {filename}.')
             continue
