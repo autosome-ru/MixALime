@@ -139,13 +139,11 @@ def reproduce(filename: str, pretty: bool = True):
             r = _test(name, **args)
         elif command.startswith('combine'):
             lt = command.split()
-            print('repr', args)
             if len(lt) != 1:
                 command, subname = lt
                 args['subname'] = subname
             else:
                 args['subname'] = None
-            print('repr2', args)
             r = _combine(name, **args)
         elif command == 'plot':
             r = _plot_all(name, **args)
@@ -406,13 +404,12 @@ def _combine(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Combining p-values with respect to sample groups...')
-    print('Before:', subname)
     if subname:
         subname = str(subname)
     else:
         subname = None
-    print(subname)
-    r = combine(name, group_files=group, alpha=alpha, filter_id=filter_id, subname=subname, min_cnt_sum=min_cnt_sum, n_jobs=n_jobs)[subname]
+    r = combine(name, group_files=group, alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
+                subname=subname, min_cnt_sum=min_cnt_sum, n_jobs=n_jobs)[subname]
     if pretty:
         p.stop()
     ref = alt = both = total = 0
