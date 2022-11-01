@@ -46,7 +46,7 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
             w = odds_new / (odds_new + 1)
             w = np.array(w, dtype=float)
             iter_w = True
-    cdfs = model.cdf_modes(params, counts)
+    cdfs = model.cdf_modes(params, counts - 1)
     if not iter_w:
         mean = model.mean(params)
     else:
