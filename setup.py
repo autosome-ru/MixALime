@@ -1,4 +1,4 @@
-from mixalime import __version__
+from mixalime import __version__, __min_reqs__
 from setuptools import setup, find_packages
 import os
 
@@ -21,23 +21,7 @@ setup(
     },
     author='Georgy Meshcheryakov',
     author_email='iam@georgy.top',
-    install_requires=[
-        'pip>=21.1.3',
-        'typer>=0.6.1',
-        'numpy>=1.21.5',
-        'jax>=0.3.23',
-        'matplotlib>=3.5.1',
-        'pandas>=1.4.1',
-        'matplotlib>=3.2.1',
-        'scipy>=1.8.1',
-        'statsmodels>=0.13.2',
-        'betanegbinfit>=1.0.0',
-        'datatable>=1.0.0',
-        'dill>=0.3.4',
-        'rich>=12.6.0',
-        'portion>=2.3.0',
-        'pysam>=0.19.1'
-    ],
+    install_requires=__min_reqs__,
     python_requires='>=3.6, <3.10',
     url="https://github.com/autosome-ru/mixalime",
     classifiers=[

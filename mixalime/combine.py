@@ -39,14 +39,14 @@ def combine_es(es, pvalues):
         weights /= s
     return np.sum(weights * es)
 
-def combine_stats(t, stats, groups):
+def combine_stats(t, stats, groups, min_cnt_sum=20):
     k, lt = t
     bad = lt[0][0]
     lt = lt[1:]
     if groups:
         lt = filter(lambda x: x[0] in groups, lt)
     lt = [t[1:] for t in lt]
-    if not lt:
+    if not lt or min(sum(t) for t in lt) < min_cnt_sum:
         return (np.nan, np.nan), (np.nan, np.nan), None
     ref_pvals, ref_es = zip(*[stats['ref'][bad][t] for t in lt])
     alt_pvals, alt_es = zip(*[stats['alt'][bad][t] for t in lt])
@@ -58,7 +58,7 @@ def combine_stats(t, stats, groups):
     
 
 
-def combine(name: str, group_files=None, alpha=0.05, filter_id=None, filter_chr=None, subname=None, n_jobs=1, save_to_file=True):
+def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=None, filter_chr=None, subname=None, n_jobs=1, save_to_file=True):
     if group_files is None:
         group_files = list()
     else:
@@ -98,7 +98,7 @@ def combine(name: str, group_files=None, alpha=0.05, filter_id=None, filter_chr=
         its = list(filter(lambda x: filter_chr.match(x[0]), its))
     with Pool(n_jobs) as p:
         sz = len(its) // n_jobs
-        f = partial(combine_stats, stats=stats, groups=groups)
+        f = partial(combine_stats, stats=stats, groups=groups, min_cnt_sum=min_cnt_sum)
         for (ref, alt), (ref_es, alt_es), k in p.imap_unordered(f, its, chunksize=sz):
             if k is None:
                 continue
@@ -126,9 +126,3 @@ def combine(name: str, group_files=None, alpha=0.05, filter_id=None, filter_chr=
         with open(f'{name}.comb.{compressor}', 'wb') as f:
             dill.dump(res, f)
     return res
-
-if __name__ == "__main__":
-    from time import time
-    t0 = time()
-    combine('/media/Data/Pr/hearts/heart_all/bcftools_WASP_new/test', n_jobs=-1)
-    print(time() - t0)

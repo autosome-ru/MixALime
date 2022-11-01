@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from . import check_packages
 from enum import Enum
 from click import Context
 from typer import Typer, Option, Argument
@@ -138,11 +139,13 @@ def reproduce(filename: str, pretty: bool = True):
             r = _test(name, **args)
         elif command.startswith('combine'):
             lt = command.split()
+            print('repr', args)
             if len(lt) != 1:
                 command, subname = lt
                 args['subname'] = subname
-            if 'subname' in args:
-                del args['subname']
+            else:
+                args['subname'] = None
+            print('repr2', args)
             r = _combine(name, **args)
         elif command == 'plot':
             r = _plot_all(name, **args)
@@ -161,11 +164,15 @@ def reproduce(filename: str, pretty: bool = True):
             else:
                 r = _export_all(name, **args)
         if r_old and r != r_old:
-            raise Exception(f'"{name}" produced different result from what was recorded at the history file.')
-    os.remove(f'{name}.json')
-    if f'{name}.json' == filename:
-        with open(filename, 'w') as f:
-            json.dump(d, f, indent=4)       
+            os.remove(f'{name}.json')
+            if f'{name}.json' == filename:
+                with open(filename, 'w') as f:
+                    json.dump(d, f, indent=4)   
+            raise Exception(f'"{name}" produced different result from what was recorded at the history file.')   
+        os.remove(f'{name}.json')
+        if f'{name}.json' == filename:
+            with open(filename, 'w') as f:
+                json.dump(d, f, indent=4)   
     
     
 doc = f'''
@@ -380,6 +387,8 @@ def _combine(name: str = Argument(..., help='Project name.'),
                                                                       'those filenames or file(s) that contain a list of paths to files.'
                                                                       ' SNV p-values from those files shall be combined via logit method.'),
              alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
+             min_cnt_sum: int = Option(20, help='If none one of combined p-values is associated with a sample whose ref + alt exceeds'
+                                                ' [cyan]min_cnt_sum[/cyan], the SNV is omitted.'),
              filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
              filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
              subname: str = Option(None, help='You may give a result a subname in case you plan to use multiple groups.'),
@@ -397,7 +406,13 @@ def _combine(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Combining p-values with respect to sample groups...')
-    r = combine(name, group_files=group, alpha=alpha, filter_id=filter_id, subname=subname, n_jobs=n_jobs)[subname]
+    print('Before:', subname)
+    if subname:
+        subname = str(subname)
+    else:
+        subname = None
+    print(subname)
+    r = combine(name, group_files=group, alpha=alpha, filter_id=filter_id, subname=subname, min_cnt_sum=min_cnt_sum, n_jobs=n_jobs)[subname]
     if pretty:
         p.stop()
     ref = alt = both = total = 0
@@ -417,8 +432,8 @@ def _combine(name: str = Argument(..., help='Project name.'),
         print('Number of significant SNVs after FDR correction:')
         print('\t'.join(('Ref', 'Alt', 'Both', 'Total significant (Percentage of total SNVs)')))
         print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
-    update_history(name, 'combine', group=group, alpha=alpha, filter_id=filter_id, subname=subname, filter_chr=filter_chr, n_jobs=n_jobs,
-                   expected_result=expected_res)
+    update_history(name, 'combine', group=group, alpha=alpha, min_cnt_sum=min_cnt_sum, filter_id=filter_id, subname=subname, filter_chr=filter_chr,
+                   n_jobs=n_jobs, expected_result=expected_res)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
@@ -587,4 +602,5 @@ def _reproduce(filename: Path = Argument(..., help='Path to the history JSON fil
     reproduce(filename, pretty=pretty)
 
 def main():
+    check_packages()
     app()
