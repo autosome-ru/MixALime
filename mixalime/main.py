@@ -489,7 +489,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
               max_cover: int = Option(None, help='Maximal allowed cover (ref + alt) for an SNV to be considered.'),
               max_cover_group_test: int = Option(None, help='Maximal allowed cover (ref + alt) for an SNV to be considered. Used only to trim'
                                                             ' for the whole group test if applicable (i.e. if [cyan]test_groups[/cyan]) to'
-                                                            'avoid long waiting times similarily to [cyan]fit[/fit].'),
+                                                            'avoid long waiting times similarily to [cyan]fit[/cyan].'),
               filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
               filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
               subname: str = Option(None, help='You may give a result a subname in case you plan to draw multiple comparisons.'),
