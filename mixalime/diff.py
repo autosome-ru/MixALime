@@ -7,9 +7,11 @@ from collections import defaultdict
 from scipy.stats import chi2
 from functools import partial
 from copy import deepcopy
+from typing import List, Tuple
 import pandas as pd
 import numpy as np
 import dill
+import re
 import os
 
 
@@ -76,7 +78,7 @@ def get_closest_param(params: dict, slc: float, model_name: str):
     return res
 
 
-def difftest(counts: tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
+def difftest(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
              inst_params: dict, params: dict, skip_failures=False, max_sz=None, bad=1.0):
     if not hasattr(difftest, '_cache'):
         difftest._cache = dict()
@@ -121,12 +123,17 @@ def difftest(counts: tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
     return res, snv
         
         
-def differential_test(name: str, group_a: list[str], group_b: list[str], min_samples=2, min_cover=0,
-                      max_cover=np.inf, skip_failures=True, test_groups=True, alpha=0.05, subname=None, n_jobs=-1):  
+def differential_test(name: str, group_a: List[str], group_b: List[str], min_samples=2, min_cover=0,
+                      max_cover=np.inf, skip_failures=True, test_groups=True, alpha=0.05,
+                      filter_chr=None, filter_id=None, subname=None, n_jobs=-1):  
     if max_cover is None:
         max_cover = np.inf
     if min_cover is None:
         min_cover = np.inf
+    if filter_chr is not None:
+        filter_chr = re.compile(filter_chr)
+    if filter_id is not None:
+        filter_id = re.compile(filter_id)
     n_jobs = cpu_count() if n_jobs == -1 else n_jobs
     group_a = parse_filenames(group_a)
     group_b = parse_filenames(group_b)
@@ -143,6 +150,10 @@ def differential_test(name: str, group_a: list[str], group_b: list[str], min_sam
     snvs_a = get_snvs_for_group(snvs, group_a, min_samples=min_samples)
     snvs_b = get_snvs_for_group(snvs, group_b, min_samples=min_samples)
     snvs = set(snvs_a) & set(snvs_b)
+    if filter_id:
+        snvs = set(filter(lambda x: snvs_a[x][0][1] and filter_id.match(x[1][0][1]), snvs))
+    if filter_chr:
+        snvs = set(filter(lambda x: filter_chr.match(x[0]), snvs))
     snvs_a = {k: snvs_a[k] for k in snvs}
     snvs_b = {k: snvs_b[k] for k in snvs}
     with open(f'{name}.fit.{compressor}', 'rb') as f:

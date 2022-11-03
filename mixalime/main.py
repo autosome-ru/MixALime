@@ -8,6 +8,7 @@ from typing import List
 from rich import print as rprint
 from betanegbinfit import __version__ as bnb_version
 from jax import __version__ as jax_version
+from scipy import __version__ as scipy_version
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from .diff import differential_test
@@ -18,6 +19,7 @@ from pathlib import Path
 from .fit import fit
 from time import time
 from dill import __version__ as dill_version
+import importlib
 from . import export
 from . import __version__ as mixalime_version
 import json
@@ -77,6 +79,7 @@ def update_history(name: str, command: str, **kwargs):
         d['betanegbinfit'] = bnb_version
         d['jax'] = jax_version
         d['mixalime'] = mixalime_version
+        d['scipy'] = scipy_version
         d['dill'] = dill_version
         d['name'] = name
     elif command == 'fit':
@@ -128,18 +131,22 @@ def reproduce(filename: str, pretty: bool = True):
     with open(filename, 'r') as f:
         d = json.load(f)
     name = d['name']
-    if d['betanegbinfit'] != bnb_version:
-        rprint(f'[yellow]Warning:[/yellow] Current [bold]betanegbinfit[/bold] version is {bnb_version}, but the project was created with'
-              f' {d["betanegbinfit"]}.')
-    if d['jax'] != jax_version:
-        rprint(f'[yellow]Warning:[/yellow] Current [bold]JAX[/bold] version is {jax_version}, but the project was created with'
-              f' {d["jax"]}.')
-    if d['mixalime'] != mixalime_version:
-        rprint(f'[yellow]Warning:[/yellow] Current [bold]MixALime[/bold] version is {mixalime_version}, but the project was created with'
-              f' {d["mixalime"]}.')
-    if d['dill'] != dill_version:
-        rprint(f'[yellow]Warning:[/yellow] Current [bold]dill[/bold] version is {dill_version}, but the project was created with'
-              f' {d["dill"]}.')
+    for package in ('betanegbinfit', 'jax', 'scipy', 'mixalime', 'dill'):
+        ver = d.get(package, None)
+        if ver:
+            curver = importlib.import_module(package).__version__
+            if curver != ver:
+                if pretty:
+                    rprint(f'[yellow]Warning:[/yellow] Current [bold]{package}[/bold] version is {curver}, but the project was created with'
+                          f' {ver}.')
+                else:
+                    print('Warning: Current {package} version is {curver}, but the project was created with {ver}.')
+            else:
+                if pretty:
+                    rprint('[yellow]Warning:[/yellow] No information on [bold]{package}[/bold] found in the history file.')
+                else:
+                    print('Warning: No information on {package} found in the history file.')
+
     for command, args in d.items():
         if type(args) is str:
             continue
@@ -480,8 +487,11 @@ def _difftest(name: str = Argument(..., help='Project name.'),
               min_samples: int = Option(2, help='Minimal number of samples/reps per an SNV to be considered for the analysis.'),
               min_cover: int = Option(None, help='Minimal required cover (ref + alt) for an SNV to be considered.'),
               max_cover: int = Option(None, help='Maximal allowed cover (ref + alt) for an SNV to be considered.'),
-              #filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
-              #filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
+              max_cover_group_test: int = Option(None, help='Maximal allowed cover (ref + alt) for an SNV to be considered. Used only to trim'
+                                                            ' for the whole group test if applicable (i.e. if [cyan]test_groups[/cyan]) to'
+                                                            'avoid long waiting times similarily to [cyan]fit[/fit].'),
+              filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
+              filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
               subname: str = Option(None, help='You may give a result a subname in case you plan to draw multiple comparisons.'),
               n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
               pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
@@ -502,7 +512,8 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     else:
         subname = None
     r = differential_test(name, group_a=group_a, group_b=group_b, min_samples=min_samples, min_cover=min_cover,
-                          max_cover=max_cover, test_groups=test_groups, subname=subname, n_jobs=n_jobs)[subname]
+                          max_cover=max_cover, test_groups=test_groups, subname=subname,  filter_id=filter_id,
+                          max_cover_group_test=max_cover_group_test, filter_chr=filter_chr, alpha=alpha, n_jobs=n_jobs)[subname]
     if pretty:
         p.stop()
     if test_groups:
@@ -514,8 +525,8 @@ def _difftest(name: str = Argument(..., help='Project name.'),
             print(r['whole'])
     
     r = r['snvs']
-    ref = r['ref_fdr_pval'] < 0.05
-    alt = r['alt_fdr_pval'] < 0.05
+    ref = r['ref_fdr_pval'] < alpha
+    alt = r['alt_fdr_pval'] < alpha
     both = (ref & alt).sum()
     total = (ref | alt).sum()
     ref = ref.sum()
@@ -531,14 +542,16 @@ def _difftest(name: str = Argument(..., help='Project name.'),
         print('\t'.join('Ref', 'Alt', 'Both', 'Total/Percentage of total SNVs'))
         print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
         rprint('Total SNVs tested:', len(r))
-        
+    expected_res = [ref, alt, total]
     update_history(name, 'difftest', group_a=group_a, group_b=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover, subname=subname,
-                   test_groups=test_groups, max_cover=max_cover, n_jobs=n_jobs)
+                   test_groups=test_groups, max_cover=max_cover, filter_id=filter_id, filter_chr=filter_chr, 
+                   max_cover_group_test=max_cover_group_test, n_jobs=n_jobs, expected_result=expected_res)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
     else:
         print(f'✔️ Done!\t time: {dt:.2f} s.')
+    return expected_res
 
 
 
