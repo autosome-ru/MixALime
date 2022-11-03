@@ -140,12 +140,12 @@ def reproduce(filename: str, pretty: bool = True):
                     rprint(f'[yellow]Warning:[/yellow] Current [bold]{package}[/bold] version is {curver}, but the project was created with'
                           f' {ver}.')
                 else:
-                    print('Warning: Current {package} version is {curver}, but the project was created with {ver}.')
+                    print(f'Warning: Current {package} version is {curver}, but the project was created with {ver}.')
             else:
                 if pretty:
-                    rprint('[yellow]Warning:[/yellow] No information on [bold]{package}[/bold] found in the history file.')
+                    rprint(f'[yellow]Warning:[/yellow] No information on [bold]{package}[/bold] found in the history file.')
                 else:
-                    print('Warning: No information on {package} found in the history file.')
+                    print(f'Warning: No information on {package} found in the history file.')
 
     for command, args in d.items():
         if type(args) is str:
