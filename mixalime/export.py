@@ -223,7 +223,15 @@ def export_difftests(project, out: str,  subname=None):
     diff = diff.drop('ind', axis=1)
     df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'bad': bad, 'id': name, 'ref': ref, 'alt': alt })
     diff = pd.concat([df, diff], axis=1)
-        
+    t = diff['ref_pval'] < diff['alt_pval']
+    mins = ['ref' if v else 'alt' for v in t]
+    diff['min_allele'] = mins
+    diff['pval'] = 1
+    diff.loc[t, 'pval'] = diff.loc[t, 'ref_pval']
+    diff.loc[t, 'pval'] = diff.loc[t, 'ref_pval']
+    diff['fdr_pval'] = 1
+    diff.loc[t, 'fdr_pval'] = diff.loc[t, 'ref_fdr_pval']
+    diff.loc[~t, 'fdr_pval'] = diff.loc[~t, 'ref_fdr_pval']
     folder, _ = os.path.split(out)
     if folder:
         os.makedirs(folder, exist_ok=True)
