@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from betanegbinfit import ModelMixture, ModelMixtures, ModelLine, ModelWindow
+from betanegbinfit.models import ModelLine_
 from functools import partial
+from glob import glob
 import datatable as dt
 import logging
 import lzma
@@ -48,6 +50,9 @@ def get_model_creator(**kwargs):
         m = ModelMixtures
     elif name == 'slice':
         m = ModelMixture
+    elif name == 'line_diff':
+        inst_params.update({v: kwargs[v] for v in ('left_k', 'start_est', 'apply_weights')})
+        m = ModelLine_
     else:
         raise Exception(f'Unknown model name {name}.')
     return partial(m, **inst_params)
@@ -60,7 +65,11 @@ def parse_filenames(files: list) -> list:
         files = [files]
     res = list()
     for file in files:
-        if os.path.isdir(file):
+        if file.startswith('m:'):
+            file = file[len('m:'):]
+            for file in glob(file):
+                res.append(file)
+        elif os.path.isdir(file):
             res.extend(filter(lambda x: os.path.isfile(x) and not x.endswith('.tbi'), 
                               (os.path.join(file, f) for f in os.listdir(file))))
         elif os.path.isfile(file):

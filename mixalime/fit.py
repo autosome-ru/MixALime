@@ -168,7 +168,7 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
             for (bad, alt), res in zip(aux, p.map(fun, aux)):
                 result[ralt[alt]][bad] = res
     fit_filename = f'{name}.fit.{compression}'
-    for f in ('test', 'comb'):
+    for f in ('test', 'comb', 'difftest'):
         filename = f'{name}.{f}.{compression}'
         if os.path.isfile(filename):
             os.remove(filename)

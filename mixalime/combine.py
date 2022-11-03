@@ -30,6 +30,8 @@ def combine_es(es, pvalues):
     es = np.array(es)
     weights = -np.log10(pvalues)
     inds = np.isfinite(weights)
+    if not inds.sum():
+        return np.mean(es)
     weights = weights[inds]
     es = es[inds]
     s = weights.sum()
@@ -46,7 +48,7 @@ def combine_stats(t, stats, groups, min_cnt_sum=20):
     if groups:
         lt = filter(lambda x: x[0] in groups, lt)
     lt = [t[1:] for t in lt]
-    if not lt or min(sum(t) for t in lt) < min_cnt_sum:
+    if not lt or max(sum(t) for t in lt) < min_cnt_sum:
         return (np.nan, np.nan), (np.nan, np.nan), None
     ref_pvals, ref_es = zip(*[stats['ref'][bad][t] for t in lt])
     alt_pvals, alt_es = zip(*[stats['alt'][bad][t] for t in lt])

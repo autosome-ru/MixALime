@@ -266,7 +266,7 @@ def read_bad_maps(filename: str, start_open=False, end_open=True, ):
 
 def create_project(name: str, snvs: list, bad_maps=None, drop_bads=None,
                    compression='lzma', min_qual=10, min_cnt=5,
-                   cnt_max_sum=1000, filter_db=False, symmetrify=False,
+                   max_cover=1000, filter_db=False, symmetrify=False,
                    filter_rs=False, filter_name=None, filter_chr=None,
                    default_bad=1.0, count_snvs=False, progress_bar=True):
     """
@@ -286,7 +286,7 @@ def create_project(name: str, snvs: list, bad_maps=None, drop_bads=None,
         SNVs whose quality is below this are filtered. The default is 10.
     min_cnt : int, optional
         SNVs whose ref_count or alt_count is below this are filtered. The default is 5.
-    cnt_max_sum : int, optional
+    max_cover : int, optional
         SNVs whose ref + alt counts are above this are filtered. The default is inf.
     filter_db : bool, optional
         If True, then SNVs that lack DB=True are filtered. The default is False.
@@ -342,7 +342,7 @@ def create_project(name: str, snvs: list, bad_maps=None, drop_bads=None,
     for filename in its:
         try:
             counts = file_to_table(filename, counts, bad_maps=bad_maps, min_qual=min_qual, min_cnt=min_cnt,
-                                   cnt_max_sum=cnt_max_sum, filter_db=filter_db, drop_bads=drop_bads,
+                                   cnt_max_sum=max_cover, filter_db=filter_db, drop_bads=drop_bads,
                                    filter_rs=filter_rs, filter_name=filter_name, filter_chr=filter_chr,
                                    default_bad=default_bad, snps_set=snps_set, sample_counter=sample_counter,
                                    snps_pos=snps_pos, filename_id=file_count)

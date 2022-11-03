@@ -10,6 +10,7 @@ from betanegbinfit import __version__ as bnb_version
 from jax import __version__ as jax_version
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
+from .diff import differential_test
 from .create import create_project
 from .combine import combine
 from .tests import test
@@ -79,7 +80,7 @@ def update_history(name: str, command: str, **kwargs):
         d['dill'] = dill_version
         d['name'] = name
     elif command == 'fit':
-        for k in ('test', 'combine', 'export', 'plot'):
+        for k in ('test', 'difftest', 'combine', 'export', 'plot'):
             if k in d:
                 del d[k]
         for k in list(d):
@@ -101,6 +102,21 @@ def update_history(name: str, command: str, **kwargs):
                 del d[k]
             elif k.startswith('export pvalues '):
                 t = k.split('export pvalues ')[-1]
+                if subname == t:
+                    del d[k]
+        del kwargs['subname']
+    elif command == 'difftest':
+        if 'export' in d:
+            del d['export']
+        if 'export difftest' in d:
+            del d['export pvalues']
+        subname = kwargs['subname']
+        command = f'{command} {subname}' if subname else command
+        for k in list(d):
+            if k in ('export', command):
+                del d[k]
+            elif k.startswith('export difftest '):
+                t = k.split('export difftest ')[-1]
                 if subname == t:
                     del d[k]
         del kwargs['subname']
@@ -145,6 +161,14 @@ def reproduce(filename: str, pretty: bool = True):
             else:
                 args['subname'] = None
             r = _combine(name, **args)
+        elif command.startswith('difftest'):
+            lt = command.split()
+            if len(lt) != 1:
+                command, subname = lt
+                args['subname'] = subname
+            else:
+                args['subname'] = None
+            r = _difftest(name, **args)
         elif command == 'plot':
             r = _plot_all(name, **args)
         elif command.startswith('export'):
@@ -159,6 +183,12 @@ def reproduce(filename: str, pretty: bool = True):
                     _counts(name, **args)
                 elif what == 'indices':
                     _indices(name, **args)
+                elif what == 'pvalues':
+                    _combined_pvalues(name, **args)
+                elif what == 'raw_pvalues':
+                    _raw_pvalues(name, **args)
+                elif what == 'diftest':
+                    _difftest(name, **args)
             else:
                 r = _export_all(name, **args)
         if r_old and r != r_old:
@@ -224,7 +254,7 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
             drop_bad: List[float] = Option(None, '--drop-bad', '-d', help='Those BADs and their respective SNVs will be ommited.'),
             min_qual: int = Option(10, help='Minimal SNV quality'),
             min_cnt: int = Option(5, help='Minimal allowed number of counts at an allele.'),
-            cnt_max_sum: int = Option(None, help='Maximal allowed total counts (ref + alt) for an SNV.'),
+            max_cover: int = Option(None, help='Maximal allowed total counts (ref + alt) for an SNV.'),
             symmetrify: bool = Option(False, help='Counts are symmetrified, i.e. (ref, alt) = (alt, ref) for each pair of ref, alt. It is done by'
                                                   ' summing (ref, alt) + (alt, ref) and dividing the result by 2.'),
             filter_db: bool = Option(False, help='Omit SNVs that are not present in DB.'),
@@ -235,8 +265,8 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
                                                 'data.'),
             compression: Compression = Option(Compression.lzma.value, help='Compression method used to store results.'), 
             pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
-    if cnt_max_sum is None:
-        cnt_max_sum = float('inf')
+    if max_cover is None:
+        max_cover = float('inf')
     files = list(map(str, files))
     if bad_maps:
         bad_maps = str(bad_maps)
@@ -244,7 +274,7 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
     if not pretty:
         print('Processing files...')
     _, samples, snvs = create_project(name=name, snvs=files, bad_maps=bad_maps, default_bad=default_bad, drop_bads=drop_bad, min_qual=min_qual,
-                                      min_cnt=min_cnt, cnt_max_sum=cnt_max_sum, filter_db=filter_db, filter_rs=filter_rs, symmetrify=symmetrify,
+                                      min_cnt=min_cnt, max_cover=max_cover, filter_db=filter_db, filter_rs=filter_rs, symmetrify=symmetrify,
                                       filter_name=filter_name, filter_chr=filter_chr, compression=compression, count_snvs=True, 
                                       progress_bar=pretty)
     rows = list()
@@ -268,7 +298,7 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
         print('\n'.join(['\t'.join(row) for row in rows]))     
         print(f'Total SNVs: {tot_snv}, total samples/reps: {tot_samples}')    
     update_history(name, 'create', files=files, bad_maps=bad_maps, default_bad=default_bad, drop_bad=drop_bad, min_qual=min_qual,
-                   min_cnt=min_cnt, cnt_max_sum=cnt_max_sum, filter_db=filter_db, filter_rs=filter_rs, symmetrify=symmetrify,
+                   min_cnt=min_cnt, max_cover=max_cover, filter_db=filter_db, filter_rs=filter_rs, symmetrify=symmetrify,
                    filter_name=filter_name, filter_chr=filter_chr, compression=compression, expected_result=rows)
     dt = time() - t0
     if pretty:
@@ -385,8 +415,8 @@ def _combine(name: str = Argument(..., help='Project name.'),
                                                                       'those filenames or file(s) that contain a list of paths to files.'
                                                                       ' SNV p-values from those files shall be combined via logit method.'),
              alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
-             min_cnt_sum: int = Option(20, help='If none one of combined p-values is associated with a sample whose ref + alt exceeds'
-                                                ' [cyan]min_cnt_sum[/cyan], the SNV is omitted.'),
+             min_cover: int = Option(20, help='If none one of combined p-values is associated with a sample whose ref + alt exceeds'
+                                              ' [cyan]min_cover[/cyan], the SNV is omitted.'),
              filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
              filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
              subname: str = Option(None, help='You may give a result a subname in case you plan to use multiple groups.'),
@@ -409,7 +439,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
     else:
         subname = None
     r = combine(name, group_files=group, alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
-                subname=subname, min_cnt_sum=min_cnt_sum, n_jobs=n_jobs)[subname]
+                subname=subname, min_cnt_sum=min_cover, n_jobs=n_jobs)[subname]
     if pretty:
         p.stop()
     ref = alt = both = total = 0
@@ -429,7 +459,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
         print('Number of significant SNVs after FDR correction:')
         print('\t'.join(('Ref', 'Alt', 'Both', 'Total significant (Percentage of total SNVs)')))
         print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
-    update_history(name, 'combine', group=group, alpha=alpha, min_cnt_sum=min_cnt_sum, filter_id=filter_id, subname=subname, filter_chr=filter_chr,
+    update_history(name, 'combine', group=group, alpha=alpha, min_cover=min_cover, filter_id=filter_id, subname=subname, filter_chr=filter_chr,
                    n_jobs=n_jobs, expected_result=expected_res)
     dt = time() - t0
     if pretty:
@@ -438,6 +468,77 @@ def _combine(name: str = Argument(..., help='Project name.'),
         print(f'✔️ Done!\t time: {dt:.2f} s.')
         
     return expected_res
+
+
+@app.command('difftest')
+def _difftest(name: str = Argument(..., help='Project name.'),
+              group_a: Path = Argument(..., help='A file with a list of filenames, folder or a mask for the first group.'),
+              group_b: Path = Argument(..., help='A file with a list of filenames, folder or a mask for the second group.'),
+              test_groups: bool = Option(True, help='Whole groups will be tested against each other first. Note that this will take'
+                                                     ' the same time as [cyan]fit[/cyan] stage.'),
+              alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
+              min_samples: int = Option(2, help='Minimal number of samples/reps per an SNV to be considered for the analysis.'),
+              min_cover: int = Option(None, help='Minimal required cover (ref + alt) for an SNV to be considered.'),
+              #filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
+              #filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
+              subname: str = Option(None, help='You may give a result a subname in case you plan to draw multiple comparisons.'),
+              n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
+              pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
+    """
+    Differential expression tests via likelihood ratio.
+    """
+    t0 = time()
+    group_a = str(group_a)
+    group_b = str(group_b)
+    if pretty:
+        p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
+        p.add_task(description="Performing LRT tests...", total=None)
+        p.start()
+    else:
+        print('Performing LRT tests...')
+    if subname:
+        subname = str(subname)
+    else:
+        subname = None
+    r = differential_test(name, group_a=group_a, group_b=group_b, min_samples=min_samples, min_cover=min_cover,
+                          test_groups=test_groups, subname=subname, n_jobs=n_jobs)[subname]
+    if pretty:
+        p.stop()
+    if test_groups:
+        if pretty:
+            rprint('Group A vs Group B:')
+            rprint(r['whole'])
+        else:
+            print('Group A vs Group B:')
+            print(r['whole'])
+    
+    r = r['snvs']
+    ref = r['ref_fdr_pval'] < 0.05
+    alt = r['alt_fdr_pval'] < 0.05
+    both = (ref & alt).sum()
+    total = (ref | alt).sum()
+    ref = ref.sum()
+    alt = alt.sum()
+    if pretty:
+        rprint('Number of significantly differentially expressed SNVs after FDR correction:')
+        table = Table('Ref', 'Alt', 'Both', 'Total\nPercentage of total SNVs ')
+        table.add_row(str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')
+        rprint(table)
+        rprint('Total SNVs tested:', total)
+    else:
+        print('Number of significantly differentially expressed SNVs after FDR correction:')
+        print('\t'.join('Ref', 'Alt', 'Both', 'Total/Percentage of total SNVs'))
+        print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
+        rprint('Total SNVs tested:', len(r))
+        
+    update_history(name, 'difftest', group_a=group_a, group_b=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover, subname=subname,
+                   test_groups=test_groups, n_jobs=n_jobs)
+    dt = time() - t0
+    if pretty:
+        rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
+    else:
+        print(f'✔️ Done!\t time: {dt:.2f} s.')
+
 
 
 @app_export.command('all', help='Export everything.')
@@ -496,6 +597,7 @@ def _params(name: str = Argument(..., help='Project name.'), out: str = Argument
     else:
         print('✔️ Done!')
 
+
 @app_export.command('indices')
 def _indices(name: str = Argument(..., help='Project name.'), out: Path = Argument(..., help='Output filename/path.'),
              bad: float = Option(None, help='If provided, then only this particular BAD will be exported. In that case, [cyan]out[/cyan] is a '
@@ -546,6 +648,23 @@ def _raw_pvalues(name: str, out: Path,
     out = str(out)
     export.export_pvalues(name, out)
     update_history(name, 'export raw-pvalues', out=out)
+    if pretty:
+        rprint('[green][bold]✔️[/bold] Done![/green]')
+    else:
+        print('✔️ Done!')
+
+
+@app_export.command('difftest')
+def _difftests(name: str = Argument(..., help='Project name.'), out: Path = Argument(..., help='Output filename/path.'),
+                      subname: str = Option(None, help='A subname that can be used to reference a set of combined p-values in case if you'
+                                                       ' provided one at [cyan bold]difftest[/cyan bold] step.'),
+                      pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
+    '''
+    Export FDR-corrected p-values for differential test.
+    '''
+    out = str(out)
+    export.export_difftests(name, out, subname=subname)
+    update_history(name, 'export difftest', out=out, subname=subname)
     if pretty:
         rprint('[green][bold]✔️[/bold] Done![/green]')
     else:

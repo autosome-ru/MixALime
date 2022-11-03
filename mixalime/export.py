@@ -191,7 +191,7 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
         d['ref_comb_es'].append(es_ref); d['alt_comb_es'].append(es_alt)
         d['ref_comb_pval'].append(pval_ref); d['alt_comb_pval'].append(pval_alt)
         d['ref_fdr_comb_pval'].append(fdr_ref); d['alt_fdr_comb_pval'].append(fdr_alt)
-        if fdr_ref < fdr_alt:
+        if pval_ref < pval_alt:
             min_allele = 'ref'; fdr = fdr_ref; es = es_ref; pval = pval_ref
         else:
             min_allele = 'alt'; fdr = fdr_alt; es = es_alt; pval = pval_alt
@@ -202,6 +202,34 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
     if folder:
         os.makedirs(folder, exist_ok=True)
     pd.DataFrame(d).to_csv(out, sep='\t', index=None)
+
+def export_difftests(project, out: str,  subname=None):
+    if type(project) is str:
+        file = get_init_file(project)
+        compression = file.split('.')[-1]
+        open = openers[compression]
+        with open(file, 'rb') as snvs,  open(f'{project}.difftest.{compression}', 'rb') as diff:
+            snvs = dill.load(snvs)
+            diff = dill.load(diff)
+    else:
+        snvs, diff = project
+    diff = diff[subname]['snvs']
+    snvs = snvs['snvs']  
+    chrom = list(); start = list(); end = list(); name = list(); bad = list(); ref = list(); alt = list()
+    for ind in diff['ind']:
+        b, n, r, a = snvs[ind][0]
+        chrom.append(ind[0]); start.append(ind[1]); end.append(start[-1] + 1); bad.append(b); name.append(n);
+        ref.append(r); alt.append(a)
+    diff = diff.drop('ind', axis=1)
+    df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'bad': bad, 'id': name, 'ref': ref, 'alt': alt })
+    diff = pd.concat([df, diff], axis=1)
+        
+    folder, _ = os.path.split(out)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    diff.to_csv(out, sep='\t', index=None)
+
+
 
 def export_all(name: str, out: str, rep_info: bool = None):
     file = get_init_file(name)
@@ -217,6 +245,16 @@ def export_all(name: str, out: str, rep_info: bool = None):
         return
     export_params(fit, out)
     export_stats(fit, out)
+    try:
+        with open(f'{name}.difftest.{compression}', 'rb') as f:
+            difftests = dill.load(f)
+            subfolder = os.path.join(out, 'difftest')
+            t = (init, difftests)
+            for subname in difftests:
+                export_difftests(t, os.path.join(subfolder, f'{subname}.tsv' if subname else 'difftests.tsv'), subname=subname)
+    except FileNotFoundError:
+        pass     
+            
     try:
         with open(f'{name}.test.{compression}', 'rb') as f:
             raw_pvals = dill.load(f)
