@@ -474,11 +474,12 @@ def _combine(name: str = Argument(..., help='Project name.'),
 def _difftest(name: str = Argument(..., help='Project name.'),
               group_a: Path = Argument(..., help='A file with a list of filenames, folder or a mask for the first group.'),
               group_b: Path = Argument(..., help='A file with a list of filenames, folder or a mask for the second group.'),
-              test_groups: bool = Option(True, help='Whole groups will be tested against each other first. Note that this will take'
+              test_groups: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
                                                      ' the same time as [cyan]fit[/cyan] stage.'),
               alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
               min_samples: int = Option(2, help='Minimal number of samples/reps per an SNV to be considered for the analysis.'),
               min_cover: int = Option(None, help='Minimal required cover (ref + alt) for an SNV to be considered.'),
+              max_cover: int = Option(None, help='Maximal allowed cover (ref + alt) for an SNV to be considered.'),
               #filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
               #filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
               subname: str = Option(None, help='You may give a result a subname in case you plan to draw multiple comparisons.'),
@@ -501,7 +502,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     else:
         subname = None
     r = differential_test(name, group_a=group_a, group_b=group_b, min_samples=min_samples, min_cover=min_cover,
-                          test_groups=test_groups, subname=subname, n_jobs=n_jobs)[subname]
+                          max_cover=max_cover, test_groups=test_groups, subname=subname, n_jobs=n_jobs)[subname]
     if pretty:
         p.stop()
     if test_groups:
@@ -524,7 +525,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
         table = Table('Ref', 'Alt', 'Both', 'Total\nPercentage of total SNVs ')
         table.add_row(str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')
         rprint(table)
-        rprint('Total SNVs tested:', total)
+        rprint('Total SNVs tested:', len(r))
     else:
         print('Number of significantly differentially expressed SNVs after FDR correction:')
         print('\t'.join('Ref', 'Alt', 'Both', 'Total/Percentage of total SNVs'))
@@ -532,7 +533,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
         rprint('Total SNVs tested:', len(r))
         
     update_history(name, 'difftest', group_a=group_a, group_b=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover, subname=subname,
-                   test_groups=test_groups, n_jobs=n_jobs)
+                   test_groups=test_groups, max_cover=max_cover, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')

@@ -13,10 +13,10 @@ import dill
 import os
 
 
-def get_snvs_for_group(snvs: dict, group: set, min_samples: int = 0, min_cover : int = 0):
+def get_snvs_for_group(snvs: dict, group: set, min_samples: int = 0, min_cover : int = 0, max_cover : int = np.inf):
     res = dict()
     for k, lt in snvs.items():
-        t = list(filter(lambda x: x[0] in group, lt[1:]))
+        t = list(filter(lambda x: (x[0] in group) and sum(x[1:]) < max_cover, lt[1:]))
         if len(t) >= min_samples and max(sum(v[1:]) for v in t) >= min_cover:
             res[k] = [lt[0]] + t
     return res
@@ -122,7 +122,11 @@ def difftest(counts: tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         
         
 def differential_test(name: str, group_a: list[str], group_b: list[str], min_samples=2, min_cover=0,
-                      skip_failures=True, test_groups=True, alpha=0.05, subname=None, n_jobs=-1):  
+                      max_cover=np.inf, skip_failures=True, test_groups=True, alpha=0.05, subname=None, n_jobs=-1):  
+    if max_cover is None:
+        max_cover = np.inf
+    if min_cover is None:
+        min_cover = np.inf
     n_jobs = cpu_count() if n_jobs == -1 else n_jobs
     group_a = parse_filenames(group_a)
     group_b = parse_filenames(group_b)
