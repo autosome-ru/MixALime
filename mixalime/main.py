@@ -542,7 +542,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
         print('\t'.join('Ref', 'Alt', 'Both', 'Total/Percentage of total SNVs'))
         print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
         rprint('Total SNVs tested:', len(r))
-    expected_res = [ref, alt, total]
+    expected_res = [int(ref), int(alt), int(total)]
     update_history(name, 'difftest', group_a=group_a, group_b=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover, subname=subname,
                    test_groups=test_groups, max_cover=max_cover, filter_id=filter_id, filter_chr=filter_chr, 
                    max_cover_group_test=max_cover_group_test, n_jobs=n_jobs, expected_result=expected_res)
