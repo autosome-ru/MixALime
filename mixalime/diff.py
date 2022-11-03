@@ -124,12 +124,14 @@ def difftest(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         
         
 def differential_test(name: str, group_a: List[str], group_b: List[str], min_samples=2, min_cover=0,
-                      max_cover=np.inf, skip_failures=True, test_groups=True, alpha=0.05,
+                      max_cover=np.inf, skip_failures=True, test_groups=True, alpha=0.05, max_cover_group_test=None,
                       filter_chr=None, filter_id=None, subname=None, n_jobs=-1):  
     if max_cover is None:
         max_cover = np.inf
     if min_cover is None:
         min_cover = np.inf
+    if max_cover_group_test is None:
+        max_cover_group_test = max_cover
     if filter_chr is not None:
         filter_chr = re.compile(filter_chr)
     if filter_id is not None:
@@ -158,16 +160,20 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], min_sam
     snvs_b = {k: snvs_b[k] for k in snvs}
     with open(f'{name}.fit.{compressor}', 'rb') as f:
         fits = dill.load(f)
-    _counts_a, _counts_b, _counts = build_count_tables(snvs_a, snvs_b)
+    if test_groups:
+        _counts_a, _counts_b, _counts = build_count_tables(snvs_a, snvs_b)
     res = list()
     bad = 1
-    counts_a = _counts_a[bad]; counts_b = _counts_b[bad]; counts = _counts[bad]
     params = {'ref': dictify_params(fits['ref'][bad]['params']),
               'alt': dictify_params(fits['ref'][bad]['params'])}
     inst_params = fits['ref'][1]['inst_params']
     cols = ['ref_pval', 'ref_p_ab', 'ref_p_a', 'ref_p_b', 
             'alt_pval', 'alt_p_ab', 'alt_p_a', 'alt_p_b']
     if test_groups:
+        counts_a = _counts_a[bad]; counts_b = _counts_b[bad]; counts = _counts[bad]
+        counts_a = counts_a[counts_a[:, 0] + counts_a[:, 1] < max_cover_group_test]
+        counts_b = counts_a[counts_b[:, 0] + counts_b[:, 1] < max_cover_group_test]
+        counts = counts[counts_a[:, 0] + counts[:, 1] < max_cover_group_test]
         (whole_ref, whole_alt), _ = difftest(('all', counts_a, counts_b, counts), inst_params, params, skip_failures=False, bad=bad)
         df_whole = pd.DataFrame([list(whole_ref) + list(whole_alt)], columns=cols)
         
