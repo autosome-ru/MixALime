@@ -24,8 +24,6 @@ from . import export
 from . import __version__ as mixalime_version
 import json
 from . import plot
-import os
-
 
 __all__ = ['main']
 
@@ -68,7 +66,11 @@ class OrderCommands(TyperGroup):
     """Return list of commands in the order appear."""
     return list(self.commands)    # get commands using self.commands
 
+_DO_NOT_UPDATE_HISTORY = False
+
 def update_history(name: str, command: str, **kwargs):
+    if _DO_NOT_UPDATE_HISTORY:
+        return
     try:
         with open(f'{name}.json', 'r') as f:
             d = json.load(f)
@@ -127,7 +129,9 @@ def update_history(name: str, command: str, **kwargs):
     with open(f'{name}.json', 'w') as f:
         json.dump(d, f, indent=4)
 
-def reproduce(filename: str, pretty: bool = True):
+def reproduce(filename: str, pretty: bool = True, check_results: bool = True):
+    global _DO_NOT_UPDATE_HISTORY
+    _DO_NOT_UPDATE_HISTORY = True
     with open(filename, 'r') as f:
         d = json.load(f)
     name = d['name']
@@ -198,16 +202,10 @@ def reproduce(filename: str, pretty: bool = True):
                     _difftest(name, **args)
             else:
                 r = _export_all(name, **args)
-        if r_old and r != r_old:
-            os.remove(f'{name}.json')
-            if f'{name}.json' == filename:
-                with open(filename, 'w') as f:
-                    json.dump(d, f, indent=4)   
+        if check_results and r_old and r != r_old:
+            _DO_NOT_UPDATE_HISTORY = False
             raise Exception(f'"{name}" produced different result from what was recorded at the history file.')   
-        os.remove(f'{name}.json')
-        if f'{name}.json' == filename:
-            with open(filename, 'w') as f:
-                json.dump(d, f, indent=4)   
+    _DO_NOT_UPDATE_HISTORY = False
     
     
 doc = f'''

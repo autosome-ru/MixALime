@@ -209,7 +209,7 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
             ac, bc = sample['AD']
             ref = (1 - a) * ac + (1 - b) * bc
             alt = a * ac + b * bc
-            if ref >= min_cnt and alt >= min_cnt and (ref + alt <= cnt_max_sum):
+            if ref >= min_cnt and alt >= min_cnt and (ref + alt < cnt_max_sum):
                 counts[bad][(ref, alt)] += 1
                 # table['#CHROM'].append(chrom)
                 # table['ID'].append(name)
