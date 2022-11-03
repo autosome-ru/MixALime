@@ -481,14 +481,14 @@ def _combine(name: str = Argument(..., help='Project name.'),
 def _difftest(name: str = Argument(..., help='Project name.'),
               group_a: Path = Argument(..., help='A file with a list of filenames, folder or a mask for the first group.'),
               group_b: Path = Argument(..., help='A file with a list of filenames, folder or a mask for the second group.'),
-              test_groups: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
+              group_test: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
                                                      ' the same time as [cyan]fit[/cyan] stage.'),
               alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
               min_samples: int = Option(2, help='Minimal number of samples/reps per an SNV to be considered for the analysis.'),
               min_cover: int = Option(None, help='Minimal required cover (ref + alt) for an SNV to be considered.'),
               max_cover: int = Option(None, help='Maximal allowed cover (ref + alt) for an SNV to be considered.'),
               max_cover_group_test: int = Option(None, help='Maximal allowed cover (ref + alt) for an SNV to be considered. Used only to trim'
-                                                            ' for the whole group test if applicable (i.e. if [cyan]test_groups[/cyan]) to'
+                                                            ' for the whole group test if applicable (i.e. if [cyan]group_test[/cyan]) to'
                                                             'avoid long waiting times similarily to [cyan]fit[/cyan].'),
               filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
               filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
@@ -512,11 +512,11 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     else:
         subname = None
     r = differential_test(name, group_a=group_a, group_b=group_b, min_samples=min_samples, min_cover=min_cover,
-                          max_cover=max_cover, test_groups=test_groups, subname=subname,  filter_id=filter_id,
+                          max_cover=max_cover, group_test=group_test, subname=subname,  filter_id=filter_id,
                           max_cover_group_test=max_cover_group_test, filter_chr=filter_chr, alpha=alpha, n_jobs=n_jobs)[subname]
     if pretty:
         p.stop()
-    if test_groups:
+    if group_test:
         if pretty:
             rprint('Group A vs Group B:')
             rprint(r['whole'])
@@ -544,7 +544,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
         rprint('Total SNVs tested:', len(r))
     expected_res = [int(ref), int(alt), int(total)]
     update_history(name, 'difftest', group_a=group_a, group_b=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover, subname=subname,
-                   test_groups=test_groups, max_cover=max_cover, filter_id=filter_id, filter_chr=filter_chr, 
+                   group_test=group_test, max_cover=max_cover, filter_id=filter_id, filter_chr=filter_chr, 
                    max_cover_group_test=max_cover_group_test, n_jobs=n_jobs, expected_result=expected_res)
     dt = time() - t0
     if pretty:

@@ -124,7 +124,7 @@ def difftest(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         
         
 def differential_test(name: str, group_a: List[str], group_b: List[str], min_samples=2, min_cover=0,
-                      max_cover=np.inf, skip_failures=True, test_groups=True, alpha=0.05, max_cover_group_test=None,
+                      max_cover=np.inf, skip_failures=True, group_test=True, alpha=0.05, max_cover_group_test=None,
                       filter_chr=None, filter_id=None, subname=None, n_jobs=-1):  
     if max_cover is None:
         max_cover = np.inf
@@ -160,7 +160,7 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], min_sam
     snvs_b = {k: snvs_b[k] for k in snvs}
     with open(f'{name}.fit.{compressor}', 'rb') as f:
         fits = dill.load(f)
-    if test_groups:
+    if group_test:
         _counts_a, _counts_b, _counts = build_count_tables(snvs_a, snvs_b)
     res = list()
     bad = 1
@@ -169,11 +169,11 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], min_sam
     inst_params = fits['ref'][1]['inst_params']
     cols = ['ref_pval', 'ref_p_ab', 'ref_p_a', 'ref_p_b', 
             'alt_pval', 'alt_p_ab', 'alt_p_a', 'alt_p_b']
-    if test_groups:
+    if group_test:
         counts_a = _counts_a[bad]; counts_b = _counts_b[bad]; counts = _counts[bad]
         counts_a = counts_a[counts_a[:, 0] + counts_a[:, 1] < max_cover_group_test]
-        counts_b = counts_a[counts_b[:, 0] + counts_b[:, 1] < max_cover_group_test]
-        counts = counts[counts_a[:, 0] + counts[:, 1] < max_cover_group_test]
+        counts_b = counts_b[counts_b[:, 0] + counts_b[:, 1] < max_cover_group_test]
+        counts = counts[counts[:, 0] + counts[:, 1] < max_cover_group_test]
         (whole_ref, whole_alt), _ = difftest(('all', counts_a, counts_b, counts), inst_params, params, skip_failures=False, bad=bad)
         df_whole = pd.DataFrame([list(whole_ref) + list(whole_alt)], columns=cols)
         
@@ -193,7 +193,7 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], min_sam
     _, df['alt_fdr_pval'], _, _ = multitest.multipletests(df['alt_pval'], alpha=alpha, method='fdr_bh')
     
     res = {subname: {'snvs': df}}
-    if test_groups:
+    if group_test:
         res[subname]['whole'] = df_whole
     filename = f'{name}.difftest.{compressor}'
     if os.path.isfile(filename):
