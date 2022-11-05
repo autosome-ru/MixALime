@@ -1,4 +1,4 @@
-__version__ = '2.2.5'
+__version__ = '2.2.6'
 import importlib
 
 __min_reqs__ = [

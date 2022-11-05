@@ -14,7 +14,7 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
     alt, counts, rmsea = t
     res = list()
     params = get_params_at_slice(params, alt, clip_at_max_slice=False)
-    if gof_tr is not None and not rmsea < gof_tr:
+    if gof_tr is not None and rmsea.get(alt, np.inf) > gof_tr:
         params['r'] = alt
         if 'k' in params:
             inst_params = inst_params.copy()
