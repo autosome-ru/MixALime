@@ -487,6 +487,8 @@ def _difftest(name: str = Argument(..., help='Project name.'),
               mode: DiffTest = Option(DiffTest.wald.value, help='Test method.'),
               param_window: bool = Option(True, help='If disabled, parameters will be taken from a line with respect to the mean window for given'
                                                      ' reps/samples.'),
+              robust_se: bool = Option(False, help='Use robust standard errors (Huber-White Sandwich correction). Applicable only if '
+                                                   '[cyan]--mode[/cyan]=[yellow]wald[/wald].'),
               logit_transform: bool = Option(False, help='Apply logit transform to [bold]p[/bold] and its variance with Delta method. Applicable '
                                                          'only if [cyan]--mode[/cyan]=[yellow]wald[/wald].'),
               group_test: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
@@ -524,7 +526,8 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     r = differential_test(name, group_a=group_a, group_b=group_b, mode=mode, min_samples=min_samples, min_cover=min_cover,
                           max_cover=max_cover, group_test=group_test, subname=subname,  filter_id=filter_id,
                           max_cover_group_test=max_cover_group_test, filter_chr=filter_chr, alpha=alpha, n_jobs=n_jobs,
-                          param_mode='window' if param_window else 'line', logit_transform=logit_transform)[subname]
+                          param_mode='window' if param_window else 'line', logit_transform=logit_transform,
+                          robust_se=robust_se)[subname]
     if pretty:
         p.stop()
     if group_test:
@@ -557,7 +560,8 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     update_history(name, 'difftest', group_a=group_a, group_b=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover,
                    mode=mode, subname=subname, group_test=group_test, max_cover=max_cover, filter_id=filter_id,
                    filter_chr=filter_chr, max_cover_group_test=max_cover_group_test, n_jobs=n_jobs,
-                   param_window=param_window, logit_transform=logit_transform, expected_result=expected_res)
+                   param_window=param_window, logit_transform=logit_transform, robust_se=robust_se,
+                   expected_result=expected_res)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')

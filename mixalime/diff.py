@@ -9,7 +9,7 @@ from scipy.stats import chi2, norm
 from functools import partial
 from copy import deepcopy
 from typing import List, Tuple
-from scipy.optimize import minimize_scalar
+from scipy.optimize import minimize_scalar, minimize
 import pandas as pd
 import numpy as np
 import jax
@@ -26,8 +26,8 @@ class Model():
         self.mask = np.zeros(mask_size, dtype=bool)
         self.model_name = model_name
         self.param_mode = param_mode
-        self.grad = jax.grad(self.fun, argnums=0)
-        self.fim = jax.jit(jax.grad(self.grad, argnums=0))
+        self.grad = jax.jit(jax.jacfwd(self.fun, argnums=0))
+        self.fim = jax.jit(jax.grad(jax.grad(self.negloglik, argnums=0), argnums=0))
     
     @partial(jax.jit, static_argnums=(0, ))
     def fun(self, p: float, r: jax.numpy.ndarray, k: jax.numpy.ndarray, data: jax.numpy.ndarray,  w:jax.numpy.ndarray,
@@ -38,9 +38,14 @@ class Model():
         else:
             logl = dists.LeftTruncatedBetaNB.logprob(data, p, k, r, left)
         logl *= w
-        return -jax.numpy.where(mask, 0.0, logl).sum()
+        return jax.numpy.where(mask, 0.0, logl)
     
-    def fit(self, data: np.ndarray, params: dict, compute_var=True):
+    @partial(jax.jit, static_argnums=(0, ))
+    def negloglik(self, p: float, r: jax.numpy.ndarray, k: jax.numpy.ndarray, data: jax.numpy.ndarray,  w:jax.numpy.ndarray,
+            mask: jax.numpy.ndarray):
+        return -self.fun(p, r, k, data, w, mask).sum()
+    
+    def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True):
         name = self.model_name
         data, fixed, w = data.T
         n = len(data)
@@ -72,16 +77,26 @@ class Model():
         data = np.pad(data, (0, v), constant_values=c); w = np.pad(w, (0, v), constant_values=c); r = np.pad(r, (0, v), constant_values=c)
         if self.dist == 'BetaNB':
             k = np.pad(k, (0, v), constant_values=c)
-            f = partial(self.fun, r=r, k=k, data=data, w=w, mask=mask)
+            f = partial(self.negloglik, r=r, k=k, data=data, w=w, mask=mask)
+            grad_w = partial(self.grad, r=r, k=k, data=data, w=w, mask=mask)
             fim = partial(self.fim, r=r, k=k, data=data, w=w, mask=mask)
         else:
-            f = partial(self.fun, r=r, data=data, w=w, mask=mask)
+            f = partial(self.negloglik, r=r, data=data, w=w, mask=mask)
+            grad_w = partial(self.grad, r=r, data=data, w=w, mask=mask)
             fim = partial(self.fim, r=r, data=data, w=w, mask=mask)
         r = minimize_scalar(f, bounds=(0.0, 1.0), method='bounded')
         r.x = float(r.x)
+        lf = float(f(r.x))
         if compute_var:
-            return r, float(1 / fim(r.x))
-        return r, -float(f(r.x))
+            if sandwich:
+                g = grad_w(r.x)
+                v = (g ** 2).sum()
+                fim = fim(r.x)
+                s = -1 if fim < -1e-9 else 1
+                return r, s * float(1 / fim ** 2 * v)
+            else:
+                return r, float(1 / fim(r.x))
+        return r, lf
         
     
 
@@ -210,7 +225,7 @@ def transform_p(p, var):
 def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
               inst_params: dict, params: dict, skip_failures=False, max_sz=None, bad=1.0,
               contrast: Tuple[float, float, float] = (1, -1, 0), logit_transform=False,
-              param_mode='window'):
+              param_mode='window', robust_se=True):
     if not hasattr(wald_test, '_cache'):
         wald_test._cache = dict()
     snv, counts_a, counts_b, counts = counts
@@ -226,9 +241,9 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         if allele == 'alt':
             counts_a = counts_a[:, (1, 0, 2)]; counts_b = counts_b[:, (1, 0, 2)]; counts = counts[:, (1, 0, 2)]
         try:
-            a_r, a_var = model.fit(counts_a, params[allele])
+            a_r, a_var = model.fit(counts_a, params[allele], sandwich=robust_se)
             a_p = a_r.x
-            b_r, b_var = model.fit(counts_b, params[allele])
+            b_r, b_var = model.fit(counts_b, params[allele], sandwich=robust_se)
             b_p = b_r.x
             correct = (a_var >= 0) & (b_var >= 0) & np.isfinite(a_var) & np.isfinite(b_var)
             if logit_transform:
@@ -256,7 +271,7 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
 def differential_test(name: str, group_a: List[str], group_b: List[str], mode='wald', min_samples=2, min_cover=0,
                       max_cover=np.inf, skip_failures=True, group_test=True, alpha=0.05, max_cover_group_test=None,
                       filter_chr=None, filter_id=None, contrast=(1, -1, 0), subname=None, param_mode='window',
-                      logit_transform=False, n_jobs=-1):  
+                      logit_transform=False, robust_se=True, n_jobs=-1):  
     if max_cover is None:
         max_cover = np.inf
     if min_cover is None:
@@ -307,7 +322,8 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
         cols = ['ref_pval', 'ref_p_a', 'ref_p_b', 'ref_std_a', 'ref_std_b',
                 'alt_pval', 'alt_p_a', 'alt_p_b', 'alt_std_a', 'alt_std_b']
         test_fun = partial(wald_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
-                           contrast=contrast, param_mode=param_mode, logit_transform=logit_transform)
+                           contrast=contrast, param_mode=param_mode, logit_transform=logit_transform,
+                           robust_se=robust_se)
     if group_test:
         counts_a = _counts_a[bad]; counts_b = _counts_b[bad]; counts = _counts[bad]
         counts_a = counts_a[counts_a[:, 0] + counts_a[:, 1] < max_cover_group_test]

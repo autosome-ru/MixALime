@@ -19,6 +19,8 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
         if 'k' in params:
             inst_params = inst_params.copy()
             inst_params['dist'] = 'NB'
+        if 'w' in params:
+            params['w'] = 1.0
     if not hasattr(calc_stats, '_cache'):
         calc_stats._cache = dict()
     cache = calc_stats._cache
