@@ -485,6 +485,10 @@ def _difftest(name: str = Argument(..., help='Project name.'),
               group_b: Path = Argument(..., help='A file with a list of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
                                                  'prefix, e.g. "m:vcfs/*_M_*.vcf.gz") for the second group.'),
               mode: DiffTest = Option(DiffTest.wald.value, help='Test method.'),
+              param_window: bool = Option(True, help='If disabled, parameters will be taken from a line with respect to the mean window for given'
+                                                     ' reps/samples.'),
+              logit_transform: bool = Option(False, help='Apply logit transform to [bold]p[/bold] and its variance with Delta method. Applicable '
+                                                         'only if [cyan]--mode[/cyan]=[yellow]wald[/wald].'),
               group_test: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
                                                     ' the same time as [cyan]fit[/cyan] stage.'),
               alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
@@ -519,7 +523,8 @@ def _difftest(name: str = Argument(..., help='Project name.'),
         subname = None
     r = differential_test(name, group_a=group_a, group_b=group_b, mode=mode, min_samples=min_samples, min_cover=min_cover,
                           max_cover=max_cover, group_test=group_test, subname=subname,  filter_id=filter_id,
-                          max_cover_group_test=max_cover_group_test, filter_chr=filter_chr, alpha=alpha, n_jobs=n_jobs)[subname]
+                          max_cover_group_test=max_cover_group_test, filter_chr=filter_chr, alpha=alpha, n_jobs=n_jobs,
+                          param_mode='window' if param_window else 'line', logit_transform=logit_transform)[subname]
     if pretty:
         p.stop()
     if group_test:
@@ -552,7 +557,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     update_history(name, 'difftest', group_a=group_a, group_b=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover,
                    mode=mode, subname=subname, group_test=group_test, max_cover=max_cover, filter_id=filter_id,
                    filter_chr=filter_chr, max_cover_group_test=max_cover_group_test, n_jobs=n_jobs,
-                   expected_result=expected_res)
+                   param_window=param_window, logit_transform=logit_transform, expected_result=expected_res)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
