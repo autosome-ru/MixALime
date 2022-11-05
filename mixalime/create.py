@@ -182,7 +182,7 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
             continue
         if filter_name and not filter_name.match(name):
             continue
-        start = row.start - 1
+        start = row.start
         # end = start + 1
         try:
             bad = row.bad if row.bad else default_bad

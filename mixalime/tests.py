@@ -104,10 +104,3 @@ def test(name: str, correction: str = None, gof_tr: float = None, n_jobs: int = 
     with open(f'{name}.test.{compressor}', 'wb') as f:
         dill.dump(res, f)
     return res
-
-if __name__ == '__main__':
-    from time import time
-    t0 = time()
-    name = '/media/Data/Pr/hearts/heart_all/bcftools_WASP_new/test'
-    r = test(name, n_jobs=-1)
-    print(time() - t0)

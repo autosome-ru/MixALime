@@ -203,35 +203,56 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
         os.makedirs(folder, exist_ok=True)
     pd.DataFrame(d).to_csv(out, sep='\t', index=None)
 
-def export_difftests(project, out: str,  subname=None):
+def export_difftests(project, out: str,  rep_info=False, subname=None):
     if type(project) is str:
         file = get_init_file(project)
         compression = file.split('.')[-1]
         open = openers[compression]
         with open(file, 'rb') as snvs,  open(f'{project}.difftest.{compression}', 'rb') as diff:
-            snvs = dill.load(snvs)
-            diff = dill.load(diff)
+            diff = dill.load(diff)[subname]
     else:
         snvs, diff = project
-    diff = diff[subname]['snvs']
-    snvs = snvs['snvs']  
+        diff = diff[subname]
+    tests = diff['tests']
+    snvs_a, snvs_b = diff['snvs']
     chrom = list(); start = list(); end = list(); name = list(); bad = list(); ref = list(); alt = list()
-    for ind in diff['ind']:
-        b, n, r, a = snvs[ind][0]
+    if rep_info:
+        a_ref_counts = list(); b_ref_counts = list()
+        a_alt_counts = list(); b_alt_counts = list()
+    for ind in tests['ind']:
+        b, n, r, a = snvs_a[ind][0]
         chrom.append(ind[0]); start.append(ind[1]); end.append(start[-1] + 1); bad.append(b); name.append(n);
         ref.append(r); alt.append(a)
-    diff = diff.drop('ind', axis=1)
-    df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'bad': bad, 'id': name, 'ref': ref, 'alt': alt })
+        if rep_info:
+            a_ref_count = list(); b_ref_count = list()
+            a_alt_count = list(); b_alt_count = list()
+            for _, r, a in snvs_a[ind][1:]:
+                a_ref_count.append(str(r))
+                a_alt_count.append(str(a))
+            for _, r, a in snvs_b[ind][1:]:
+                b_ref_count.append(str(r))
+                b_alt_count.append(str(a))
+            a_ref_counts.append(','.join(a_ref_count))
+            b_ref_counts.append(','.join(b_ref_count))
+            a_alt_counts.append(','.join(a_alt_count))
+            b_alt_counts.append(','.join(b_alt_count))
+    diff = tests.drop('ind', axis=1)
+    if rep_info:
+        df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'bad': bad, 'id': name, 'ref': ref, 'alt': alt,
+                           'a_ref_counts': a_ref_counts, 'a_alt_counts': a_alt_counts, 
+                           'b_ref_counts': b_ref_counts, 'b_alt_counts': b_alt_counts})
+    else:
+        df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'bad': bad, 'id': name, 'ref': ref, 'alt': alt })
     diff = pd.concat([df, diff], axis=1)
     t = diff['ref_pval'] < diff['alt_pval']
     mins = ['ref' if v else 'alt' for v in t]
     diff['min_allele'] = mins
     diff['pval'] = 1
     diff.loc[t, 'pval'] = diff.loc[t, 'ref_pval']
-    diff.loc[t, 'pval'] = diff.loc[t, 'ref_pval']
+    diff.loc[~t, 'pval'] = diff.loc[~t, 'alt_pval']
     diff['fdr_pval'] = 1
     diff.loc[t, 'fdr_pval'] = diff.loc[t, 'ref_fdr_pval']
-    diff.loc[~t, 'fdr_pval'] = diff.loc[~t, 'ref_fdr_pval']
+    diff.loc[~t, 'fdr_pval'] = diff.loc[~t, 'alt_fdr_pval']
     folder, _ = os.path.split(out)
     if folder:
         os.makedirs(folder, exist_ok=True)
@@ -259,7 +280,8 @@ def export_all(name: str, out: str, rep_info: bool = None):
             subfolder = os.path.join(out, 'difftest')
             t = (init, difftests)
             for subname in difftests:
-                export_difftests(t, os.path.join(subfolder, f'{subname}.tsv' if subname else 'difftests.tsv'), subname=subname)
+                export_difftests(t, os.path.join(subfolder, f'{subname}.tsv' if subname else 'difftests.tsv'), subname=subname,
+                                 rep_info=rep_info)
     except FileNotFoundError:
         pass     
             

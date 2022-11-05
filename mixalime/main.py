@@ -58,7 +58,10 @@ class Allele(str, Enum):
 class Prior(str, Enum):
     laplace = 'laplace'
     normal = 'normal'
-    
+
+class DiffTest(str, Enum):
+    lrt = 'lrt'
+    wald = 'wald'
 
 
 class OrderCommands(TyperGroup):
@@ -477,10 +480,13 @@ def _combine(name: str = Argument(..., help='Project name.'),
 
 @app.command('difftest')
 def _difftest(name: str = Argument(..., help='Project name.'),
-              group_a: Path = Argument(..., help='A file with a list of filenames, folder or a mask for the first group.'),
-              group_b: Path = Argument(..., help='A file with a list of filenames, folder or a mask for the second group.'),
+              group_a: Path = Argument(..., help='A file with a list of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
+                                                 'prefix, e.g. "m:vcfs/*_M_*.vcf.gz") for the first group.'),
+              group_b: Path = Argument(..., help='A file with a list of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
+                                                 'prefix, e.g. "m:vcfs/*_M_*.vcf.gz") for the second group.'),
+              mode: DiffTest = Option(DiffTest.wald.value, help='Test method.'),
               group_test: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
-                                                     ' the same time as [cyan]fit[/cyan] stage.'),
+                                                    ' the same time as [cyan]fit[/cyan] stage.'),
               alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
               min_samples: int = Option(2, help='Minimal number of samples/reps per an SNV to be considered for the analysis.'),
               min_cover: int = Option(None, help='Minimal required cover (ref + alt) for an SNV to be considered.'),
@@ -499,17 +505,19 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     t0 = time()
     group_a = str(group_a)
     group_b = str(group_b)
+    if type(mode) is DiffTest:
+        mode = mode.value
     if pretty:
         p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
-        p.add_task(description="Performing LRT tests...", total=None)
+        p.add_task(description='Performing {} tests...'.format('LRT' if mode == 'lrt' else 'Wald'), total=None)
         p.start()
     else:
-        print('Performing LRT tests...')
+        print('Performing {} tests...'.format('LRT' if mode == 'lrt' else 'Wald'))
     if subname:
         subname = str(subname)
     else:
         subname = None
-    r = differential_test(name, group_a=group_a, group_b=group_b, min_samples=min_samples, min_cover=min_cover,
+    r = differential_test(name, group_a=group_a, group_b=group_b, mode=mode, min_samples=min_samples, min_cover=min_cover,
                           max_cover=max_cover, group_test=group_test, subname=subname,  filter_id=filter_id,
                           max_cover_group_test=max_cover_group_test, filter_chr=filter_chr, alpha=alpha, n_jobs=n_jobs)[subname]
     if pretty:
@@ -522,7 +530,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
             print('Group A vs Group B:')
             print(r['whole'])
     
-    r = r['snvs']
+    r = r['tests']
     ref = r['ref_fdr_pval'] < alpha
     alt = r['alt_fdr_pval'] < alpha
     both = (ref & alt).sum()
@@ -541,9 +549,10 @@ def _difftest(name: str = Argument(..., help='Project name.'),
         print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
         rprint('Total SNVs tested:', len(r))
     expected_res = [int(ref), int(alt), int(total)]
-    update_history(name, 'difftest', group_a=group_a, group_b=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover, subname=subname,
-                   group_test=group_test, max_cover=max_cover, filter_id=filter_id, filter_chr=filter_chr, 
-                   max_cover_group_test=max_cover_group_test, n_jobs=n_jobs, expected_result=expected_res)
+    update_history(name, 'difftest', group_a=group_a, group_b=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover,
+                   mode=mode, subname=subname, group_test=group_test, max_cover=max_cover, filter_id=filter_id,
+                   filter_chr=filter_chr, max_cover_group_test=max_cover_group_test, n_jobs=n_jobs,
+                   expected_result=expected_res)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
@@ -670,12 +679,14 @@ def _raw_pvalues(name: str, out: Path,
 def _difftests(name: str = Argument(..., help='Project name.'), out: Path = Argument(..., help='Output filename/path.'),
                       subname: str = Option(None, help='A subname that can be used to reference a set of combined p-values in case if you'
                                                        ' provided one at [cyan bold]difftest[/cyan bold] step.'),
+                      rep_info: bool = Option(False, help='Include ref, alt counts and names of sample scorefiles to the tabular. '
+                                                          'Note that this may bloat output if number of samples is high.'),
                       pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     '''
     Export FDR-corrected p-values for differential test.
     '''
     out = str(out)
-    export.export_difftests(name, out, subname=subname)
+    export.export_difftests(name, out, subname=subname, rep_info=rep_info)
     update_history(name, 'export difftest', out=out, subname=subname)
     if pretty:
         rprint('[green][bold]✔️[/bold] Done![/green]')

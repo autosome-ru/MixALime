@@ -23,6 +23,9 @@ def combine_p_values_logit(pvalues):
     nu = np.int_(5 * k + 4)
     approx_factor = np.sqrt(np.int_(3) * nu / (np.int_(k) * np.square(np.pi) * (nu - np.int_(2))))
     pval = st.distributions.t.sf(statistic * approx_factor, nu)
+    if pval == 0:
+        statistic = float(-2 * sum(map(log, pvalues)))
+        pval = st.distributions.chi2.sf(statistic, 2 * k)
     return pval
 
 def combine_es(es, pvalues):
@@ -109,6 +112,14 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=N
             ref_comb_es.append(ref_es)
             alt_comb_es.append(alt_es)
             comb_names.append(k)
+    ref_comb_pvals = np.array(ref_comb_pvals)
+    inds = ref_comb_pvals == 0.0
+    if np.any(inds):
+        ref_comb_pvals[inds] = ref_comb_pvals[~inds].min()
+    alt_comb_pvals = np.array(alt_comb_pvals)
+    inds = alt_comb_pvals == 0.0
+    if np.any(inds):
+        alt_comb_pvals[inds] = alt_comb_pvals[~inds].min()
     _, ref_fdr_pvals, _, _ = multitest.multipletests(ref_comb_pvals, alpha=alpha, method='fdr_bh')
     _, alt_fdr_pvals, _, _ = multitest.multipletests(alt_comb_pvals, alpha=alpha, method='fdr_bh')
     res = dict()
