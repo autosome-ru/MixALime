@@ -488,9 +488,9 @@ def _difftest(name: str = Argument(..., help='Project name.'),
               param_window: bool = Option(True, help='If disabled, parameters will be taken from a line with respect to the mean window for given'
                                                      ' reps/samples.'),
               robust_se: bool = Option(False, help='Use robust standard errors (Huber-White Sandwich correction). Applicable only if '
-                                                   '[cyan]--mode[/cyan]=[yellow]wald[/wald].'),
+                                                   '[cyan]--mode[/cyan]=[yellow]wald[/yellow].'),
               logit_transform: bool = Option(False, help='Apply logit transform to [bold]p[/bold] and its variance with Delta method. Applicable '
-                                                         'only if [cyan]--mode[/cyan]=[yellow]wald[/wald].'),
+                                                         'only if [cyan]--mode[/cyan]=[yellow]wald[/yellow].'),
               group_test: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
                                                     ' the same time as [cyan]fit[/cyan] stage.'),
               alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
