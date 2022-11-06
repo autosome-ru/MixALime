@@ -220,7 +220,7 @@ def transform_p(p, var):
 
 def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
               inst_params: dict, params: dict, skip_failures=False, max_sz=None, bad=1.0,
-              contrast: Tuple[float, float, float] = (1, -1, 0), logit_transform=False,
+              contrasts: Tuple[float, float, float] = (1, -1, 0), logit_transform=False,
               param_mode='window', robust_se=True):
     if not hasattr(wald_test, '_cache'):
         wald_test._cache = dict()
@@ -256,7 +256,7 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         if not correct:
             pval = 1.0
         else:
-            a, b, eq = contrast
+            a, b, eq = contrasts
             stat = abs(a * a_p + b * b_p + eq)
             var = a ** 2 * a_var + b ** 2 * b_var
             pval = 2 * norm.sf(stat, scale=(var) ** 0.5, loc=0.0)
@@ -266,8 +266,8 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         
 def differential_test(name: str, group_a: List[str], group_b: List[str], mode='wald', min_samples=2, min_cover=0,
                       max_cover=np.inf, skip_failures=True, group_test=True, alpha=0.05, max_cover_group_test=None,
-                      filter_chr=None, filter_id=None, contrast=(1, -1, 0), subname=None, param_mode='window',
-                      logit_transform=False, robust_se=True, n_jobs=-1):  
+                      filter_chr=None, filter_id=None, contrasts=(1, -1, 0), subname=None, param_mode='window',
+                      logit_transform=False, robust_se=True, n_jobs=-1):
     if max_cover is None:
         max_cover = np.inf
     if min_cover is None:
@@ -318,7 +318,7 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
         cols = ['ref_pval', 'ref_p_a', 'ref_p_b', 'ref_std_a', 'ref_std_b',
                 'alt_pval', 'alt_p_a', 'alt_p_b', 'alt_std_a', 'alt_std_b']
         test_fun = partial(wald_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
-                           contrast=contrast, param_mode=param_mode, logit_transform=logit_transform,
+                           contrasts=contrasts, param_mode=param_mode, logit_transform=logit_transform,
                            robust_se=robust_se)
     if group_test:
         counts_a = _counts_a[bad]; counts_b = _counts_b[bad]; counts = _counts[bad]

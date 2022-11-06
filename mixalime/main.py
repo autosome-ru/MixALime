@@ -4,7 +4,7 @@ from enum import Enum
 from click import Context
 from typer import Typer, Option, Argument
 from typer.core import TyperGroup
-from typing import List
+from typing import List, Tuple
 from rich import print as rprint
 from betanegbinfit import __version__ as bnb_version
 from jax import __version__ as jax_version
@@ -493,6 +493,10 @@ def _difftest(name: str = Argument(..., help='Project name.'),
                                                          'only if [cyan]--mode[/cyan]=[yellow]wald[/yellow].'),
               group_test: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
                                                     ' the same time as [cyan]fit[/cyan] stage.'),
+              contrasts: Tuple[float, float, float] = Option((1, -1, 0), help='Contrasts vector where 1st, 2nd positions are for groups A and B '
+                                                                              'respectively and the 3rd stand for the free term, i.e. the default'
+                                                                              ' value will test for difference between p_a and p_b, but '
+                                                                              '[bold]1 0 -0.5[/bold] will test only for p_a being equal to 0.5. '),
               alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
               min_samples: int = Option(2, help='Minimal number of samples/reps per an SNV to be considered for the analysis.'),
               min_cover: int = Option(None, help='Minimal required cover (ref + alt) for an SNV to be considered.'),
@@ -511,6 +515,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     t0 = time()
     group_a = str(group_a)
     group_b = str(group_b)
+    contrasts = list(contrasts)
     if type(mode) is DiffTest:
         mode = mode.value
     if pretty:
@@ -527,7 +532,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
                           max_cover=max_cover, group_test=group_test, subname=subname,  filter_id=filter_id,
                           max_cover_group_test=max_cover_group_test, filter_chr=filter_chr, alpha=alpha, n_jobs=n_jobs,
                           param_mode='window' if param_window else 'line', logit_transform=logit_transform,
-                          robust_se=robust_se)[subname]
+                          robust_se=robust_se, contrasts=contrasts)[subname]
     if pretty:
         p.stop()
     if group_test:
@@ -561,7 +566,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
                    mode=mode, subname=subname, group_test=group_test, max_cover=max_cover, filter_id=filter_id,
                    filter_chr=filter_chr, max_cover_group_test=max_cover_group_test, n_jobs=n_jobs,
                    param_window=param_window, logit_transform=logit_transform, robust_se=robust_se,
-                   expected_result=expected_res)
+                   contrasts=contrasts, expected_result=expected_res)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
