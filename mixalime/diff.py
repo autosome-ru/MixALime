@@ -51,13 +51,12 @@ class Model():
         n = len(data)
         if self.param_mode == 'window' or self.model_name == 'slices':
             r = np.zeros(n, dtype=float)
-            if self.dist == 'BetaNB':
-                k = np.zeros(n, dtype=float)
+            k = np.zeros(n, dtype=float)
             for i in range(n):
                 slc = fixed[i]
                 ps = get_closest_param(params, slc, name, True)
                 r[i] = ps['r']
-                if 'k' in ps:
+                if self.dist == 'BetaNB' and 'k' in ps:
                     k[i] = ps['k']
         else:
             slc = fixed.mean()
@@ -65,6 +64,8 @@ class Model():
             r = ps['mu'] + ps['b'] * fixed ** ps.get('slice_power', 1.0)
             if 'mu_k' in ps:
                 k = ps['mu_k'] + ps['b_k'] * np.log(fixed)
+            else:
+                k = np.zeros(len(r))
         mask = self.mask
         m = len(mask)
         if n > m:
@@ -75,15 +76,10 @@ class Model():
         v = max(0, m - n)
         c = self.allowed_const
         data = np.pad(data, (0, v), constant_values=c); w = np.pad(w, (0, v), constant_values=c); r = np.pad(r, (0, v), constant_values=c)
-        if self.dist == 'BetaNB':
-            k = np.pad(k, (0, v), constant_values=c)
-            f = partial(self.negloglik, r=r, k=k, data=data, w=w, mask=mask)
-            grad_w = partial(self.grad, r=r, k=k, data=data, w=w, mask=mask)
-            fim = partial(self.fim, r=r, k=k, data=data, w=w, mask=mask)
-        else:
-            f = partial(self.negloglik, r=r, data=data, w=w, mask=mask)
-            grad_w = partial(self.grad, r=r, data=data, w=w, mask=mask)
-            fim = partial(self.fim, r=r, data=data, w=w, mask=mask)
+        k = np.pad(k, (0, v), constant_values=c)
+        f = partial(self.negloglik, r=r, k=k, data=data, w=w, mask=mask)
+        grad_w = partial(self.grad, r=r, k=k, data=data, w=w, mask=mask)
+        fim = partial(self.fim, r=r, k=k, data=data, w=w, mask=mask)
         r = minimize_scalar(f, bounds=(0.0, 1.0), method='bounded')
         r.x = float(r.x)
         lf = float(f(r.x))
