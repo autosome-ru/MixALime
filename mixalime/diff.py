@@ -45,7 +45,39 @@ class Model():
             mask: jax.numpy.ndarray):
         return -self.fun(p, r, k, data, w, mask).sum()
     
-    def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True):
+    def update_mask(self, data, r, k, w):
+        mask = self.mask
+        n = max(len(r), len(data))
+        m = len(mask)
+        if n > m:
+            mask = np.zeros(n, dtype=bool)
+            self.mask = mask
+            m = n
+        mask[:n] = False
+        mask[n:] = True
+        c = self.allowed_const
+        v = max(0, m - len(data)); data = np.pad(data, (0, v), constant_values=c); 
+        v = max(0, m - len(w)); w = np.pad(w, (0, v), constant_values=c);
+        v = max(0, m - len(r)); r = np.pad(r, (0, v), constant_values=c)
+        v = max(0, m - len(k)); k = np.pad(k, (0, v), constant_values=c)
+        return data, r, k, w
+    
+    def sample(self, n, alt, p, r, k):
+        n = n.astype(int)
+        alt = np.repeat(alt, n)
+        r = np.repeat(r, n)
+        k = np.repeat(k, n)
+        left = self.left
+        if self.dist == 'BetaNB':
+            res = dists.LeftTruncatedBetaNB.sample(p, k, r, left, size=(len(r), ))
+        else:
+            res = dists.LeftTruncatedNB.sample(r, p, left, size=(len(r), ))
+        res = np.stack([res, alt]).T 
+        res, c = np.unique(res, axis=0, return_counts=True)
+        res = np.append(res, c.reshape(-1, 1), axis=1)
+        return res
+
+    def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True, n_bootstrap=100):
         name = self.model_name
         data, fixed, w = data.T
         n = len(data)
@@ -66,33 +98,38 @@ class Model():
                 k = ps['mu_k'] + ps['b_k'] * np.log(fixed)
             else:
                 k = np.zeros(len(r))
+        data, r, k, w = self.update_mask(data, r, k, w)
         mask = self.mask
-        m = len(mask)
-        if n > m:
-            mask = np.zeros(data.shape[0], dtype=bool)
-            self.mask = mask
-        mask[:n] = False
-        mask[n:] = True
-        v = max(0, m - n)
-        c = self.allowed_const
-        data = np.pad(data, (0, v), constant_values=c); w = np.pad(w, (0, v), constant_values=c); r = np.pad(r, (0, v), constant_values=c)
-        k = np.pad(k, (0, v), constant_values=c)
         f = partial(self.negloglik, r=r, k=k, data=data, w=w, mask=mask)
         grad_w = partial(self.grad, r=r, k=k, data=data, w=w, mask=mask)
         fim = partial(self.fim, r=r, k=k, data=data, w=w, mask=mask)
-        r = minimize_scalar(f, bounds=(0.0, 1.0), method='bounded')
-        r.x = float(r.x)
-        lf = float(f(r.x))
+        res = minimize_scalar(f, bounds=(0.0, 1.0), method='bounded')
+        x = res.x
+        bs = list()
+        for i in range(n_bootstrap):
+            r_, k_, w_ =  r[:n], k[:n], w[:n]
+            data, _, w_ = self.sample(w_, fixed[:n], x, r_, k_).T
+            data, r_, k_, w_ = self.update_mask(data, r_, k_, w_)
+            mask = self.mask
+            f = partial(self.negloglik, r=r_, k=k_, data=data, w=w_, mask=mask)
+            res_ = minimize_scalar(f, bounds=(0.0, 1.0), method='bounded')
+            if res_.success:
+                bs.append(res_.x) 
+
+        res.x = float(res.x)
+        correction = res.x - np.mean(bs) if n_bootstrap else 0.0
+        res.x = res.x + correction
+        lf = float(f(res.x))
         if compute_var:
             if sandwich:
-                g = grad_w(r.x)
+                g = grad_w(res.x)
                 v = (g ** 2 / w).sum()
-                fim = fim(r.x)
+                fim = fim(res.x)
                 s = -1 if fim < -1e-9 else 1
-                return r, s * float(1 / fim ** 2 * v)
+                return res, s * float(1 / fim ** 2 * v)
             else:
-                return r, float(1 / fim(r.x))
-        return r, lf
+                return res, float(1 / fim(res.x))
+        return res, lf
         
     
 
@@ -221,7 +258,7 @@ def transform_p(p, var):
 def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
               inst_params: dict, params: dict, skip_failures=False, max_sz=None, bad=1.0,
               contrasts: Tuple[float, float, float] = (1, -1, 0), logit_transform=False,
-              param_mode='window', robust_se=True):
+              param_mode='window', robust_se=True, n_bootstrap=0):
     if not hasattr(wald_test, '_cache'):
         wald_test._cache = dict()
     snv, counts_a, counts_b, counts = counts
@@ -237,9 +274,9 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         if allele == 'alt':
             counts_a = counts_a[:, (1, 0, 2)]; counts_b = counts_b[:, (1, 0, 2)]; counts = counts[:, (1, 0, 2)]
         try:
-            a_r, a_var = model.fit(counts_a, params[allele], sandwich=robust_se)
+            a_r, a_var = model.fit(counts_a, params[allele], sandwich=robust_se, n_bootstrap=n_bootstrap)
             a_p = a_r.x
-            b_r, b_var = model.fit(counts_b, params[allele], sandwich=robust_se)
+            b_r, b_var = model.fit(counts_b, params[allele], sandwich=robust_se, n_bootstrap=n_bootstrap)
             b_p = b_r.x
             correct = (a_var >= 0) & (b_var >= 0) & np.isfinite(a_var) & np.isfinite(b_var)
             if logit_transform:
@@ -267,7 +304,7 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
 def differential_test(name: str, group_a: List[str], group_b: List[str], mode='wald', min_samples=2, min_cover=0,
                       max_cover=np.inf, skip_failures=True, group_test=True, alpha=0.05, max_cover_group_test=None,
                       filter_chr=None, filter_id=None, contrasts=(1, -1, 0), subname=None, param_mode='window',
-                      logit_transform=False, robust_se=True, n_jobs=-1):
+                      logit_transform=False, robust_se=True, n_bootstrap=0, n_jobs=-1):
     if max_cover is None:
         max_cover = np.inf
     if min_cover is None:
@@ -319,7 +356,7 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
                 'alt_pval', 'alt_p_a', 'alt_p_b', 'alt_std_a', 'alt_std_b']
         test_fun = partial(wald_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
                            contrasts=contrasts, param_mode=param_mode, logit_transform=logit_transform,
-                           robust_se=robust_se)
+                           robust_se=robust_se, n_bootstrap=n_bootstrap)
     if group_test:
         counts_a = _counts_a[bad]; counts_b = _counts_b[bad]; counts = _counts[bad]
         counts_a = counts_a[counts_a[:, 0] + counts_a[:, 1] < max_cover_group_test]

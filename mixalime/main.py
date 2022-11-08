@@ -489,6 +489,8 @@ def _difftest(name: str = Argument(..., help='Project name.'),
                                                      ' reps/samples.'),
               robust_se: bool = Option(False, help='Use robust standard errors (Huber-White Sandwich correction). Applicable only if '
                                                    '[cyan]--mode[/cyan]=[yellow]wald[/yellow].'),
+              n_bootstrap: int = Option(0, help='Boostrap iterations used in stochastic bias correction. Applicable only if [cyan]--mode[/cyan]=='
+                                                '[yellow]wald[/yellow].'),
               logit_transform: bool = Option(False, help='Apply logit transform to [bold]p[/bold] and its variance with Delta method. Applicable '
                                                          'only if [cyan]--mode[/cyan]=[yellow]wald[/yellow].'),
               group_test: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
@@ -532,7 +534,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
                           max_cover=max_cover, group_test=group_test, subname=subname,  filter_id=filter_id,
                           max_cover_group_test=max_cover_group_test, filter_chr=filter_chr, alpha=alpha, n_jobs=n_jobs,
                           param_mode='window' if param_window else 'line', logit_transform=logit_transform,
-                          robust_se=robust_se, contrasts=contrasts)[subname]
+                          robust_se=robust_se, contrasts=contrasts, n_bootstrap=n_bootstrap)[subname]
     if pretty:
         p.stop()
     if group_test:
@@ -566,7 +568,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
                    mode=mode, subname=subname, group_test=group_test, max_cover=max_cover, filter_id=filter_id,
                    filter_chr=filter_chr, max_cover_group_test=max_cover_group_test, n_jobs=n_jobs,
                    param_window=param_window, logit_transform=logit_transform, robust_se=robust_se,
-                   contrasts=contrasts, expected_result=expected_res)
+                   contrasts=contrasts, n_bootstrap=n_bootstrap, expected_result=expected_res)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
