@@ -86,7 +86,7 @@ class Model():
         if compute_var:
             if sandwich:
                 g = grad_w(r.x)
-                v = (g ** 2).sum()
+                v = (g ** 2 / w).sum()
                 fim = fim(r.x)
                 s = -1 if fim < -1e-9 else 1
                 return r, s * float(1 / fim ** 2 * v)
