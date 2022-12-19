@@ -232,7 +232,7 @@ def lrt_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
             if skip_failures:
                 return None, snv
             res.append((float('nan'), float('nan'), float('nan'), float('nan')))
-        lrt = -2 * (ab_logl - (a_logl + b_logl))
+        lrt = 2 * (ab_logl - (a_logl + b_logl))
         pval = chi2.sf(lrt, 1)
         res.append((pval, ab_p, a_p, b_p))
     n_a, n_b = counts_a[:, -1].sum(), counts_b[:, -1].sum()
