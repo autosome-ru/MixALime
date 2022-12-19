@@ -203,7 +203,7 @@ def get_closest_param(params: dict, slc: float, model_name: str, compute_line=Fa
 
 def lrt_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         inst_params: dict, params: dict, skip_failures=False, max_sz=None, bad=1.0,
-        param_mode='window'):
+        param_mode='window', n_bootstrap=0):
     if not hasattr(lrt_test, '_cache'):
         lrt_test._cache = dict()
     snv, counts_a, counts_b, counts = counts
@@ -219,11 +219,11 @@ def lrt_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         if allele == 'alt':
             counts_a = counts_a[:, (1, 0, 2)]; counts_b = counts_b[:, (1, 0, 2)]; counts = counts[:, (1, 0, 2)]
         try:
-            ab_r, ab_logl = model.fit(counts, params[allele], False)
+            ab_r, ab_logl = model.fit(counts, params[allele], False, n_bootstrap=n_bootstrap)
             ab_p = ab_r.x
-            a_r, a_logl = model.fit(counts_a, params[allele], False)
+            a_r, a_logl = model.fit(counts_a, params[allele], False, n_bootstrap=n_bootstrap)
             a_p = a_r.x
-            b_r, b_logl = model.fit(counts_b, params[allele], False)
+            b_r, b_logl = model.fit(counts_b, params[allele], False, n_bootstrap=n_bootstrap)
             b_p = b_r.x
             success = a_r.success & b_r.success & ab_r.success
             if not success and skip_failures:
@@ -350,7 +350,7 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
         cols = ['ref_pval', 'ref_p_ab', 'ref_p_a', 'ref_p_b', 
                 'alt_pval', 'alt_p_ab', 'alt_p_a', 'alt_p_b']
         test_fun = partial(lrt_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
-                           param_mode=param_mode)
+                           param_mode=param_mode, n_bootstrap=n_bootstrap)
     else:
         cols = ['ref_pval', 'ref_p_a', 'ref_p_b', 'ref_std_a', 'ref_std_b',
                 'alt_pval', 'alt_p_a', 'alt_p_b', 'alt_std_a', 'alt_std_b']
