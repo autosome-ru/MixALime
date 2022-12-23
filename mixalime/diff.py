@@ -9,7 +9,7 @@ from scipy.stats import chi2, norm
 from functools import partial
 from copy import deepcopy
 from typing import List, Tuple
-from scipy.optimize import minimize_scalar, minimize
+from scipy.optimize import minimize_scalar
 import pandas as pd
 import numpy as np
 import jax
@@ -76,6 +76,17 @@ class Model():
         res, c = np.unique(res, axis=0, return_counts=True)
         res = np.append(res, c.reshape(-1, 1), axis=1)
         return res
+    
+    def minimize_scalar(self, f, xatol=1e-8, steps=10):
+        if steps:
+            ps = list(np.linspace(0.0001, 0.9999, steps))
+            i = np.argmin(list(map(f, ps))) + 1
+            ps = [0.0] + ps + [1.0]
+            b = ps[i - 1], ps[i + 1]
+        else:
+            b = (0.0, 1.0)
+        return minimize_scalar(f, bounds=b, method='bounded', options={'xatol': xatol})
+        
 
     def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True, n_bootstrap=100):
         name = self.model_name
@@ -103,7 +114,7 @@ class Model():
         f = partial(self.negloglik, r=r, k=k, data=data, w=w, mask=mask)
         grad_w = partial(self.grad, r=r, k=k, data=data, w=w, mask=mask)
         fim = partial(self.fim, r=r, k=k, data=data, w=w, mask=mask)
-        res = minimize_scalar(f, bounds=(0.0, 1.0), method='bounded')
+        res = self.minimize_scalar(f)
         x = res.x
         bs = list()
         for i in range(n_bootstrap):
@@ -112,7 +123,7 @@ class Model():
             data, r_, k_, w_ = self.update_mask(data, r_, k_, w_)
             mask = self.mask
             f = partial(self.negloglik, r=r_, k=k_, data=data, w=w_, mask=mask)
-            res_ = minimize_scalar(f, bounds=(0.0, 1.0), method='bounded')
+            res_ = self.minimize_scalar(f)
             if res_.success:
                 bs.append(res_.x) 
 
@@ -274,11 +285,17 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         if allele == 'alt':
             counts_a = counts_a[:, (1, 0, 2)]; counts_b = counts_b[:, (1, 0, 2)]; counts = counts[:, (1, 0, 2)]
         try:
+            global globalk
+            if snv == ('chr12', 14882146):
+                globalk = True
             a_r, a_var = model.fit(counts_a, params[allele], sandwich=robust_se, n_bootstrap=n_bootstrap)
+            a_var = np.clip(a_var, 0.0, np.inf)
             a_p = a_r.x
             b_r, b_var = model.fit(counts_b, params[allele], sandwich=robust_se, n_bootstrap=n_bootstrap)
+            b_var = np.clip(b_var, 0.0, np.inf)
             b_p = b_r.x
-            correct = (a_var >= 0) & (b_var >= 0) & np.isfinite(a_var) & np.isfinite(b_var)
+            correct = (a_var >= 0) & (b_var >= 0) & (a_var + b_var > 0) & np.isfinite(a_var) & np.isfinite(b_var)
+            globalk = False
             if logit_transform:
                 a_p, a_var = transform_p(a_p, a_var)
                 b_p, b_var = transform_p(b_p, b_var)
