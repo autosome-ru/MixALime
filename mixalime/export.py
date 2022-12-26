@@ -107,9 +107,9 @@ def export_pvalues(project, out: str):
     res = defaultdict(lambda: defaultdict(list))
     
     for (chr, pos), its in snvs.items():
-        bad, name, ref, alt = its[0]
+        name, ref, alt = its[0]
         end = pos + 1
-        for filename_id, ref_count, alt_count in its[1:]:
+        for filename_id, ref_count, alt_count, bad in its[1:]:
             d = res[scorefiles[filename_id]]
             d['#chr'].append(chr)
             d['start'].append(pos)
@@ -161,7 +161,7 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
             (pval_ref, pval_alt), (es_ref, es_alt), (fdr_ref, fdr_alt) = comb[(chr, pos)]
         except KeyError:
             continue
-        bad, name, ref, alt = its[0]
+        name, ref, alt = its[0]
         end = pos + 1
         ref_counts = list()
         alt_counts = list()
@@ -170,21 +170,27 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
         alt_pvals = list()
         ref_eses = list()
         alt_eses = list()
-        for filename_id, ref_count, alt_count in its[1:]:
+        bads = list()
+        for filename_id, ref_count, alt_count, bad in its[1:]:
             scores_f.append(scorefiles[filename_id])
             ref_counts.append(str(ref_count)); alt_counts.append(str(alt_count))
             (pval_r, es_r) = test['ref'][bad][(ref_count, alt_count)]
             (pval_a, es_a) = test['alt'][bad][(ref_count, alt_count)]
             ref_pvals.append(str(pval_r)); alt_pvals.append(str(pval_a))
             ref_eses.append(str(es_r)); alt_eses.append(str(es_a))
+            bads.append(bad)
+        mean_bad = sum(bads) / len(bads)
+        bads = ','.join(map(str, bads))
         ref_counts = ','.join(ref_counts);alt_counts = ','.join(alt_counts)
         ref_pvals = ','.join(ref_pvals); alt_pvals = ','.join(alt_pvals)
         ref_eses = ','.join(ref_eses); alt_eses = ','.join(alt_eses)
         n = len(scores_f)
         scores_f = ','.join(scores_f)
-        d['#chr'].append(chr); d['start'].append(pos); d['end'].append(end); d['bad'].append(bad); d['id'].append(name)
+        d['#chr'].append(chr); d['start'].append(pos); d['end'].append(end); d['mean_bad'].append(mean_bad); d['id'].append(name)
         d['ref'].append(ref); d['alt'].append(alt); d['n_reps'].append(n);
+        
         if rep_info:
+            d['bads'].append(bads)
             d['scorefiles'].append(scores_f)
             d['ref_counts'].append(ref_counts); d['alt_counts'].append(alt_counts); d['ref_es'].append(ref_eses); d['alt_es'].append(alt_eses)
             d['ref_pval'].append(ref_pvals); d['alt_pval'].append(alt_pvals); 
@@ -216,33 +222,36 @@ def export_difftests(project, out: str,  rep_info=False, subname=None):
     tests = diff['tests']
     snvs_a, snvs_b = diff['snvs']
     chrom = list(); start = list(); end = list(); name = list(); bad = list(); ref = list(); alt = list()
-    if rep_info:
-        a_ref_counts = list(); b_ref_counts = list()
-        a_alt_counts = list(); b_alt_counts = list()
+    a_ref_counts = list(); b_ref_counts = list()
+    a_alt_counts = list(); b_alt_counts = list()
     for ind in tests['ind']:
-        b, n, r, a = snvs_a[ind][0]
-        chrom.append(ind[0]); start.append(ind[1]); end.append(start[-1] + 1); bad.append(b); name.append(n);
+        t = snvs_a[ind]
+        n, r, a = t[0]
+        chrom.append(ind[0]); start.append(ind[1]); end.append(start[-1] + 1); name.append(n)
         ref.append(r); alt.append(a)
-        if rep_info:
-            a_ref_count = list(); b_ref_count = list()
-            a_alt_count = list(); b_alt_count = list()
-            for _, r, a in snvs_a[ind][1:]:
-                a_ref_count.append(str(r))
-                a_alt_count.append(str(a))
-            for _, r, a in snvs_b[ind][1:]:
-                b_ref_count.append(str(r))
-                b_alt_count.append(str(a))
-            a_ref_counts.append(','.join(a_ref_count))
-            b_ref_counts.append(','.join(b_ref_count))
-            a_alt_counts.append(','.join(a_alt_count))
-            b_alt_counts.append(','.join(b_alt_count))
+        a_ref_count = list(); b_ref_count = list()
+        a_alt_count = list(); b_alt_count = list()
+        bads = list()
+        for _, r, a, b in snvs_a[ind][1:]:
+            a_ref_count.append(str(r))
+            a_alt_count.append(str(a))
+            bads.append(b)
+        for _, r, a, b in snvs_b[ind][1:]:
+            b_ref_count.append(str(r))
+            b_alt_count.append(str(a))
+            bads.append(b)
+        bad.append(sum(bads) / len(bads))
+        a_ref_counts.append(','.join(a_ref_count))
+        b_ref_counts.append(','.join(b_ref_count))
+        a_alt_counts.append(','.join(a_alt_count))
+        b_alt_counts.append(','.join(b_alt_count))
     diff = tests.drop('ind', axis=1)
     if rep_info:
-        df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'bad': bad, 'id': name, 'ref': ref, 'alt': alt,
+        df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'mean_bad': bad, 'id': name, 'ref': ref, 'alt': alt,
                            'a_ref_counts': a_ref_counts, 'a_alt_counts': a_alt_counts, 
                            'b_ref_counts': b_ref_counts, 'b_alt_counts': b_alt_counts})
     else:
-        df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'bad': bad, 'id': name, 'ref': ref, 'alt': alt })
+        df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'mean_bad': bad, 'id': name, 'ref': ref, 'alt': alt })
     diff = pd.concat([df, diff], axis=1)
     t = diff['ref_pval'] < diff['alt_pval']
     mins = ['ref' if v else 'alt' for v in t]

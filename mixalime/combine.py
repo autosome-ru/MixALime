@@ -46,15 +46,15 @@ def combine_es(es, pvalues):
 
 def combine_stats(t, stats, groups, min_cnt_sum=20):
     k, lt = t
-    bad = lt[0][0]
+    # bad = lt[0][0]
     lt = lt[1:]
     if groups:
         lt = filter(lambda x: x[0] in groups, lt)
     lt = [t[1:] for t in lt]
     if not lt or max(sum(t) for t in lt) < min_cnt_sum:
         return (np.nan, np.nan), (np.nan, np.nan), None
-    ref_pvals, ref_es = zip(*[stats['ref'][bad][t] for t in lt])
-    alt_pvals, alt_es = zip(*[stats['alt'][bad][t] for t in lt])
+    ref_pvals, ref_es = zip(*[stats['ref'][t[-1]][t[:-1]] for t in lt])
+    alt_pvals, alt_es = zip(*[stats['alt'][t[-1]][t[:-1]] for t in lt])
     ref = combine_p_values_logit(ref_pvals)
     alt = combine_p_values_logit(alt_pvals)
     ref_es = combine_es(ref_es, ref_pvals)

@@ -77,7 +77,7 @@ class Model():
         res = np.append(res, c.reshape(-1, 1), axis=1)
         return res
     
-    def minimize_scalar(self, f, xatol=1e-8, steps=10):
+    def minimize_scalar(self, f, xatol=1e-11, steps=10):
         if steps:
             ps = list(np.linspace(0.0001, 0.9999, steps))
             i = np.argmin(list(map(f, ps))) + 1
@@ -155,10 +155,9 @@ def get_snvs_for_group(snvs: dict, group: set, min_samples: int = 0, min_cover :
 def build_count_table(snvs: dict):
     count = defaultdict(lambda: defaultdict(int))
     for lt in snvs.values():
-        bad = lt[0][0]
-        c = count[bad]
-        for t in lt[1:]:
-            c[tuple(t[1:])] += 1
+        lt = lt[1:]
+        for t in lt:
+            count[t[-1]][tuple(t[1:-1])] += 1
     return count
 
 def count_dict_to_numpy(counts: dict):
@@ -285,17 +284,17 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         if allele == 'alt':
             counts_a = counts_a[:, (1, 0, 2)]; counts_b = counts_b[:, (1, 0, 2)]; counts = counts[:, (1, 0, 2)]
         try:
-            global globalk
-            if snv == ('chr12', 14882146):
-                globalk = True
             a_r, a_var = model.fit(counts_a, params[allele], sandwich=robust_se, n_bootstrap=n_bootstrap)
             a_var = np.clip(a_var, 0.0, np.inf)
+            if (1.0 - a_r.x) ** 2 < a_var:
+                a_var = (1.0 - a_r.x) ** 2
             a_p = a_r.x
             b_r, b_var = model.fit(counts_b, params[allele], sandwich=robust_se, n_bootstrap=n_bootstrap)
             b_var = np.clip(b_var, 0.0, np.inf)
+            if (1.0 - b_r.x) < b_var ** 0.5:
+                b_var = (1.0 - b_r.x) ** 2
             b_p = b_r.x
-            correct = (a_var >= 0) & (b_var >= 0) & (a_var + b_var > 0) & np.isfinite(a_var) & np.isfinite(b_var)
-            globalk = False
+            correct = (a_var + b_var > 0) & np.isfinite(a_var) & np.isfinite(b_var)
             if logit_transform:
                 a_p, a_var = transform_p(a_p, a_var)
                 b_p, b_var = transform_p(b_p, b_var)
@@ -317,6 +316,12 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         res.append((pval, a_p, b_p, a_var ** 0.5, b_var ** 0.5))
     n_a, n_b = counts_a[:, -1].sum(), counts_b[:, -1].sum()
     return res, (snv, n_a, n_b)
+
+def _bad_in(t, bad):
+    for t in t[1:]:
+        if t[-1] == bad:
+            return True
+    return False
         
 def differential_test(name: str, group_a: List[str], group_b: List[str], mode='wald', min_samples=2, min_cover=0,
                       max_cover=np.inf, skip_failures=True, group_test=True, alpha=0.05, max_cover_group_test=None,
@@ -383,7 +388,7 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
         df_whole = pd.DataFrame([list(whole_ref) + list(whole_alt)], columns=cols)
     
     counts = [(snv, *[c[bad] for c in build_count_tables({snv: snvs_a[snv]}, {snv: snvs_b[snv]})])
-              for snv, it in snvs_a.items() if it[0][0] == bad] 
+              for snv, it in snvs_a.items() if _bad_in(it, bad)] 
     max_sz = max(c[-1].shape[0] for c in counts)
     f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz)
     chunk_size = len(counts) // n_jobs

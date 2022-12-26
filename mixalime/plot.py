@@ -148,9 +148,10 @@ def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
                 figsize=(6, 6), dpi=200, inv=False, diag=False, name=None, spline=False):
     params_ref = dictify_params(params_ref)
     params_alt = dictify_params(params_alt)
+    # min_cnt = min(int(k[2:]) for k in params_ref if k.startswith('mu') and k[2].isdigit())    
     x = np.arange(0, max_count)
-    pref = np.array([get_params_at_slice(params_ref, i, clip_at_max_slice=False).get(param, np.nan) for i in x])
-    palt = np.array([get_params_at_slice(params_alt, i, clip_at_max_slice=False).get(param, np.nan) for i in x])
+    pref = np.array([get_params_at_slice(params_ref, i, clip_at_max_slice=False, nan_min=True).get(param, np.nan) for i in x])
+    palt = np.array([get_params_at_slice(params_alt, i, clip_at_max_slice=False, nan_min=True).get(param, np.nan) for i in x])
     if inv:
         pref = 1 / pref
         palt = 1 / palt

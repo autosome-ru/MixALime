@@ -260,6 +260,7 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
             default_bad: float = Option(1.0, help='Those SNVs that are not present in the [cyan]bad_maps[/cyan]/in BED-like file will assume this'
                                                   ' BAD value.'),
             drop_bad: List[float] = Option(None, '--drop-bad', '-d', help='Those BADs and their respective SNVs will be ommited.'),
+            snp_bad_check: bool = Option(True, help='Require SNVs to come from the same BAD.'),
             min_qual: int = Option(10, help='Minimal SNV quality'),
             min_cnt: int = Option(5, help='Minimal allowed number of counts at an allele.'),
             max_cover: int = Option(None, help='Maximal allowed total counts (ref + alt) for an SNV.'),
@@ -284,7 +285,7 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
     _, samples, snvs = create_project(name=name, snvs=files, bad_maps=bad_maps, default_bad=default_bad, drop_bads=drop_bad, min_qual=min_qual,
                                       min_cnt=min_cnt, max_cover=max_cover, filter_db=filter_db, filter_rs=filter_rs, symmetrify=symmetrify,
                                       filter_name=filter_name, filter_chr=filter_chr, compression=compression, count_snvs=True, 
-                                      progress_bar=pretty)
+                                      snp_bad_check=snp_bad_check, progress_bar=pretty)
     rows = list()
     tot_snv = 0
     tot_samples = 0
@@ -307,7 +308,8 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
         print(f'Total SNVs: {tot_snv}, total samples/reps: {tot_samples}')    
     update_history(name, 'create', files=files, bad_maps=bad_maps, default_bad=default_bad, drop_bad=drop_bad, min_qual=min_qual,
                    min_cnt=min_cnt, max_cover=max_cover, filter_db=filter_db, filter_rs=filter_rs, symmetrify=symmetrify,
-                   filter_name=filter_name, filter_chr=filter_chr, compression=compression, expected_result=rows)
+                   filter_name=filter_name, filter_chr=filter_chr, compression=compression, snp_bad_check=snp_bad_check,
+                   expected_result=rows)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')

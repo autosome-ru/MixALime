@@ -86,7 +86,7 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
                  cnt_max_sum=1000, filter_db=True, filter_rs=True, filter_name=None,
                  filter_chr=None, bad_maps=None, default_bad=1.0,
                  drop_bads=None, snps_set=None, sample_counter=0, snps_pos=None,
-                 filename_id=None):
+                 snp_bad_check=True, filename_id=None):
     """
     Transforms a VCF/BED-like file to a pair of mixalime & Pandas friendly meta dictionary and a numeric (ref, alt, num_occurences) aux. numeric table.
 
@@ -126,6 +126,8 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
         A mapping BAD->int counter used to count for total number of data samples. The default is None.
     snps_pos : defaultdict, optional
         A mapping BAD->(chromosome, pos)->list of (filename, ref, alt). The default is None.
+    snp_bad_check : bool, optional
+        Require SNVs to come from the same BAD. The default is True.
     filename_id : int, optional
         If snps_pos is provided, then filename_id is also must be provided, which is an index in a sorted list of scorfiles. The default
         is None.
@@ -144,9 +146,6 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
     drop_bads = list(map(lambda x: round(x, 5), drop_bads))
     if counts is None:
         counts = defaultdict(lambda: defaultdict(int))
-    # table = {'#CHROM': list(), 'START': list(), 'END': list(), 'ID': list(),
-    #          'REF': list(), 'ALT': list(), 'REF_COUNTS': list(), 'ALT_COUNTS': list(),
-    #          'BAD': list()}
     if filter_name is not None:
         filter_name = re.compile(filter_name)
     if filter_chr is not None:
@@ -226,11 +225,11 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
                 if snps_pos is not None:
                     lt = snps_pos[(chrom, start)]
                     if not lt:
-                        lt.append((bad, name, row.ref, ','.join(row.alts)))
+                        lt.append((name, row.ref, ','.join(row.alts)))
                     else:
-                        if lt[0][0] != bad:
-                            raise Exception(f'SNV at {chrom}:{start} comes from at least two different BADs: {bad} and {lt[0][0]}.')
-                    lt.append((filename_id, ref, alt))
+                        if snp_bad_check and lt[1][-1] != bad:
+                            raise Exception(f'SNV at {chrom}:{start} comes from at least two different BADs: {bad} and {lt[1][-1]}.')
+                    lt.append((filename_id, ref, alt, bad))
         if flag and snps_set is not None:
             snps_set[bad].add((chrom, start))
     pysam.set_verbosity(save)
@@ -268,7 +267,8 @@ def create_project(name: str, snvs: list, bad_maps=None, drop_bads=None,
                    compression='lzma', min_qual=10, min_cnt=5,
                    max_cover=1000, filter_db=False, symmetrify=False,
                    filter_rs=False, filter_name=None, filter_chr=None,
-                   default_bad=1.0, count_snvs=False, progress_bar=True):
+                   default_bad=1.0, count_snvs=False, snp_bad_check=True,
+                   progress_bar=True):
     """
     Initialize MixALime projects initial files.
 
@@ -305,6 +305,8 @@ def create_project(name: str, snvs: list, bad_maps=None, drop_bads=None,
     default_bad : float, optional
         The default BAD value which is used if no BAD maps are provided or if the particular SNV is not
         found in those BAD maps. If None, then those SNVs are filtered. The default is 1.0.
+    snp_bad_check : bool, optional
+        Require SNVs to come from the same BAD. The default is True.
     count_snvs : bool, optional
         If True, samples and SNVs are counted and the counts are returned. The default is False.
 
@@ -345,7 +347,7 @@ def create_project(name: str, snvs: list, bad_maps=None, drop_bads=None,
                                    cnt_max_sum=max_cover, filter_db=filter_db, drop_bads=drop_bads,
                                    filter_rs=filter_rs, filter_name=filter_name, filter_chr=filter_chr,
                                    default_bad=default_bad, snps_set=snps_set, sample_counter=sample_counter,
-                                   snps_pos=snps_pos, filename_id=file_count)
+                                   snps_pos=snps_pos, filename_id=file_count, snp_bad_check=snp_bad_check)
         except ValueError:
             logging.warning(f'Incorrect file: {filename}.')
             continue
