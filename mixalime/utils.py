@@ -22,7 +22,7 @@ openers = {'lzma': lzma.open,
 def get_init_file(path: str):
     folder, name = os.path.split(path)
     for file in os.listdir(folder if folder else None):
-        if file.startswith(f'{name}.init.') and file.endswith(tuple(openers.keys())) and os.path.isfile(file):
+        if file.startswith(f'{name}.init.') and file.endswith(tuple(openers.keys())) and os.path.isfile(os.path.join(folder, file)):
             return os.path.join(folder, file)
 
 def get_init_files(path: str):
