@@ -46,7 +46,6 @@ def combine_es(es, pvalues):
 
 def combine_stats(t, stats, groups, min_cnt_sum=20):
     k, lt = t
-    # bad = lt[0][0]
     lt = lt[1:]
     if groups:
         lt = filter(lambda x: x[0] in groups, lt)
@@ -114,12 +113,12 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=N
             comb_names.append(k)
     ref_comb_pvals = np.array(ref_comb_pvals)
     inds = ref_comb_pvals == 0.0
-    if np.any(inds):
-        ref_comb_pvals[inds] = ref_comb_pvals[~inds].min()
+    # if np.any(inds):
+    #     ref_comb_pvals[inds] = ref_comb_pvals[~inds].min()
     alt_comb_pvals = np.array(alt_comb_pvals)
     inds = alt_comb_pvals == 0.0
-    if np.any(inds):
-        alt_comb_pvals[inds] = alt_comb_pvals[~inds].min()
+    # if np.any(inds):
+    #     alt_comb_pvals[inds] = alt_comb_pvals[~inds].min()
     _, ref_fdr_pvals, _, _ = multitest.multipletests(ref_comb_pvals, alpha=alpha, method='fdr_bh')
     _, alt_fdr_pvals, _, _ = multitest.multipletests(alt_comb_pvals, alpha=alpha, method='fdr_bh')
     res = dict()

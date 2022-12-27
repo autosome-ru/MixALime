@@ -4,6 +4,7 @@ from .utils import get_init_file, dictify_params, get_model_creator, openers
 from betanegbinfit.utils import get_params_at_slice
 from multiprocessing import cpu_count, Pool
 from functools import partial
+from gmpy2 import mpfr
 import numpy as np
 import dill
 import os
@@ -54,11 +55,13 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
     else:
         mean_l, mean_r = model.mean(params, return_modes=True)
     for it in zip(*cdfs, counts, w) if iter_w else zip(*cdfs, counts):
+        w = mpfr(w)
         if iter_w:
             w = it[-1]
             mean = w * mean_l + (1 - w) * mean_r
         cdf_l, cdf_r, c = it[:3]
         cdf = w * cdf_l + (1 - w) * cdf_r
+        
         res.append((float(1 - cdf), np.log2(c) - np.log2(mean), ))
     if swap:
         res = {(alt, c): v for c, v in zip(counts, res)}
