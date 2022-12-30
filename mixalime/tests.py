@@ -154,6 +154,7 @@ def binom_test(name: str, w: str, n_jobs=-1):
     left = float('inf')
     for c in counts_d.values():
         left = min(c[:, (0, 1)].min(), left)
+    left -= 1
     for bad in counts_d:
         for allele in ('ref', 'alt'):
             sub_res = dict()
