@@ -35,9 +35,14 @@ def get_init_files(path: str):
             files.append(file)
     return [os.path.join(folder, x) for x in sorted(files, key=lambda x: int(x.split('.')[-2]))]
 
+def dictify_fix(s: str):
+    if type(s) is not str:
+        return s
+    return {a: float(b) for t in s.split(';') for a, b in [t.split('=')]}     
+
 def get_model_creator(**kwargs):
     name = kwargs['name']
-    inst_params = {v: kwargs[v] for v in ('bad',  'left', 'dist', 'estimate_p')}
+    inst_params = {v: kwargs[v] for v in ('bad',  'left', 'dist', 'estimate_p', 'fix_params')}
     if name == 'line':
         inst_params.update({v: kwargs[v] for v in ('left_k', 'start_est', 'apply_weights')})
         m = ModelLine
@@ -55,6 +60,7 @@ def get_model_creator(**kwargs):
         m = ModelLine_
     else:
         raise Exception(f'Unknown model name {name}.')
+    inst_params['fix_params'] = dictify_fix(inst_params['fix_params'])
     return partial(m, **inst_params)
     
 def dictify_params(d: dict, field='ests') -> dict:

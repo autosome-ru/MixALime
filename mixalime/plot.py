@@ -145,16 +145,28 @@ def plot_stat(stats_ref: dict, stats_alt: dict, max_count: int, stat: str, figsi
     plt.ylabel(stat)
 
 def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
-                figsize=(6, 6), dpi=200, inv=False, diag=False, name=None, spline=False):
+                figsize=(6, 6), dpi=200, inv=False, diag=False, name=None, spline=False,
+                std=True):
+    x = np.arange(0, max_count)
+    if std:
+        try:
+            stds_ref = dictify_params(params_ref, 'stds')
+            stds_alt = dictify_params(params_alt, 'stds')
+            sref = np.array([get_params_at_slice(stds_ref, i, clip_at_max_slice=False, nan_min=True, std=True).get(param, np.nan) for i in x]) 
+            salt = np.array([get_params_at_slice(stds_alt, i, clip_at_max_slice=False, nan_min=True, std=True).get(param, np.nan) for i in x])
+        except KeyError:
+            std = False
     params_ref = dictify_params(params_ref)
     params_alt = dictify_params(params_alt)
     # min_cnt = min(int(k[2:]) for k in params_ref if k.startswith('mu') and k[2].isdigit())    
-    x = np.arange(0, max_count)
     pref = np.array([get_params_at_slice(params_ref, i, clip_at_max_slice=False, nan_min=True).get(param, np.nan) for i in x])
     palt = np.array([get_params_at_slice(params_alt, i, clip_at_max_slice=False, nan_min=True).get(param, np.nan) for i in x])
     if inv:
         pref = 1 / pref
         palt = 1 / palt
+        if std:
+            sref *= pref ** 2
+            salt *= palt ** 2
     plt.figure(figsize=figsize, dpi=dpi)
     plt.plot(x, pref, 'o', color=_ref, markersize=_markersize)
     plt.plot(x, palt, 'o', color=_alt, markersize=_markersize)
@@ -166,6 +178,11 @@ def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
         inds = ~np.isnan(palt)
         spline = UnivariateSpline(x[inds], palt[inds], s=0.001, k=4)
         plt.plot(nx, spline(nx), 'y--')
+    if std:
+        sref *= 1.5
+        salt *= 1.5
+        plt.fill_between(x, pref - sref, pref + sref, alpha=0.2, color=_ref)
+        plt.fill_between(x, palt - salt, palt + salt, alpha=0.2, color=_alt)
     if diag:
         plt.axline((1, 1), slope=1, linestyle='dashed', color='k')
     plt.grid(True)
@@ -203,25 +220,34 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
             plt.tight_layout()
             plt.savefig(filename, bbox_inches='tight')
             filename = os.path.join(subfolder, f'r.{fmt}')
-            plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'r', diag=True, dpi=dpi)
-            if show_bad:
-                plt.title(f'BAD = {bad:.2f}')
-            plt.tight_layout()
-            plt.savefig(filename, bbox_inches='tight')
+            try:
+                plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'r', diag=True, dpi=dpi)
+                if show_bad:
+                    plt.title(f'BAD = {bad:.2f}')
+                plt.tight_layout()
+                plt.savefig(filename, bbox_inches='tight')
+            except KeyError:
+                pass
             if dist == 'BetaNB':
                 filename = os.path.join(subfolder, f'k.{fmt}')
-                plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'k', inv=True, name='$1/\kappa$', dpi=dpi)
-                if show_bad:
-                    plt.title(f'BAD = {bad:.2f}')
-                plt.tight_layout()
-                plt.savefig(filename, bbox_inches='tight')
+                try:
+                    plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'k', inv=True, name='$1/\kappa$', dpi=dpi)
+                    if show_bad:
+                        plt.title(f'BAD = {bad:.2f}')
+                    plt.tight_layout()
+                    plt.savefig(filename, bbox_inches='tight')
+                except KeyError:
+                    pass
             if bad != 1:
                 filename = os.path.join(subfolder, f'w.{fmt}')
-                plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'w', dpi=dpi)
-                if show_bad:
-                    plt.title(f'BAD = {bad:.2f}')
-                plt.tight_layout()
-                plt.savefig(filename, bbox_inches='tight')
+                try:
+                    plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'w', dpi=dpi)
+                    if show_bad:
+                        plt.title(f'BAD = {bad:.2f}')
+                    plt.tight_layout()
+                    plt.savefig(filename, bbox_inches='tight')
+                except KeyError:
+                    pass
             filename = os.path.join(subfolder, f'n.{fmt}')
             plot_stat(fits['ref'][bad]['stats'], fits['alt'][bad]['stats'], max_count, 'n', dpi=dpi)
             if show_bad:

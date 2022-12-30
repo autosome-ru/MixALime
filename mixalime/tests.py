@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from .utils import get_init_file, dictify_params, get_model_creator, openers
+from betanegbinfit.distributions import LeftTruncatedBinom
 from betanegbinfit.utils import get_params_at_slice
 from multiprocessing import cpu_count, Pool
 from functools import partial
@@ -69,6 +70,33 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
         res = {(c, alt): v for c, v in zip(counts, res)}
     return res
 
+# def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool):
+#     alt, counts = t
+#     n = counts.sum(axis=1)
+#     res = list()
+#     dist = LeftTruncatedBinom
+#     w = np.array([eval(w) for i in n])
+#     if bad == 1:
+#         pv = np.array(list(map(float, dist.long_sf(counts[:, 0] - 1, n, 0.5, left))))
+#         es = np.log2(counts[:, 0]) - np.log2(list(map(float, dist.long_mean(n, 0.5, left))))
+#     else:
+#         p = 1 / (bad + 1)
+#         cdf1 = dist.long_cdf(counts[:, 0] - 1, )
+    
+#     for it in zip(*cdfs, counts, w) if iter_w else zip(*cdfs, counts):
+#         w = mpfr(w)
+#         if iter_w:
+#             w = it[-1]
+#             mean = w * mean_l + (1 - w) * mean_r
+#         cdf_l, cdf_r, c = it[:3]
+#         cdf = w * cdf_l + (1 - w) * cdf_r
+        
+#         res.append((float(1 - cdf), np.log2(c) - np.log2(mean), ))
+#     if swap:
+#         res = {(alt, c): v for c, v in zip(counts, res)}
+#     else:
+#         res = {(c, alt): v for c, v in zip(counts, res)}
+#     return res
 
 
 def test(name: str, correction: str = None, gof_tr: float = None, n_jobs: int = -1):
@@ -101,6 +129,38 @@ def test(name: str, correction: str = None, gof_tr: float = None, n_jobs: int = 
             with Pool(n_jobs) as p:
                 f = partial(calc_stats, inst_params=inst_params, params=params, gof_tr=gof_tr, correction=correction, swap=swap,
                             max_size=max_size)
+                for r in p.imap_unordered(f, sub_c, chunksize=chunksize):
+                    sub_res.update(r)
+    filename = f'{name}.comb.{compressor}'
+    if os.path.isfile(filename):
+        os.remove(filename)
+    with open(f'{name}.test.{compressor}', 'wb') as f:
+        dill.dump(res, f)
+    return res
+
+
+def binom_test(name: str, w: str, n_jobs=-1):
+    n_jobs = cpu_count() - 1 if n_jobs == -1 else n_jobs
+    filename = get_init_file(name)
+    compressor = filename.split('.')[-1]
+    open = openers[compressor]
+    
+    with open(filename, 'r') as init:
+        counts_d = dill.load(init)['counts']
+    res = dict()
+    for bad in counts_d:
+        for allele in ('ref', 'alt'):
+            sub_res = dict()
+            if allele not in res:
+                res[allele] = dict()
+            res[allele][bad] = sub_res
+            swap = allele != 'ref'        
+            counts = counts_d[bad][:, (1, 0) if swap else (0, 1)]
+            alt = counts[:, 1]
+            sub_c = [(u, counts[alt == u, 0]) for u in np.unique(alt)]
+            chunksize = int(np.ceil(len(sub_c) / n_jobs))
+            with Pool(n_jobs) as p:
+                f = partial(calc_stats_binom, w=w, bad=bad, swap=swap)
                 for r in p.imap_unordered(f, sub_c, chunksize=chunksize):
                     sub_res.update(r)
     filename = f'{name}.comb.{compressor}'

@@ -10,6 +10,20 @@ from itertools import product
 from functools import partial
 from .utils import openers, get_init_file, get_model_creator
 
+def _finalize_fit(model, fit):
+    params_to_save = ('mu', 'b', 'mu_k', 'w')
+    std = fit.get('std', None)
+    for p in params_to_save:
+        for s in model.slices:
+            pn = f'{p}{s}'
+            if pn not in fit:
+                try:
+                    fit[pn] = model.get_param(p, model.prev_res)
+                except KeyError:
+                    continue
+                if std is not None:
+                    std[pn] = 0.0
+                   
 
 def _run(aux: tuple, data: dict, left: int,
          max_count: int, mod: str, dist: str, 
@@ -17,7 +31,8 @@ def _run(aux: tuple, data: dict, left: int,
          apply_weights: bool, window_behavior: str, min_slices: int,
          start_est=True, compute_pdf=False, k_left_bound=1,
          adjusted_loglik=False, adjust_line=False, regul_alpha=0.0, 
-         regul_n=True, regul_slice=True, regul_prior='laplace', use_cpu=False):
+         regul_n=True, regul_slice=True, regul_prior='laplace', std=False, 
+         fix_params=str(), use_cpu=False):
     if use_cpu:
         os.environ["JAX_PLATFORM_NAME"] = 'cpu'
         os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = 'cpu'
@@ -34,9 +49,10 @@ def _run(aux: tuple, data: dict, left: int,
                    'adjust_line': adjust_line, 'start_est': start_est,
                    'apply_weights': apply_weights, 'regul_alpha': regul_alpha,
                    'regul_n': regul_n, 'regul_slice': regul_slice,
-                   'regul_prior': regul_prior}
+                   'regul_prior': regul_prior, 'fix_params': fix_params}
     model = get_model_creator(**inst_params)()
-    fit = model.fit(data, calc_std=True if mod == 'line' else False)
+    fit = model.fit(data, calc_std=std)
+    _finalize_fit(model, fit)
     stds = list()
     ests = list()
     names = list()
@@ -74,7 +90,7 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
         window_behavior='both', min_slices=1, adjust_line=False, k_left_bound=1,
         max_count=np.inf, max_cover=np.inf, apply_weights=False,  start_est=True,
         adjusted_loglik=False, regul_alpha=0.0, regul_n=True, regul_slice=True, 
-        regul_prior='laplace', n_jobs=1):
+        regul_prior='laplace', std=False, fix_params=str(), n_jobs=1):
     """
 
     Parameters
@@ -156,6 +172,8 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
                   regul_n=regul_n,
                   regul_slice=regul_slice,
                   regul_prior=regul_prior,
+                  std=std,
+                  fix_params=fix_params,
                   use_cpu=(n_jobs != 1))
     result = defaultdict(lambda: defaultdict())
     ralt = {True: 'alt', False: 'ref'}

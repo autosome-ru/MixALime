@@ -343,6 +343,12 @@ def _fit(name: str = Argument(..., help='Project name.'),
                                            '[cyan]model[/cyan]=[yellow]window[/yellow].'),
          regul_prior: Prior = Option('laplace', help='Prior distribution used to penalize concentration parameter kappa. Valid only for '
                                                      '[cyan]model[/cyan]=[yellow]window[/yellow].'),
+         std : bool = Option(False, help='Compute standard errors for parameter estimates. Note that it may significantly increase computation'
+                                         ' time.'),
+         fix_params : str = Option(None, help='Parameters that are not estimated, but fixed to a constant float argument instead. This argument '
+                                             'accepts parameters in the form of "[cyan]param_name_1[/cyan]=[cyan]val1[/cyan];'
+                                             '[cyan]param_name_2[/cyan]=[cyan]val2[/cyan]. For instance, one might be interested in the so-called'
+                                             ' conservative scoring "w=1;mu=0;b=1" that is of interest when data is scarce.'),
          adjusted_loglik: bool = Option(False, help='Calculate adjusted loglikelihood alongside other statistics.'),
          n_jobs: int = Option(-1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
          pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
@@ -374,13 +380,15 @@ def _fit(name: str = Argument(..., help='Project name.'),
     fit(name, dist=dist, model=model, left=left, estimate_p=estimate_p, window_size=window_size, 
         window_behavior=window_behavior, min_slices=min_slices, adjust_line=adjust_line, k_left_bound=k_left_bound,
         max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, start_est=start_est,
-        apply_weights=apply_weights, regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior)
+        apply_weights=apply_weights, regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
+        fix_params=fix_params, std=std)
     if pretty:
         p.stop()
     update_history(name, 'fit', dist=dist, model=model, left=left, estimate_p=estimate_p, window_size=window_size, 
                    window_behavior=window_behavior, min_slices=min_slices, adjust_line=adjust_line, k_left_bound=k_left_bound,
                    max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, 
-                   regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior)
+                   regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
+                   fix_params=fix_params, std=std)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')

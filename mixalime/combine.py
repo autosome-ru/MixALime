@@ -100,10 +100,11 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=N
         its = list(filter(lambda x: x[1][0][1] and filter_id.match(x[1][0][1]), its))
     if filter_chr:
         its = list(filter(lambda x: filter_chr.match(x[0]), its))
+    f = partial(combine_stats, stats=stats, groups=groups, min_cnt_sum=min_cnt_sum)
     with Pool(n_jobs) as p:
         sz = len(its) // n_jobs
         f = partial(combine_stats, stats=stats, groups=groups, min_cnt_sum=min_cnt_sum)
-        for (ref, alt), (ref_es, alt_es), k in p.imap_unordered(f, its, chunksize=sz):
+        for (ref, alt), (ref_es, alt_es), k in p.imap(f, its, chunksize=sz):
             if k is None:
                 continue
             ref_comb_pvals.append(ref)
@@ -113,12 +114,12 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=N
             comb_names.append(k)
     ref_comb_pvals = np.array(ref_comb_pvals)
     inds = ref_comb_pvals == 0.0
-    # if np.any(inds):
-    #     ref_comb_pvals[inds] = ref_comb_pvals[~inds].min()
+    if np.any(inds):
+        ref_comb_pvals[inds] = ref_comb_pvals[~inds].min()
     alt_comb_pvals = np.array(alt_comb_pvals)
     inds = alt_comb_pvals == 0.0
-    # if np.any(inds):
-    #     alt_comb_pvals[inds] = alt_comb_pvals[~inds].min()
+    if np.any(inds):
+        alt_comb_pvals[inds] = alt_comb_pvals[~inds].min()
     _, ref_fdr_pvals, _, _ = multitest.multipletests(ref_comb_pvals, alpha=alpha, method='fdr_bh')
     _, alt_fdr_pvals, _, _ = multitest.multipletests(alt_comb_pvals, alpha=alpha, method='fdr_bh')
     res = dict()

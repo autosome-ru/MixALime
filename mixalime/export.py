@@ -29,7 +29,10 @@ def export_counts(project, out: str, bad: float = None):
 
 def _export_params(fit, out: str, allele: str, bad: float):
     df = pd.DataFrame(fit[allele][bad]['params'])
-    df.columns = ['Name', 'Estimate']
+    if len(df.columns) > 2:
+        df.columns = ['Name', 'Estimate', 'Std']
+    else:
+        df.columns = ['Name', 'Estimate']
     df.to_csv(out, sep='\t', index=None)
 
 def export_params(project, out: str, bad: float = None, allele: str = None):
