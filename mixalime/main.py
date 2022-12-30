@@ -14,7 +14,7 @@ from rich.table import Table
 from .diff import differential_test
 from .create import create_project
 from .combine import combine
-from .tests import test
+from .tests import test, binom_test
 from pathlib import Path
 from .fit import fit
 from time import time
@@ -88,14 +88,14 @@ def update_history(name: str, command: str, **kwargs):
         d['dill'] = dill_version
         d['name'] = name
     elif command == 'fit':
-        for k in ('test', 'difftest', 'combine', 'export', 'plot'):
+        for k in ('test', 'test_binom', 'difftest', 'combine', 'export', 'plot'):
             if k in d:
                 del d[k]
         for k in list(d):
             if k.startswith('export'):
                 del d[k]
-    elif command == 'test':
-        for k in ('test', 'combine', 'export', 'export pvalues', 'export raw_pvalues'):
+    elif command.startswith('test'):
+        for k in ('test', 'test_binom', 'combine', 'export', 'export pvalues', 'export raw_pvalues'):
             if k in d:
                 del d[k]
     elif command == 'combine':
@@ -167,6 +167,8 @@ def reproduce(filename: str, pretty: bool = True, check_results: bool = True):
             r = _fit(name, **args)
         elif command == 'test':
             r = _test(name, **args)
+        elif command == 'test_binom':
+            r = _test_binom(name, **args)
         elif command.startswith('combine'):
             lt = command.split()
             if len(lt) != 1:
@@ -425,7 +427,6 @@ def _test(name: str = Argument(..., help='Project name.'),
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
     else:
         print(f'✔️ Done!\t time: {dt:.2f} s.')
-        
 
 @app.command('combine')
 def _combine(name: str = Argument(..., help='Project name.'),
@@ -754,6 +755,31 @@ def _plot_all(name: str = Argument(..., help='Project name.'), out: Path = Argum
     if pretty:
         p.stop()
     update_history(name, 'plot', out=out, max_count=max_count, slices=slices, bad=bad, show_bad=show_bad, fmt=fmt, dpi=dpi)
+    dt = time() - t0
+    if pretty:
+        rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
+    else:
+        print(f'✔️ Done!\t time: {dt:.2f} s.')
+
+@app.command('test_binom')
+def _test_binom(name: str = Argument(..., help='Project name.'),
+          w: str = Option('1', help='Right mode weight. It can be a formulae that uses both "n" and "bad".'),
+          n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
+          pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
+    """
+    Calculate p-values with a non-bias adjusted left truncated binomial model.
+    """
+    t0 = time()
+    if pretty:
+        p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
+        p.add_task(description="Comptuing p-values and effect sizes...", total=None)
+        p.start()
+    else:
+        print('Computing p-values and effect sizes...')
+    binom_test(name, w=w, n_jobs=n_jobs)
+    if pretty:
+        p.stop()
+    update_history(name, 'binom_test', w=w, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')

@@ -70,33 +70,36 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
         res = {(c, alt): v for c, v in zip(counts, res)}
     return res
 
-# def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool):
-#     alt, counts = t
-#     n = counts.sum(axis=1)
-#     res = list()
-#     dist = LeftTruncatedBinom
-#     w = np.array([eval(w) for i in n])
-#     if bad == 1:
-#         pv = np.array(list(map(float, dist.long_sf(counts[:, 0] - 1, n, 0.5, left))))
-#         es = np.log2(counts[:, 0]) - np.log2(list(map(float, dist.long_mean(n, 0.5, left))))
-#     else:
-#         p = 1 / (bad + 1)
-#         cdf1 = dist.long_cdf(counts[:, 0] - 1, )
-    
-#     for it in zip(*cdfs, counts, w) if iter_w else zip(*cdfs, counts):
-#         w = mpfr(w)
-#         if iter_w:
-#             w = it[-1]
-#             mean = w * mean_l + (1 - w) * mean_r
-#         cdf_l, cdf_r, c = it[:3]
-#         cdf = w * cdf_l + (1 - w) * cdf_r
-        
-#         res.append((float(1 - cdf), np.log2(c) - np.log2(mean), ))
-#     if swap:
-#         res = {(alt, c): v for c, v in zip(counts, res)}
-#     else:
-#         res = {(c, alt): v for c, v in zip(counts, res)}
-#     return res
+def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool):
+    alt, counts = t
+    n = counts + alt
+    res = list()
+    dist = LeftTruncatedBinom
+    if bad == 1:
+        pv = np.array(list(map(float, dist.long_sf(counts - 1, n, 0.5, left))))
+        es = np.log2(counts) - np.log2(list(map(float, dist.mean(n, 0.5, left))))
+        for pv, es in zip(pv, es):
+            res.append((pv, es))
+    else:
+        tw = w
+        p = bad / (bad + 1)
+        cdf1 = dist.long_cdf(counts - 1, n, p, left)
+        cdf2 = dist.long_cdf(counts - 1, n, 1 - p, left)
+        mean_l = dist.mean(n, p, left)
+        mean_r = dist.mean(n, 1 - p, left)
+        # print(alt, counts, n)
+        for cdf_l, cdf_r,  mean_r, mean_l, c, n in zip(cdf1, cdf2, mean_l, mean_r, counts, n):
+            w = float(eval(tw))
+            mean = w * mean_l + (1 - w) * mean_r
+            cdf = w * cdf_l + (1 - w) * cdf_r
+            mean = w * mean_l + (1 - w) * mean_r
+            res.append((float(1 - cdf), np.log2(c) - np.log2(mean), ))
+            
+    if swap:
+        res = {(alt, c): v for c, v in zip(counts, res)}
+    else:
+        res = {(c, alt): v for c, v in zip(counts, res)}
+    return res
 
 
 def test(name: str, correction: str = None, gof_tr: float = None, n_jobs: int = -1):
@@ -148,6 +151,9 @@ def binom_test(name: str, w: str, n_jobs=-1):
     with open(filename, 'r') as init:
         counts_d = dill.load(init)['counts']
     res = dict()
+    left = float('inf')
+    for c in counts_d.values():
+        left = min(c[:, (0, 1)].min(), left)
     for bad in counts_d:
         for allele in ('ref', 'alt'):
             sub_res = dict()
@@ -155,12 +161,12 @@ def binom_test(name: str, w: str, n_jobs=-1):
                 res[allele] = dict()
             res[allele][bad] = sub_res
             swap = allele != 'ref'        
-            counts = counts_d[bad][:, (1, 0) if swap else (0, 1)]
+            counts = counts_d[bad][:, (1, 0) if swap else (0, 1)].copy()
             alt = counts[:, 1]
             sub_c = [(u, counts[alt == u, 0]) for u in np.unique(alt)]
             chunksize = int(np.ceil(len(sub_c) / n_jobs))
             with Pool(n_jobs) as p:
-                f = partial(calc_stats_binom, w=w, bad=bad, swap=swap)
+                f = partial(calc_stats_binom, w=w, bad=bad, left=left, swap=swap)
                 for r in p.imap_unordered(f, sub_c, chunksize=chunksize):
                     sub_res.update(r)
     filename = f'{name}.comb.{compressor}'
