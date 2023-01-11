@@ -56,10 +56,11 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
     else:
         mean_l, mean_r = model.mean(params, return_modes=True)
     for it in zip(*cdfs, counts, w) if iter_w else zip(*cdfs, counts):
-        w = mpfr(w)
         if iter_w:
             w = it[-1]
             mean = w * mean_l + (1 - w) * mean_r
+        else:
+            w = mpfr(w)
         cdf_l, cdf_r, c = it[:3]
         cdf = w * cdf_l + (1 - w) * cdf_r
         
@@ -132,7 +133,7 @@ def test(name: str, correction: str = None, gof_tr: float = None, n_jobs: int = 
             with Pool(n_jobs) as p:
                 f = partial(calc_stats, inst_params=inst_params, params=params, gof_tr=gof_tr, correction=correction, swap=swap,
                             max_size=max_size)
-                for r in p.imap_unordered(f, sub_c, chunksize=chunksize):
+                for r in map(f, sub_c):#p.imap_unordered(f, sub_c, chunksize=chunksize):
                     sub_res.update(r)
     filename = f'{name}.comb.{compressor}'
     if os.path.isfile(filename):

@@ -458,7 +458,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
     else:
         subname = None
     r = combine(name, group_files=group, alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
-                subname=subname, min_cnt_sum=min_cover, n_jobs=n_jobs)[subname]
+                subname=subname, min_cnt_sum=min_cover, n_jobs=n_jobs)[subname]['snvs']
     if pretty:
         p.stop()
     ref = alt = both = total = 0

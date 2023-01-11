@@ -128,6 +128,7 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=N
         res[comb_names[i]] = ((ref_comb_pvals[i], alt_comb_pvals[i]), 
                               (ref_comb_es[i], alt_comb_es[i]),
                               (ref_fdr_pvals[i], alt_fdr_pvals[i]))
+    res = {'groups': groups, 'snvs': res}
     res = {subname: res}
     if os.path.isfile(f'{name}.comb.{compressor}'):
         with open(f'{name}.comb.{compressor}', 'rb') as f:

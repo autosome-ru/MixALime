@@ -210,15 +210,6 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
             alt = a * ac + b * bc
             if ref >= min_cnt and alt >= min_cnt and (ref + alt < cnt_max_sum):
                 counts[bad][(ref, alt)] += 1
-                # table['#CHROM'].append(chrom)
-                # table['ID'].append(name)
-                # table['START'].append(start)
-                # table['END'].append(end)
-                # table['REF'].append(row.ref)
-                # table['ALT'].append(','.join(row.alts))
-                # table['REF_COUNTS'].append(ref)
-                # table['ALT_COUNTS'].append(alt)
-                # table['BAD'].append(bad)
                 flag = True
                 if sample_counter is not None:
                     sample_counter[bad] += 1

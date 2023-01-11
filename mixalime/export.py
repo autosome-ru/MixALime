@@ -155,6 +155,8 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
     else:
         snvs, test, comb = project
     comb = comb[subname]
+    groups = comb['groups']
+    comb = comb['snvs']
     scorefiles = snvs['scorefiles']
     snvs = snvs['snvs']  
     d = defaultdict(list)
@@ -175,6 +177,8 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
         alt_eses = list()
         bads = list()
         for filename_id, ref_count, alt_count, bad in its[1:]:
+            if groups and filename_id not in groups:
+                continue
             scores_f.append(scorefiles[filename_id])
             ref_counts.append(str(ref_count)); alt_counts.append(str(alt_count))
             (pval_r, es_r) = test['ref'][bad][(ref_count, alt_count)]
@@ -204,7 +208,7 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
             min_allele = 'ref'; fdr = fdr_ref; es = es_ref; pval = pval_ref
         else:
             min_allele = 'alt'; fdr = fdr_alt; es = es_alt; pval = pval_alt
-        d['min_allele'].append(min_allele)
+        d['pref_allele'].append(min_allele)
         d['comb_es'].append(es); d['comb_pval'].append(pval); d['fdr_comb_pval'].append(fdr)
         
     folder, _ = os.path.split(out)
@@ -258,7 +262,7 @@ def export_difftests(project, out: str,  rep_info=False, subname=None):
     diff = pd.concat([df, diff], axis=1)
     t = diff['ref_pval'] < diff['alt_pval']
     mins = ['ref' if v else 'alt' for v in t]
-    diff['min_allele'] = mins
+    diff['pref_allele'] = mins
     diff['pval'] = 1
     diff.loc[t, 'pval'] = diff.loc[t, 'ref_pval']
     diff.loc[~t, 'pval'] = diff.loc[~t, 'alt_pval']
