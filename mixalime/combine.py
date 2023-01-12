@@ -49,8 +49,8 @@ def combine_stats(t, stats, groups, min_cnt_sum=20):
     lt = lt[1:]
     if groups:
         lt = filter(lambda x: x[0] in groups, lt)
-    lt = [t[1:-1] for t in lt]
-    if not lt or max(sum(t) for t in lt) < min_cnt_sum:
+    lt = [t[1:] for t in lt]
+    if not lt or max(sum(t[:-1]) for t in lt) < min_cnt_sum:
         return (np.nan, np.nan), (np.nan, np.nan), None
     ref_pvals, ref_es = zip(*[stats['ref'][t[-1]][t[:-1]] for t in lt])
     alt_pvals, alt_es = zip(*[stats['alt'][t[-1]][t[:-1]] for t in lt])
