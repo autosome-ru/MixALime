@@ -297,6 +297,11 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
         rows.append(['{:.2f}'.format(bad), str(a), str(b)])
         tot_snv += a
         tot_samples += b
+    if 0 in samples:
+        if pretty:
+            rprint('[yellow]Warning:[/yellow] BAD=0 is present in the data. Please remove BAD=0 occurrences or substitute them with BAD=1.')
+        else:
+            print('Warning: BAD=0 is present in the data. Please remove BAD=0 occurrences or substitute them with BAD=1.')
     rows = rows
     if pretty:
         table = Table('BAD', 'SNVs', 'Samples/reps')
