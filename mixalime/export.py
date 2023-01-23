@@ -93,6 +93,8 @@ def get_name(name: str):
     for i, c in enumerate(s[::-1]):
         if c not in ('gz', 'vcf', 'bam', 'tsv', 'csv', 'zip', 'lzma', 'bz2', 'bed'):
             break
+    if not i:
+        return name
     return '.'.join(s[:-i])
 
 def export_pvalues(project, out: str):
