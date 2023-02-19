@@ -404,6 +404,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
 
 @app.command('test')
 def _test(name: str = Argument(..., help='Project name.'),
+          fit: str = Option(None, help='Path to a fit file from a different project. If not provided, fit from the same project is used.'),
           correction: Correction = Option(Correction.none.value, help='Posterior weight correction method. It effectively helps to choose'
                                                                       ' a particular component of a distribution for further tests, neglecting '
                                                                       ' an impact of more distant component.'),
@@ -423,10 +424,10 @@ def _test(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Computing p-values and effect sizes...')
-    test(name, correction=correction, gof_tr=gof_tr, n_jobs=n_jobs)
+    test(name, correction=correction, gof_tr=gof_tr, fit=fit, n_jobs=n_jobs)
     if pretty:
         p.stop()
-    update_history(name, 'test', correction=correction, gof_tr=gof_tr, n_jobs=n_jobs)
+    update_history(name, 'test', correction=correction, gof_tr=gof_tr, fit=fit, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
@@ -496,6 +497,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
 
 @app.command('difftest')
 def _difftest(name: str = Argument(..., help='Project name.'),
+              fit: str = Option(None, help='Path to a fit file from a different project. If not provided, fit from the same project is used.'),
               group_a: Path = Argument(..., help='A file with a list of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
                                                  'prefix, e.g. "m:vcfs/*_M_*.vcf.gz") for the first group.'),
               group_b: Path = Argument(..., help='A file with a list of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
@@ -550,7 +552,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
                           max_cover=max_cover, group_test=group_test, subname=subname,  filter_id=filter_id,
                           max_cover_group_test=max_cover_group_test, filter_chr=filter_chr, alpha=alpha, n_jobs=n_jobs,
                           param_mode='window' if param_window else 'line', logit_transform=logit_transform,
-                          robust_se=robust_se, contrasts=contrasts, n_bootstrap=n_bootstrap)[subname]
+                          robust_se=robust_se, contrasts=contrasts, n_bootstrap=n_bootstrap, fit=fit)[subname]
     if pretty:
         p.stop()
     if group_test:
@@ -584,7 +586,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
                    mode=mode, subname=subname, group_test=group_test, max_cover=max_cover, filter_id=filter_id,
                    filter_chr=filter_chr, max_cover_group_test=max_cover_group_test, n_jobs=n_jobs,
                    param_window=param_window, logit_transform=logit_transform, robust_se=robust_se,
-                   contrasts=contrasts, n_bootstrap=n_bootstrap, expected_result=expected_res)
+                   contrasts=contrasts, n_bootstrap=n_bootstrap, expected_result=expected_res, fit=fit)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')

@@ -103,13 +103,13 @@ def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool):
     return res
 
 
-def test(name: str, correction: str = None, gof_tr: float = None, n_jobs: int = -1):
+def test(name: str, correction: str = None, gof_tr: float = None, fit: str = None, n_jobs: int = -1):
     n_jobs = cpu_count() - 1 if n_jobs == -1 else n_jobs
     filename = get_init_file(name)
     compressor = filename.split('.')[-1]
     open = openers[compressor]
-    
-    with open(f'{name}.fit.{compressor}', 'rb') as fit,  open(filename, 'r') as init:
+    fit = fit if fit else f'{name}.fit.{compressor}'
+    with open(fit, 'rb') as fit,  open(filename, 'r') as init:
         fit = dill.load(fit)
         counts_d = dill.load(init)['counts']
     del init

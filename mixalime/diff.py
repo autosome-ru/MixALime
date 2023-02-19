@@ -326,7 +326,7 @@ def _bad_in(t, bad):
 def differential_test(name: str, group_a: List[str], group_b: List[str], mode='wald', min_samples=2, min_cover=0,
                       max_cover=np.inf, skip_failures=True, group_test=True, alpha=0.05, max_cover_group_test=None,
                       filter_chr=None, filter_id=None, contrasts=(1, -1, 0), subname=None, param_mode='window',
-                      logit_transform=False, robust_se=True, n_bootstrap=0, n_jobs=-1):
+                      logit_transform=False, robust_se=True, n_bootstrap=0, fit: str = None, n_jobs=-1):
     if max_cover is None:
         max_cover = np.inf
     if min_cover is None:
@@ -359,7 +359,8 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
         snvs = set(filter(lambda x: filter_chr.match(x[0]), snvs))
     snvs_a = {k: snvs_a[k] for k in snvs}
     snvs_b = {k: snvs_b[k] for k in snvs}
-    with open(f'{name}.fit.{compressor}', 'rb') as f:
+    fit = fit if fit else f'{name}.fit.{compressor}'
+    with open(fit, 'rb') as f:
         fits = dill.load(f)
     if group_test:
         _counts_a, _counts_b, _counts = build_count_tables(snvs_a, snvs_b)

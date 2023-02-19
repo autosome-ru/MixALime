@@ -97,6 +97,19 @@ def get_name(name: str):
         return name
     return '.'.join(s[:-i])
 
+def shorten_filenames(filenames: list):
+    its = [f.split('/') for f in filenames]
+    i = 0
+    for folders in zip(*its):
+        for t in folders[1:]:
+            if folders[0] != t:
+                break
+        if t != folders[0]:
+            break
+        i += 1
+    return ['/'.join(t[i:]) for t in its]
+    
+
 def export_pvalues(project, out: str):
     if type(project) is str:
         file = get_init_file(project)
@@ -107,7 +120,7 @@ def export_pvalues(project, out: str):
             test = dill.load(test)
     else:
         snvs, test = project
-    scorefiles = snvs['scorefiles']
+    scorefiles = shorten_filenames(snvs['scorefiles'])
     snvs = snvs['snvs']  
     res = defaultdict(lambda: defaultdict(list))
     
@@ -139,6 +152,9 @@ def export_pvalues(project, out: str):
                 d['pval'].append(pval_alt)
     for file, d in res.items():
         folder, file = os.path.split(file)
+        if os.name != 'nt' and folder[1:3] in (':/', ':\\'):
+            folder = folder[3:]
+        folder = folder.lstrip('/\\')
         folder = os.path.join(out, folder)
         file = get_name(file) + '.pvalue.tsv'
         file = os.path.join(folder, file)
@@ -159,7 +175,7 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
     comb = comb[subname]
     groups = comb['groups']
     comb = comb['snvs']
-    scorefiles = snvs['scorefiles']
+    scorefiles = shorten_filenames(snvs['scorefiles'])
     snvs = snvs['snvs']  
     d = defaultdict(list)
     
