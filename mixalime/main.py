@@ -41,6 +41,7 @@ class Model(str, Enum):
 class Dist(str, Enum):
     nb = 'NB'
     betanb = 'BetaNB'
+    newdist = 'NewDist'
 
 class WindowBehavior(str, Enum):
     both = 'both'

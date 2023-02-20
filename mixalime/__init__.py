@@ -1,16 +1,16 @@
-__version__ = '2.4.10'
+__version__ = '2.5.0'
 import importlib
 
 __min_reqs__ = [
-            'pip>=22.3',
+            'pip>=23.0',
             'typer>=0.6.1',
             'numpy>=1.23.4',
-            'jax>=0.3.23',
+            'jax>=0.4.2',
             'matplotlib>=3.5.1',
             'pandas>=1.4.1',
             'scipy>=1.9.3',
             'statsmodels>=0.13.2',
-            'betanegbinfit>=1.2.2',
+            'betanegbinfit>=1.3.0',
             'datatable>=1.0.0',
             'dill>=0.3.6',
             'rich>=12.6.0',
