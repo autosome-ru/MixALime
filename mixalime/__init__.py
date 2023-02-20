@@ -1,11 +1,12 @@
-__version__ = '2.5.0'
+__version__ = '2.5.1'
 import importlib
 
 __min_reqs__ = [
             'pip>=23.0',
             'typer>=0.6.1',
             'numpy>=1.23.4',
-            'jax>=0.4.2',
+            'jax>=0.4.4',
+            'jaxlib>=0.4.4',
             'matplotlib>=3.5.1',
             'pandas>=1.4.1',
             'scipy>=1.9.3',
