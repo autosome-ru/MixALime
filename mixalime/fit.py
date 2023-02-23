@@ -151,8 +151,11 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
     if left is None:
         left = -1
     data = {bad : mx[(mx[:, 0] < max_count) & (mx[:, 1] < max_count) & \
-                     (mx[:, 0] > left) & (mx[:, 1] > left) & ((mx[:, 0] + mx[:, 1]) < max_cover), :] 
+                      (mx[:, 0] > left) & (mx[:, 1] > left) & ((mx[:, 0] + mx[:, 1]) < max_cover), :] 
             for bad, mx in data.items()}
+    # data = {bad : mx[(mx[:, 0] < max_count) & (mx[:, 1] < max_count) & \
+    #                   (mx[:, 0] > left) & (mx[:, 1] > left) & ((mx[:, 0] < max_cover) & (mx[:, 1] < max_cover)), :] 
+    #         for bad, mx in data.items()}
     if left == -1:
         left = data[min(data)][:, [0, 1]].min() - 1
     aux = list(product(sorted(data), (False, True)))

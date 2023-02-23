@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from betanegbinfit import ModelMixture, ModelMixtures, ModelLine, ModelWindow
+from betanegbinfit import ModelMixture, ModelMixtures, ModelLine, ModelWindow, ModelWindowRec
 from betanegbinfit.models import ModelLine_
 from functools import partial
 from glob import glob
@@ -50,7 +50,7 @@ def get_model_creator(**kwargs):
         inst_params.update({v: kwargs[v] for v in ('window_size', 'left_k', 'window_behavior', 'min_slices',
                                                    'adjust_line', 'start_est', 'apply_weights', 'regul_alpha',
                                                    'regul_n', 'regul_slice', 'regul_prior')})
-        m = ModelWindow
+        m = ModelWindowRec if 'NewDist' in inst_params['dist'] else ModelWindow
     elif name == 'slices':
         m = ModelMixtures
     elif name == 'slice':
