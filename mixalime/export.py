@@ -2,6 +2,7 @@
 from .utils import get_init_file, openers
 from collections import defaultdict
 import pandas as pd
+import numpy as np
 import tarfile
 import dill
 import os
@@ -249,6 +250,7 @@ def export_difftests(project, out: str,  rep_info=False, subname=None):
     chrom = list(); start = list(); end = list(); name = list(); bad = list(); ref = list(); alt = list()
     a_ref_counts = list(); b_ref_counts = list()
     a_alt_counts = list(); b_alt_counts = list()
+    ref_es_count = list(); alt_es_count = list()
     for ind in tests['ind']:
         t = snvs_a[ind]
         n, r, a = t[0]
@@ -261,10 +263,18 @@ def export_difftests(project, out: str,  rep_info=False, subname=None):
             a_ref_count.append(str(r))
             a_alt_count.append(str(a))
             bads.append(b)
+        t1 = np.array(list(map(int, a_ref_count))); t2 = np.array(list(map(int, a_alt_count)))
+        a_es_ref_alt = np.mean(t1 / t2)
+        a_es_alt_ref = np.mean(t2 / t1)
         for _, r, a, b in snvs_b[ind][1:]:
             b_ref_count.append(str(r))
             b_alt_count.append(str(a))
             bads.append(b)
+        t1 = np.array(list(map(int, b_ref_count))); t2 = np.array(list(map(int, b_alt_count)))
+        b_es_ref_alt = np.mean(t1 / t2)
+        b_es_alt_ref = np.mean(t2 / t1)
+        ref_es_count.append(np.log2(b_es_ref_alt) - np.log2(a_es_ref_alt))
+        alt_es_count.append(np.log2(b_es_alt_ref) - np.log2(a_es_alt_ref))
         bad.append(sum(bads) / len(bads))
         a_ref_counts.append(','.join(a_ref_count))
         b_ref_counts.append(','.join(b_ref_count))
@@ -278,15 +288,23 @@ def export_difftests(project, out: str,  rep_info=False, subname=None):
     else:
         df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'mean_bad': bad, 'id': name, 'ref': ref, 'alt': alt })
     diff = pd.concat([df, diff], axis=1)
+    diff['ref_es_count'] = ref_es_count
+    diff['alt_es_count'] = alt_es_count
+    p_control = diff['ref_p_control']
+    p_test = diff['ref_p_test']
+    diff['ref_es_p'] = np.log2(p_test) - np.log2(p_control)
+    diff['ref_es_logit'] = np.log2(p_test / (1 - p_test)) - np.log2(p_control / ( 1 - p_control))
+    p_control = diff['alt_p_control']
+    p_test = diff['alt_p_test']
+    diff['alt_es_p'] = np.log2(p_test) - np.log2(p_control)
+    diff['alt_es_logit'] = np.log2(p_test / (1 - p_test)) - np.log2(p_control / ( 1 - p_control))
     t = diff['ref_pval'] < diff['alt_pval']
     mins = ['ref' if v else 'alt' for v in t]
     diff['pref_allele'] = mins
-    diff['pval'] = 1
-    diff.loc[t, 'pval'] = diff.loc[t, 'ref_pval']
-    diff.loc[~t, 'pval'] = diff.loc[~t, 'alt_pval']
-    diff['fdr_pval'] = 1
-    diff.loc[t, 'fdr_pval'] = diff.loc[t, 'ref_fdr_pval']
-    diff.loc[~t, 'fdr_pval'] = diff.loc[~t, 'alt_fdr_pval']
+    for col in ['es_count', 'es_p', 'es_logit', 'pval', 'fdr_pval']:
+        diff[col] = 0
+        diff.loc[t, col] = diff.loc[t, f'ref_{col}']
+        diff.loc[~t, col] = diff.loc[~t, f'alt_{col}']
     folder, _ = os.path.split(out)
     if folder:
         os.makedirs(folder, exist_ok=True)

@@ -77,9 +77,9 @@ class Model():
         res = np.append(res, c.reshape(-1, 1), axis=1)
         return res
     
-    def minimize_scalar(self, f, xatol=1e-11, steps=10):
+    def minimize_scalar(self, f, xatol=1e-16, steps=10):
         if steps:
-            ps = list(np.linspace(0.0001, 0.9999, steps))
+            ps = list(np.linspace(0.01, 0.99, steps))
             i = np.argmin(list(map(f, ps))) + 1
             ps = [0.0] + ps + [1.0]
             b = ps[i - 1], ps[i + 1]
@@ -370,13 +370,13 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
               'alt': dictify_params(fits['ref'][bad]['params'])}
     inst_params = fits['ref'][1]['inst_params']
     if mode == 'lrt':
-        cols = ['ref_pval', 'ref_p_ab', 'ref_p_a', 'ref_p_b', 
-                'alt_pval', 'alt_p_ab', 'alt_p_a', 'alt_p_b']
+        cols = ['ref_pval', 'ref_p', 'ref_p_control', 'ref_p_test', 
+                'alt_pval', 'alt_p', 'alt_p_control', 'alt_p_test']
         test_fun = partial(lrt_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
                            param_mode=param_mode, n_bootstrap=n_bootstrap)
     else:
-        cols = ['ref_pval', 'ref_p_a', 'ref_p_b', 'ref_std_a', 'ref_std_b',
-                'alt_pval', 'alt_p_a', 'alt_p_b', 'alt_std_a', 'alt_std_b']
+        cols = ['ref_pval', 'ref_p_control', 'ref_p_test', 'ref_std_control', 'ref_std_test',
+                'alt_pval', 'alt_p_control', 'alt_p_test', 'alt_std_control', 'alt_std_test']
         test_fun = partial(wald_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
                            contrasts=contrasts, param_mode=param_mode, logit_transform=logit_transform,
                            robust_se=robust_se, n_bootstrap=n_bootstrap)
@@ -398,7 +398,7 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
             if r is None:
                 continue
             res.append([*t] + list(r[0]) + list(r[1]))
-    df = pd.DataFrame(res, columns=['ind', 'n_a', 'n_b'] + cols)
+    df = pd.DataFrame(res, columns=['ind', 'n_control', 'n_test'] + cols)
     _, df['ref_fdr_pval'], _, _ = multitest.multipletests(df['ref_pval'], alpha=alpha, method='fdr_bh')
     _, df['alt_fdr_pval'], _, _ = multitest.multipletests(df['alt_pval'], alpha=alpha, method='fdr_bh')
     

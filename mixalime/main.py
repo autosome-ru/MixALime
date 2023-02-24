@@ -499,9 +499,9 @@ def _combine(name: str = Argument(..., help='Project name.'),
 @app.command('difftest')
 def _difftest(name: str = Argument(..., help='Project name.'),
               fit: str = Option(None, help='Path to a fit file from a different project. If not provided, fit from the same project is used.'),
-              group_a: Path = Argument(..., help='A file with a list of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
+              group_control: Path = Argument(..., help='A file with a list of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
                                                  'prefix, e.g. "m:vcfs/*_M_*.vcf.gz") for the first group.'),
-              group_b: Path = Argument(..., help='A file with a list of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
+              group_test: Path = Argument(..., help='A file with a list of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
                                                  'prefix, e.g. "m:vcfs/*_M_*.vcf.gz") for the second group.'),
               mode: DiffTest = Option(DiffTest.wald.value, help='Test method.'),
               param_window: bool = Option(True, help='If disabled, parameters will be taken from a line with respect to the mean window for given'
@@ -512,7 +512,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
                                                 '[yellow]wald[/yellow].'),
               logit_transform: bool = Option(False, help='Apply logit transform to [bold]p[/bold] and its variance with Delta method. Applicable '
                                                          'only if [cyan]--mode[/cyan]=[yellow]wald[/yellow].'),
-              group_test: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
+              test_groups: bool = Option(False, help='Whole groups will be tested against each other first. Note that this will take'
                                                     ' the same time as [cyan]fit[/cyan] stage.'),
               contrasts: Tuple[float, float, float] = Option((1, -1, 0), help='Contrasts vector where 1st, 2nd positions are for groups A and B '
                                                                               'respectively and the 3rd stand for the free term, i.e. the default'
@@ -534,8 +534,8 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     Differential expression tests via likelihood ratio.
     """
     t0 = time()
-    group_a = str(group_a)
-    group_b = str(group_b)
+    group_a = str(group_control)
+    group_b = str(group_test)
     contrasts = list(contrasts)
     if type(mode) is DiffTest:
         mode = mode.value
@@ -550,13 +550,13 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     else:
         subname = None
     r = differential_test(name, group_a=group_a, group_b=group_b, mode=mode, min_samples=min_samples, min_cover=min_cover,
-                          max_cover=max_cover, group_test=group_test, subname=subname,  filter_id=filter_id,
+                          max_cover=max_cover, group_test=test_groups, subname=subname,  filter_id=filter_id,
                           max_cover_group_test=max_cover_group_test, filter_chr=filter_chr, alpha=alpha, n_jobs=n_jobs,
                           param_mode='window' if param_window else 'line', logit_transform=logit_transform,
                           robust_se=robust_se, contrasts=contrasts, n_bootstrap=n_bootstrap, fit=fit)[subname]
     if pretty:
         p.stop()
-    if group_test:
+    if test_groups:
         if pretty:
             rprint('Group A vs Group B:')
             rprint(r['whole'])
@@ -583,8 +583,8 @@ def _difftest(name: str = Argument(..., help='Project name.'),
         print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
         rprint('Total SNVs tested:', len(r))
     expected_res = [int(ref), int(alt), int(total)]
-    update_history(name, 'difftest', group_a=group_a, group_b=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover,
-                   mode=mode, subname=subname, group_test=group_test, max_cover=max_cover, filter_id=filter_id,
+    update_history(name, 'difftest', group_control=group_a, group_test=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover,
+                   mode=mode, subname=subname, test_groups=test_groups, max_cover=max_cover, filter_id=filter_id,
                    filter_chr=filter_chr, max_cover_group_test=max_cover_group_test, n_jobs=n_jobs,
                    param_window=param_window, logit_transform=logit_transform, robust_se=robust_se,
                    contrasts=contrasts, n_bootstrap=n_bootstrap, expected_result=expected_res, fit=fit)
