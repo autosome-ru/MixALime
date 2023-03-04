@@ -358,6 +358,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
                                              '[cyan]param_name_2[/cyan]=[cyan]val2[/cyan]. For instance, one might be interested in the so-called'
                                              ' conservative scoring "w=1;mu=0;b=1" that is of interest when data is scarce.'),
          adjusted_loglik: bool = Option(False, help='Calculate adjusted loglikelihood alongside other statistics.'),
+         optimizer: str = Option('SLSQP', help='Name of [bold]scipy[/bold]"s optimization method'),
          n_jobs: int = Option(-1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
          pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -389,14 +390,14 @@ def _fit(name: str = Argument(..., help='Project name.'),
         window_behavior=window_behavior, min_slices=min_slices, adjust_line=adjust_line, k_left_bound=k_left_bound,
         max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, start_est=start_est,
         apply_weights=apply_weights, regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
-        fix_params=fix_params, std=std)
+        fix_params=fix_params, std=std, optimizer=optimizer)
     if pretty:
         p.stop()
     update_history(name, 'fit', dist=dist, model=model, left=left, estimate_p=estimate_p, window_size=window_size, 
                    window_behavior=window_behavior, min_slices=min_slices, adjust_line=adjust_line, k_left_bound=k_left_bound,
                    max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, 
                    regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
-                   fix_params=fix_params, std=std)
+                   fix_params=fix_params, std=std, optimizer=optimizer)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
