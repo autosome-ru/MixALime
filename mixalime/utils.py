@@ -42,7 +42,7 @@ def dictify_fix(s: str):
 
 def get_model_creator(**kwargs):
     name = kwargs['name']
-    inst_params = {v: kwargs[v] for v in ('bad',  'left', 'dist', 'estimate_p', 'fix_params')}
+    inst_params = {v: kwargs[v] for v in ('bad',  'left', 'dist', 'estimate_p', 'fix_params', 'r_transform')}
     if name == 'line':
         inst_params.update({v: kwargs[v] for v in ('left_k', 'start_est', 'apply_weights')})
         m = ModelLine

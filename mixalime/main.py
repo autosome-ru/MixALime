@@ -41,7 +41,7 @@ class Model(str, Enum):
 class Dist(str, Enum):
     nb = 'NB'
     betanb = 'BetaNB'
-    newdist = 'NewDist'
+    cdnb = 'CDNB'
 
 class WindowBehavior(str, Enum):
     both = 'both'
@@ -63,6 +63,11 @@ class Prior(str, Enum):
 class DiffTest(str, Enum):
     lrt = 'lrt'
     wald = 'wald'
+    
+class RTransforms(str, Enum):
+    none = 'none'
+    NB = 'NB'
+    mean = 'mean'
 
 
 class OrderCommands(TyperGroup):
@@ -359,6 +364,9 @@ def _fit(name: str = Argument(..., help='Project name.'),
                                              ' conservative scoring "w=1;mu=0;b=1" that is of interest when data is scarce.'),
          adjusted_loglik: bool = Option(False, help='Calculate adjusted loglikelihood alongside other statistics.'),
          optimizer: str = Option('SLSQP', help='Name of [bold]scipy[/bold]"s optimization method'),
+         r_transform: RTransforms = Option('none', help='[red]r[/red] parameter will be reparameterized so the mean of a [cyan]DIST[/cyan] will '
+                                                       'agree with either a Negative Binomial mean, or the mean itself will be equal to the '
+                                                       '[red]r[/red] itself.'),
          n_jobs: int = Option(-1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
          pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -379,6 +387,8 @@ def _fit(name: str = Argument(..., help='Project name.'),
         window_behavior = window_behavior.value
     if type(regul_prior) is Prior:
         regul_prior = regul_prior.value
+    if type(r_transform) is RTransforms:
+        r_transform = r_transform.value
     t0 = time()
     if pretty:
         p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
@@ -390,7 +400,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
         window_behavior=window_behavior, min_slices=min_slices, adjust_line=adjust_line, k_left_bound=k_left_bound,
         max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, start_est=start_est,
         apply_weights=apply_weights, regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
-        fix_params=fix_params, std=std, optimizer=optimizer)
+        fix_params=fix_params, std=std, optimizer=optimizer, r_transform=None if r_transform == 'none' else r_transform)
     if pretty:
         p.stop()
     update_history(name, 'fit', dist=dist, model=model, left=left, estimate_p=estimate_p, window_size=window_size, 

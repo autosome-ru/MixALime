@@ -19,13 +19,14 @@ import os
 
 
 class Model():
-    def __init__(self, dist: str, left=4, mask_size=0, model_name='window', param_mode='window'):
+    def __init__(self, dist: str, left=4, mask_size=0, model_name='window', param_mode='window', r_transform=None):
         self.dist = dist
         self.left = left
         self.allowed_const = left + 1
         self.mask = np.zeros(mask_size, dtype=bool)
         self.model_name = model_name
         self.param_mode = param_mode
+        self.r_transform = r_transform
         self.grad = jax.jit(jax.jacfwd(self.fun, argnums=0))
         self.fim = jax.jit(jax.grad(jax.grad(self.negloglik, argnums=0), argnums=0))
     
@@ -34,9 +35,9 @@ class Model():
             mask: jax.numpy.ndarray):
         left = self.left
         if self.dist == 'NB':
-            logl = dists.LeftTruncatedNB.logprob(data, r, p, left)
+            logl = dists.LeftTruncatedNB.logprob(data, r, p, left, r_transform=self.r_transform)
         else:
-            logl = dists.LeftTruncatedBetaNB.logprob(data, p, k, r, left)
+            logl = dists.LeftTruncatedBetaNB.logprob(data, p, k, r, left, r_transform=self.r_transform)
         logl *= w
         return jax.numpy.where(mask, 0.0, logl)
     
@@ -69,9 +70,9 @@ class Model():
         k = np.repeat(k, n)
         left = self.left
         if self.dist == 'BetaNB':
-            res = dists.LeftTruncatedBetaNB.sample(p, k, r, left, size=(len(r), ))
+            res = dists.LeftTruncatedBetaNB.sample(p, k, r, left, size=(len(r),), r_transform=self.r_transform)
         else:
-            res = dists.LeftTruncatedNB.sample(r, p, left, size=(len(r), ))
+            res = dists.LeftTruncatedNB.sample(r, p, left, size=(len(r),), r_transform=self.r_transform)
         res = np.stack([res, alt]).T 
         res, c = np.unique(res, axis=0, return_counts=True)
         res = np.append(res, c.reshape(-1, 1), axis=1)
@@ -218,7 +219,8 @@ def lrt_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         lrt_test._cache = dict()
     snv, counts_a, counts_b, counts = counts
     cache = lrt_test._cache
-    key = (inst_params['dist'], inst_params['left'], max_sz if max_sz else 0, inst_params['name'], param_mode)
+    key = (inst_params['dist'], inst_params['left'], max_sz if max_sz else 0, inst_params['name'], param_mode,
+           inst_params['r_transform'])
     if key not in cache:
         model = Model(*key)
         cache[key] = model
