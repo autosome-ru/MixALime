@@ -42,6 +42,7 @@ class Dist(str, Enum):
     nb = 'NB'
     betanb = 'BetaNB'
     cdnb = 'CDNB'
+    betacdnb = 'BetaCDNB'
 
 class WindowBehavior(str, Enum):
     both = 'both'

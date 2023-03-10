@@ -228,7 +228,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
                 plt.savefig(filename, bbox_inches='tight')
             except KeyError:
                 pass
-            if dist == 'BetaNB':
+            if dist.startswith('Beta'):
                 filename = os.path.join(subfolder, f'k.{fmt}')
                 try:
                     plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'k', inv=True, name='$1/\kappa$', dpi=dpi)
