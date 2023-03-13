@@ -5,26 +5,28 @@ import dill
 import os
 import re
 from .utils import get_init_file, openers, parse_filenames
-from multiprocessing import cpu_count, Pool
+from multiprocessing import cpu_count, Pool, Manager
 from functools import partial
+from itertools import islice
 from statsmodels.stats import multitest
-from gmpy2 import log, log1p
 import logging
 
     
 def combine_p_values_logit(pvalues):
-    pvalues = list(filter(lambda x: x  < 1, pvalues))
+    pvalues = np.array(list(filter(lambda x: x  < 1, pvalues)))
     k = len(pvalues)
     if k == 0:
         return 1.0
     elif k == 1:
         return float(pvalues[0])
-    statistic = float(-sum(map(log, pvalues)) + sum(map(lambda x: log1p(-x), pvalues)))
+    # statistic = float(-sum(map(log, pvalues)) + sum(map(lambda x: log1p(-x), pvalues)))
+    statistic = -np.log(pvalues).sum() + np.log1p(-pvalues).sum()
     nu = np.int_(5 * k + 4)
     approx_factor = np.sqrt(np.int_(3) * nu / (np.int_(k) * np.square(np.pi) * (nu - np.int_(2))))
     pval = st.distributions.t.sf(statistic * approx_factor, nu)
     if pval == 0:
-        statistic = float(-2 * sum(map(log, pvalues)))
+        statistic = -2 * np.log(pvalues).sum()
+        # statistic = float(-2 * sum(map(log, pvalues)))
         pval = st.distributions.chi2.sf(statistic, 2 * k)
     return pval
 
@@ -44,23 +46,35 @@ def combine_es(es, pvalues):
         weights /= s
     return np.sum(weights * es)
 
-def combine_stats(t, stats, groups, min_cnt_sum=20):
-    k, lt = t
-    lt = lt[1:]
-    if groups:
-        lt = filter(lambda x: x[0] in groups, lt)
-    lt = [t[1:] for t in lt]
-    if not lt or max(sum(t[:-1]) for t in lt) < min_cnt_sum:
-        return (np.nan, np.nan), (np.nan, np.nan), None
-    ref_pvals, ref_es = zip(*[stats['ref'][t[-1]][t[:-1]] for t in lt])
-    alt_pvals, alt_es = zip(*[stats['alt'][t[-1]][t[:-1]] for t in lt])
-    ref = combine_p_values_logit(ref_pvals)
-    alt = combine_p_values_logit(alt_pvals)
-    ref_es = combine_es(ref_es, ref_pvals)
-    alt_es = combine_es(alt_es, alt_pvals)
-    return (ref, alt), (ref_es, alt_es), k
-    
+def combine_stats(inds, snvs, stats, groups, min_cnt_sum=20):
+    pvalues = list()
+    es = list()
+    ks = list()
+    for i in inds:
+        k, lt = snvs[i]
+        lt = lt[1:]
+        if groups:
+            lt = filter(lambda x: x[0] in groups, lt)
+        lt = [t[1:] for t in lt]
+        if not lt or max(sum(t[:-1]) for t in lt) < min_cnt_sum:
+            ref = alt = ref_es = alt_es = np.nan
+            k = None
+        else:
+            ref_pvals, ref_es = zip(*[stats['ref'][t[-1]][t[:-1]] for t in lt])
+            alt_pvals, alt_es = zip(*[stats['alt'][t[-1]][t[:-1]] for t in lt])
+            ref = combine_p_values_logit(ref_pvals)
+            alt = combine_p_values_logit(alt_pvals)
+            ref_es = combine_es(ref_es, ref_pvals)
+            alt_es = combine_es(alt_es, alt_pvals)
+        pvalues.append((ref, alt))
+        es.append((ref_es, alt_es))
+        ks.append(k)
+    return pvalues, es, ks
 
+def batched(iterable, n):
+    it = iter(iterable)
+    while (batch := tuple(islice(it, n))):
+        yield batch
 
 def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=None, filter_chr=None, subname=None, n_jobs=1, save_to_file=True):
     if group_files is None:
@@ -90,28 +104,36 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=N
             groups.add(i)
         except ValueError:
             logging.error(f'Unknown scorefile {file}')
+    del scorefiles
     ref_comb_pvals = list()
     alt_comb_pvals = list()
     ref_comb_es = list()
     alt_comb_es = list() 
     comb_names = list()
     its = snvs.items()
+    del snvs
+    its = list(its)
     if filter_id:
         its = list(filter(lambda x: x[1][0][1] and filter_id.match(x[1][0][1]), its))
     if filter_chr:
         its = list(filter(lambda x: filter_chr.match(x[0]), its))
-    f = partial(combine_stats, stats=stats, groups=groups, min_cnt_sum=min_cnt_sum)
     with Pool(n_jobs) as p:
-        sz = len(its) // n_jobs
-        f = partial(combine_stats, stats=stats, groups=groups, min_cnt_sum=min_cnt_sum)
-        for (ref, alt), (ref_es, alt_es), k in p.imap(f, its, chunksize=sz):
-            if k is None:
-                continue
-            ref_comb_pvals.append(ref)
-            alt_comb_pvals.append(alt)
-            ref_comb_es.append(ref_es)
-            alt_comb_es.append(alt_es)
-            comb_names.append(k)
+        f = partial(combine_stats, snvs=its, stats=stats, groups=groups, min_cnt_sum=min_cnt_sum)
+        if n_jobs > 1:
+            sz = int(np.ceil(len(its) / n_jobs))
+            inds = batched(range(len(its)), sz)
+            iterate = p.imap(f, inds)
+        else:
+            iterate = map(f, [list(range(len(its)))])
+        for pvals, es, ks in iterate:
+            for (ref, alt), (ref_es, alt_es), k in zip(pvals, es, ks):
+                if k is None:
+                    continue
+                ref_comb_pvals.append(ref)
+                alt_comb_pvals.append(alt)
+                ref_comb_es.append(ref_es)
+                alt_comb_es.append(alt_es)
+                comb_names.append(k)
     ref_comb_pvals = np.array(ref_comb_pvals)
     inds = ref_comb_pvals == 0.0
     if np.any(inds):

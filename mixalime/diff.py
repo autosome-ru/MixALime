@@ -130,7 +130,7 @@ class Model():
 
         res.x = float(res.x)
         correction = res.x - np.mean(bs) if n_bootstrap else 0.0
-        res.x = res.x + correction
+        res.x = np.clip(res.x + correction, 1e-12, 1.0 - 1e-12)
         lf = float(f(res.x))
         if compute_var:
             if sandwich:
@@ -297,9 +297,6 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
                 b_var = (1.0 - b_r.x) ** 2
             b_p = b_r.x
             correct = (a_var + b_var > 0) & np.isfinite(a_var) & np.isfinite(b_var)
-            if logit_transform:
-                a_p, a_var = transform_p(a_p, a_var)
-                b_p, b_var = transform_p(b_p, b_var)
             success = a_r.success & b_r.success & correct
             if not success and skip_failures:
                 return None, snv
@@ -312,8 +309,14 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
             pval = 1.0
         else:
             a, b, eq = contrasts
-            stat = abs(a * a_p + b * b_p + eq)
-            var = a ** 2 * a_var + b ** 2 * b_var
+            if logit_transform:
+                _a_p, _a_var = transform_p(a_p, a_var)
+                _b_p, _b_var = transform_p(b_p, b_var)
+            else:
+                _a_p, _a_var = a_p, a_var
+                _b_p, _b_var = b_p, b_var
+            stat = abs(a * _a_p + b * _b_p + eq)
+            var = a ** 2 * _a_var + b ** 2 * _b_var
             pval = 2 * norm.sf(stat, scale=(var) ** 0.5, loc=0.0)
         res.append((pval, a_p, b_p, a_var ** 0.5, b_var ** 0.5))
     n_a, n_b = counts_a[:, -1].sum(), counts_b[:, -1].sum()

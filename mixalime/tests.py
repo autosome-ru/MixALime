@@ -133,7 +133,7 @@ def test(name: str, correction: str = None, gof_tr: float = None, fit: str = Non
             with Pool(n_jobs) as p:
                 f = partial(calc_stats, inst_params=inst_params, params=params, gof_tr=gof_tr, correction=correction, swap=swap,
                             max_size=max_size)
-                for r in map(f, sub_c):#p.imap_unordered(f, sub_c, chunksize=chunksize):
+                for r in p.imap_unordered(f, sub_c, chunksize=chunksize):
                     sub_res.update(r)
     filename = f'{name}.comb.{compressor}'
     if os.path.isfile(filename):
