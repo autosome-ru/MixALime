@@ -365,9 +365,11 @@ def _fit(name: str = Argument(..., help='Project name.'),
                                              ' conservative scoring "w=1;mu=0;b=1" that is of interest when data is scarce.'),
          adjusted_loglik: bool = Option(False, help='Calculate adjusted loglikelihood alongside other statistics.'),
          optimizer: str = Option('SLSQP', help='Name of [bold]scipy[/bold]"s optimization method'),
-         r_transform: RTransforms = Option('none', help='[red]r[/red] parameter will be reparameterized so the mean of a [cyan]DIST[/cyan] will '
-                                                       'agree with either a Negative Binomial mean, or the mean itself will be equal to the '
-                                                       '[red]r[/red] itself.'),
+         r_transform: RTransforms = Option('NB', help='[red]r[/red] parameter will be reparameterized so the mean of a [cyan]DIST[/cyan] will '
+                                                      'agree with either a Negative Binomial mean, or the mean itself will be equal to the '
+                                                      '[red]r[/red] itself.'),
+         symmetrify: bool = Option(False, help='Symmetrifies count data before fitting model to it. Might be helpful in cases when you know'
+                                                ' that ref|alt model should be equal to alt|ref, e.g. when fitting the model to post-WASP data.'),
          n_jobs: int = Option(-1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
          pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -401,14 +403,15 @@ def _fit(name: str = Argument(..., help='Project name.'),
         window_behavior=window_behavior, min_slices=min_slices, adjust_line=adjust_line, k_left_bound=k_left_bound,
         max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, start_est=start_est,
         apply_weights=apply_weights, regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
-        fix_params=fix_params, std=std, optimizer=optimizer, r_transform=None if r_transform == 'none' else r_transform)
+        fix_params=fix_params, std=std, optimizer=optimizer, r_transform=None if r_transform == 'none' else r_transform,
+        symmetrify=symmetrify)
     if pretty:
         p.stop()
     update_history(name, 'fit', dist=dist, model=model, left=left, estimate_p=estimate_p, window_size=window_size, 
                    window_behavior=window_behavior, min_slices=min_slices, adjust_line=adjust_line, k_left_bound=k_left_bound,
                    max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, 
                    regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
-                   fix_params=fix_params, std=std, optimizer=optimizer)
+                   fix_params=fix_params, std=std, optimizer=optimizer, r_transform=r_transform, symmetrify=symmetrify)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')

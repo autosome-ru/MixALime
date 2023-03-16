@@ -66,7 +66,7 @@ def get_model_creator(**kwargs):
 def dictify_params(d: dict, field='ests') -> dict:
     return {n: v for n, v in zip(d['names'], d[field])}
 
-def parse_filenames(files: list) -> list:
+def parse_filenames(files: list, files_list=None) -> list:    
     if type(files) is str:
         files = [files]
     res = list()

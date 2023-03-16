@@ -9,6 +9,7 @@ from collections import defaultdict
 from itertools import product
 from functools import partial
 from .utils import openers, get_init_file, get_model_creator
+from math import ceil
 
 def _finalize_fit(model, fit):
     params_to_save = ('mu', 'b', 'mu_k', 'w')
@@ -23,7 +24,20 @@ def _finalize_fit(model, fit):
                     continue
                 if std is not None:
                     std[pn] = 0.0
-                   
+
+def _symmetrify(data: np.ndarray) -> np.ndarray:
+    d = defaultdict(int)
+    for r, a, n in data:
+        d[(r, a)] = n
+    for (r, a), n in list(d.items()):
+        d[(a, r)] += n
+    for k in d:
+        d[k] = ceil(d[k] / 2)
+    res = list()
+    for r, a in sorted(d):
+        res.append((r, a, d[(r, a)]))
+    res = np.array(res)
+    return res
 
 def _run(aux: tuple, data: dict, left: int,
          max_count: int, mod: str, dist: str, 
@@ -32,12 +46,16 @@ def _run(aux: tuple, data: dict, left: int,
          start_est=True, compute_pdf=False, k_left_bound=1,
          adjusted_loglik=False, adjust_line=False, regul_alpha=0.0, 
          regul_n=True, regul_slice=True, regul_prior='laplace', std=False, 
-         fix_params=str(), optimizer='SLSQP', r_transform=None, use_cpu=False):
+         fix_params=str(), optimizer='SLSQP', r_transform=None,
+         symmetrify=False, use_cpu=False):
     if use_cpu:
         os.environ["JAX_PLATFORM_NAME"] = 'cpu'
         os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = 'cpu'
     bad, switch = aux
     data = data[bad]
+    if symmetrify:
+        odata=  data
+        data = _symmetrify(data)
     prefix = 'alt_' if switch else 'ref_'
     logging.info(f'[BAD={bad}, {prefix[:-1]}] Optimization...')
     if switch:
@@ -81,6 +99,7 @@ def _run(aux: tuple, data: dict, left: int,
                     names.append(f'{n}{s}')
         params = {'names': names, 'ests': ests}
     logging.info(f'[BAD={bad}, {prefix[:-1]}] Calculating fit indices...')
+    # data = data if not symmetrify else odata
     stats = collect_stats(model, calc_pvals=False, calc_es=False, calc_adjusted_loglik=adjusted_loglik)
     r =  {'params': params, 'stats': stats, 'inst_params': inst_params}
     return r
@@ -92,7 +111,7 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
         max_count=np.inf, max_cover=np.inf, apply_weights=False,  start_est=True,
         adjusted_loglik=False, regul_alpha=0.0, regul_n=True, regul_slice=True, 
         regul_prior='laplace', std=False, fix_params=str(), optimizer='SLSQP', 
-        r_transform=None, n_jobs=1):
+        r_transform=None, symmetrify=False, n_jobs=1):
     """
 
     Parameters
@@ -181,6 +200,7 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
                   fix_params=fix_params,
                   optimizer=optimizer,
                   r_transform=r_transform,
+                  symmetrify=symmetrify,
                   use_cpu=(n_jobs != 1))
     result = defaultdict(lambda: defaultdict())
     ralt = {True: 'alt', False: 'ref'}

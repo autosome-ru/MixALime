@@ -106,8 +106,8 @@ def plot_gof(stats_ref: dict, stats_alt: dict, max_count: int, figsize=(6, 6), d
     
     # ticks = np.arange(0, max(max(stats_ref), max(stats_alt)), 0.05)
     plt.figure(figsize=figsize, dpi=dpi)
-    plt.plot(x, stats_ref, 'o', color=_ref, markersize=_markersize)
-    plt.plot(x, stats_alt, 'o', color=_alt, markersize=_markersize)
+    plt.plot(x, stats_ref, 'o', color=_ref, markersize=_markersize * 1.1)
+    plt.plot(x, stats_alt, 'o', color=_alt, markersize=_markersize, alpha=0.85)
     if spline:
         nx = np.linspace(x[0], max_count, max_count * 10)
         inds = ~np.isnan(stats_ref)
@@ -129,8 +129,8 @@ def plot_stat(stats_ref: dict, stats_alt: dict, max_count: int, stat: str, figsi
     stats_ref = np.array([stats_ref[k][stat] for k in x])
     stats_alt = np.array([stats_alt[k][stat] for k in x])
     plt.figure(figsize=figsize, dpi=dpi)
-    plt.plot(x, stats_ref, 'o', color=_ref, markersize=_markersize)
-    plt.plot(x, stats_alt, 'o', color=_alt, markersize=_markersize)
+    plt.plot(x, stats_ref, 'o', color=_ref, markersize=_markersize * 1.1)
+    plt.plot(x, stats_alt, 'o', color=_alt, markersize=_markersize, alpha=0.85)
     if spline:
         nx = np.linspace(x[0], max_count, max_count * 10)
         inds = ~np.isnan(stats_ref)
@@ -168,7 +168,7 @@ def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
             sref *= pref ** 2
             salt *= palt ** 2
     plt.figure(figsize=figsize, dpi=dpi)
-    plt.plot(x, pref, 'o', color=_ref, markersize=_markersize)
+    plt.plot(x, pref, 'o', color=_ref, markersize=_markersize * 1.1)
     plt.plot(x, palt, 'o', color=_alt, markersize=_markersize, alpha=0.85)
     if spline:
         nx = np.linspace(0, max_count, max_count * 10)
