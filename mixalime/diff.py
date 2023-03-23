@@ -32,6 +32,7 @@ class Model():
         self.grad = jax.jit(jax.jacfwd(self.fun, argnums=0))
         self.fim = jax.jit(jax.grad(jax.grad(self.negloglik, argnums=0), argnums=0))
         self.bad = bad
+        self.symmetrify = symmetrify
     
     @partial(jax.jit, static_argnums=(0, ))
     def fun(self, p: float, r: jax.numpy.ndarray, k: jax.numpy.ndarray, data: jax.numpy.ndarray,  w:jax.numpy.ndarray,
@@ -115,7 +116,7 @@ class Model():
     def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True, n_bootstrap=100):
         name = self.model_name
         if self.symmetrify:
-            data = ModelWindow.symmetrify(data)
+            data = ModelWindow.symmetrify_counts(data)
         data, fixed, w = data.T
         n = len(data)
         if self.param_mode == 'window' or self.model_name == 'slices':
@@ -391,13 +392,18 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
         snvs = set(filter(lambda x: filter_chr.match(x[0]), snvs))
     snvs_a = {k: snvs_a[k] for k in snvs}
     snvs_b = {k: snvs_b[k] for k in snvs}
-    fit = fit if fit else f'{name}.fit.{compressor}'
-    with open(fit, 'rb') as f:
+    if fit:
+        comp_fit = fit.split('.')[-1]
+        open2 = openers[comp_fit]
+    else:
+        fit = f'{name}.fit.{compressor}'
+        open2 = open
+    with open2(fit, 'rb') as f:
         fits = dill.load(f)
     if group_test:
         _counts_a, _counts_b, _counts = build_count_tables(snvs_a, snvs_b)
     res = list()
-    for bad in _counts_a.keys():
+    for bad in fits['ref'].keys():
         params = {'ref': dictify_params(fits['ref'][bad]['params']),
                   'alt': dictify_params(fits['ref'][bad]['params'])}
         inst_params = fits['ref'][1]['inst_params']
