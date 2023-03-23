@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from .utils import get_init_file, dictify_params, parse_filenames, openers
 from betanegbinfit import distributions as dists
+from betanegbinfit.models import ModelWindow
 from multiprocessing import Pool, cpu_count
 from statsmodels.stats import multitest
 from collections import defaultdict
@@ -19,7 +20,8 @@ import os
 
 
 class Model():
-    def __init__(self, dist: str, left=4, mask_size=0, model_name='window', param_mode='window', r_transform=None):
+    def __init__(self, dist: str, left=4, mask_size=0, model_name='window', param_mode='window', r_transform=None, 
+                 symmetrify=False, bad=1):
         self.dist = dist
         self.left = left
         self.allowed_const = left + 1
@@ -29,6 +31,7 @@ class Model():
         self.r_transform = r_transform
         self.grad = jax.jit(jax.jacfwd(self.fun, argnums=0))
         self.fim = jax.jit(jax.grad(jax.grad(self.negloglik, argnums=0), argnums=0))
+        self.bad = bad
     
     @partial(jax.jit, static_argnums=(0, ))
     def fun(self, p: float, r: jax.numpy.ndarray, k: jax.numpy.ndarray, data: jax.numpy.ndarray,  w:jax.numpy.ndarray,
@@ -36,6 +39,8 @@ class Model():
         left = self.left
         if self.dist == 'NB':
             logl = dists.LeftTruncatedNB.logprob(data, r, p, left, r_transform=self.r_transform)
+        elif self.dist == 'MCNB':
+            logl = dists.LeftTruncatedMCNB.logprob(data, r, p, left, r_transform=self.r_transform)
         else:
             logl = dists.LeftTruncatedBetaNB.logprob(data, p, k, r, left, r_transform=self.r_transform)
         logl *= w
@@ -87,10 +92,30 @@ class Model():
         else:
             b = (0.0, 1.0)
         return minimize_scalar(f, bounds=b, method='bounded', options={'xatol': xatol})
+    
+    def adjust_r(self, r, k, w=None):
+        bad = self.bad
+        if w is None or bad == 1:
+            return r
+        p2 = 1 / (bad + 1)
+        p1 = 1 - p2
+        left = self.left
+        if self.dist == 'NB':
+            mean = lambda p: dists.LeftTruncatedNB.mean(r, p, left, r_transform=self.r_transform)
+        elif self.dist == 'MCNB':
+            mean = lambda p: dists.LeftTruncatedMCNB.mean(r, p, left, r_transform=self.r_transform)
+        else:
+            mean = lambda p: dists.LeftTruncatedBetaNB.mean(p, k, r, left, r_transform=self.r_transform)
+        m1 = mean(p1)
+        m2 = mean(p2)
+        correction = m1 / (w * m1 + (1.0 - w) * m2)
+        return r * correction
         
 
     def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True, n_bootstrap=100):
         name = self.model_name
+        if self.symmetrify:
+            data = ModelWindow.symmetrify(data)
         data, fixed, w = data.T
         n = len(data)
         if self.param_mode == 'window' or self.model_name == 'slices':
@@ -110,6 +135,7 @@ class Model():
                 k = ps['mu_k'] + ps['b_k'] * np.log(fixed)
             else:
                 k = np.zeros(len(r))
+            r = self.adjust_r(r, k, ps.get('w', None))
         data, r, k, w = self.update_mask(data, r, k, w)
         mask = self.mask
         f = partial(self.negloglik, r=r, k=k, data=data, w=w, mask=mask)
@@ -220,9 +246,9 @@ def lrt_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
     snv, counts_a, counts_b, counts = counts
     cache = lrt_test._cache
     key = (inst_params['dist'], inst_params['left'], max_sz if max_sz else 0, inst_params['name'], param_mode,
-           inst_params['r_transform'])
+           inst_params['r_transform'], inst_params['symmetrify'])
     if key not in cache:
-        model = Model(*key)
+        model = Model(*key, bad=bad)
         cache[key] = model
     else:
         model = cache[key]
@@ -275,9 +301,10 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         wald_test._cache = dict()
     snv, counts_a, counts_b, counts = counts
     cache = wald_test._cache
-    key = (inst_params['dist'], inst_params['left'], max_sz if max_sz else 0, inst_params['name'], param_mode)
+    key = (inst_params['dist'], inst_params['left'], max_sz if max_sz else 0, inst_params['name'], param_mode,
+           inst_params['r_transform'], inst_params['symmetrify'])
     if key not in cache:
-        model = Model(*key)
+        model = Model(*key, bad=bad)
         cache[key] = model
     else:
         model = cache[key]
@@ -370,39 +397,39 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
     if group_test:
         _counts_a, _counts_b, _counts = build_count_tables(snvs_a, snvs_b)
     res = list()
-    bad = 1
-    params = {'ref': dictify_params(fits['ref'][bad]['params']),
-              'alt': dictify_params(fits['ref'][bad]['params'])}
-    inst_params = fits['ref'][1]['inst_params']
-    if mode == 'lrt':
-        cols = ['ref_pval', 'ref_p', 'ref_p_control', 'ref_p_test', 
-                'alt_pval', 'alt_p', 'alt_p_control', 'alt_p_test']
-        test_fun = partial(lrt_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
-                           param_mode=param_mode, n_bootstrap=n_bootstrap)
-    else:
-        cols = ['ref_pval', 'ref_p_control', 'ref_p_test', 'ref_std_control', 'ref_std_test',
-                'alt_pval', 'alt_p_control', 'alt_p_test', 'alt_std_control', 'alt_std_test']
-        test_fun = partial(wald_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
-                           contrasts=contrasts, param_mode=param_mode, logit_transform=logit_transform,
-                           robust_se=robust_se, n_bootstrap=n_bootstrap)
-    if group_test:
-        counts_a = _counts_a[bad]; counts_b = _counts_b[bad]; counts = _counts[bad]
-        counts_a = counts_a[counts_a[:, 0] + counts_a[:, 1] < max_cover_group_test]
-        counts_b = counts_b[counts_b[:, 0] + counts_b[:, 1] < max_cover_group_test]
-        counts = counts[counts[:, 0] + counts[:, 1] < max_cover_group_test]
-        (whole_ref, whole_alt), _ = test_fun(('all', counts_a, counts_b, counts))
-        df_whole = pd.DataFrame([list(whole_ref) + list(whole_alt)], columns=cols)
-    
-    counts = [(snv, *[c[bad] for c in build_count_tables({snv: snvs_a[snv]}, {snv: snvs_b[snv]})])
-              for snv, it in snvs_a.items() if _bad_in(it, bad)] 
-    max_sz = max(c[-1].shape[0] for c in counts)
-    f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz)
-    chunk_size = len(counts) // n_jobs
-    with Pool(n_jobs) as p:
-        for r, t in p.imap_unordered(f, counts, chunksize=chunk_size):
-            if r is None:
-                continue
-            res.append([*t] + list(r[0]) + list(r[1]))
+    for bad in _counts_a.keys():
+        params = {'ref': dictify_params(fits['ref'][bad]['params']),
+                  'alt': dictify_params(fits['ref'][bad]['params'])}
+        inst_params = fits['ref'][1]['inst_params']
+        if mode == 'lrt':
+            cols = ['ref_pval', 'ref_p', 'ref_p_control', 'ref_p_test', 
+                    'alt_pval', 'alt_p', 'alt_p_control', 'alt_p_test']
+            test_fun = partial(lrt_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
+                               param_mode=param_mode, n_bootstrap=n_bootstrap)
+        else:
+            cols = ['ref_pval', 'ref_p_control', 'ref_p_test', 'ref_std_control', 'ref_std_test',
+                    'alt_pval', 'alt_p_control', 'alt_p_test', 'alt_std_control', 'alt_std_test']
+            test_fun = partial(wald_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
+                               contrasts=contrasts, param_mode=param_mode, logit_transform=logit_transform,
+                               robust_se=robust_se, n_bootstrap=n_bootstrap)
+        if group_test:
+            counts_a = _counts_a[bad]; counts_b = _counts_b[bad]; counts = _counts[bad]
+            counts_a = counts_a[counts_a[:, 0] + counts_a[:, 1] < max_cover_group_test]
+            counts_b = counts_b[counts_b[:, 0] + counts_b[:, 1] < max_cover_group_test]
+            counts = counts[counts[:, 0] + counts[:, 1] < max_cover_group_test]
+            (whole_ref, whole_alt), _ = test_fun(('all', counts_a, counts_b, counts))
+            df_whole = pd.DataFrame([list(whole_ref) + list(whole_alt)], columns=cols)
+        
+        counts = [(snv, *[c[bad] for c in build_count_tables({snv: snvs_a[snv]}, {snv: snvs_b[snv]})])
+                  for snv, it in snvs_a.items() if _bad_in(it, bad)] 
+        max_sz = max(c[-1].shape[0] for c in counts)
+        f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz)
+        chunk_size = len(counts) // n_jobs
+        with Pool(n_jobs) as p:
+            for r, t in p.imap_unordered(f, counts, chunksize=chunk_size):
+                if r is None:
+                    continue
+                res.append([*t] + list(r[0]) + list(r[1]))
     df = pd.DataFrame(res, columns=['ind', 'n_control', 'n_test'] + cols)
     _, df['ref_fdr_pval'], _, _ = multitest.multipletests(df['ref_pval'], alpha=alpha, method='fdr_bh')
     _, df['alt_fdr_pval'], _, _ = multitest.multipletests(df['alt_pval'], alpha=alpha, method='fdr_bh')

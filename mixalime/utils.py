@@ -2,9 +2,12 @@
 # -*- coding: utf-8 -*-
 from betanegbinfit import ModelMixture, ModelMixtures, ModelLine, ModelWindow, ModelWindowRec
 from betanegbinfit.models import ModelLine_
+from collections import defaultdict
 from functools import partial
 from glob import glob
+from math import ceil
 import datatable as dt
+import numpy as np
 import logging
 import lzma
 import gzip
@@ -49,7 +52,8 @@ def get_model_creator(**kwargs):
     elif name == 'window':
         inst_params.update({v: kwargs[v] for v in ('window_size', 'left_k', 'window_behavior', 'min_slices',
                                                    'adjust_line', 'start_est', 'apply_weights', 'regul_alpha',
-                                                   'regul_n', 'regul_slice', 'regul_prior')})
+                                                   'regul_n', 'regul_slice', 'regul_prior',
+                                                   'symmetrify')})
         m = ModelWindowRec if 'CDNB' in inst_params['dist'] else ModelWindow
     elif name == 'slices':
         m = ModelMixtures

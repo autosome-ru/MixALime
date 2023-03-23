@@ -108,8 +108,14 @@ def test(name: str, correction: str = None, gof_tr: float = None, fit: str = Non
     filename = get_init_file(name)
     compressor = filename.split('.')[-1]
     open = openers[compressor]
+    if fit:
+        comp_fit = fit.split('.')[-1]
+        open2 = openers[comp_fit]
+    else:
+        fit = f'{name}.fit.{compressor}'
+        open2 = open
     fit = fit if fit else f'{name}.fit.{compressor}'
-    with open(fit, 'rb') as fit,  open(filename, 'r') as init:
+    with open(filename, 'rb') as init,  open2(fit, 'rb') as fit:
         fit = dill.load(fit)
         counts_d = dill.load(init)['counts']
     del init
@@ -149,7 +155,7 @@ def binom_test(name: str, w: str, n_jobs=-1):
     compressor = filename.split('.')[-1]
     open = openers[compressor]
     
-    with open(filename, 'r') as init:
+    with open(filename, 'rb') as init:
         counts_d = dill.load(init)['counts']
     res = dict()
     left = float('inf')

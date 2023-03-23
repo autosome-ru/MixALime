@@ -101,6 +101,7 @@ def get_name(name: str):
 def shorten_filenames(filenames: list):
     its = [f.split('/') for f in filenames]
     i = 0
+    t = None
     for folders in zip(*its):
         for t in folders[1:]:
             if folders[0] != t:
@@ -329,10 +330,10 @@ def export_all(name: str, out: str, rep_info: bool = None):
     try:
         with open(f'{name}.fit.{compression}', 'rb') as f:
             fit = dill.load(f)
+            export_params(fit, out)
+            export_stats(fit, out)
     except FileNotFoundError:
-        return
-    export_params(fit, out)
-    export_stats(fit, out)
+        pass
     try:
         with open(f'{name}.difftest.{compression}', 'rb') as f:
             difftests = dill.load(f)

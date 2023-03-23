@@ -9,7 +9,7 @@ from collections import defaultdict
 from itertools import product
 from functools import partial
 from .utils import openers, get_init_file, get_model_creator
-from math import ceil
+
 
 def _finalize_fit(model, fit):
     params_to_save = ('mu', 'b', 'mu_k', 'w')
@@ -25,19 +25,6 @@ def _finalize_fit(model, fit):
                 if std is not None:
                     std[pn] = 0.0
 
-def _symmetrify(data: np.ndarray) -> np.ndarray:
-    d = defaultdict(int)
-    for r, a, n in data:
-        d[(r, a)] = n
-    for (r, a), n in list(d.items()):
-        d[(a, r)] += n
-    for k in d:
-        d[k] = ceil(d[k] / 2)
-    res = list()
-    for r, a in sorted(d):
-        res.append((r, a, d[(r, a)]))
-    res = np.array(res)
-    return res
 
 def _run(aux: tuple, data: dict, left: int,
          max_count: int, mod: str, dist: str, 
@@ -53,9 +40,8 @@ def _run(aux: tuple, data: dict, left: int,
         os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = 'cpu'
     bad, switch = aux
     data = data[bad]
-    if symmetrify:
-        odata=  data
-        data = _symmetrify(data)
+    # if symmetrify:
+    #     data = symmetrify_counts(data)
     prefix = 'alt_' if switch else 'ref_'
     logging.info(f'[BAD={bad}, {prefix[:-1]}] Optimization...')
     if switch:
@@ -68,7 +54,7 @@ def _run(aux: tuple, data: dict, left: int,
                    'apply_weights': apply_weights, 'regul_alpha': regul_alpha,
                    'regul_n': regul_n, 'regul_slice': regul_slice,
                    'regul_prior': regul_prior, 'fix_params': fix_params,
-                   'r_transform': r_transform}
+                   'r_transform': r_transform, 'symmetrify': symmetrify}
     model = get_model_creator(**inst_params)()
     fit = model.fit(data, calc_std=std, optimizer=optimizer)
     _finalize_fit(model, fit)

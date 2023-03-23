@@ -117,23 +117,27 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=N
         its = list(filter(lambda x: x[1][0][1] and filter_id.match(x[1][0][1]), its))
     if filter_chr:
         its = list(filter(lambda x: filter_chr.match(x[0]), its))
-    with Pool(n_jobs) as p:
-        f = partial(combine_stats, snvs=its, stats=stats, groups=groups, min_cnt_sum=min_cnt_sum)
+    with Manager() as manager:
         if n_jobs > 1:
-            sz = int(np.ceil(len(its) / n_jobs))
-            inds = batched(range(len(its)), sz)
-            iterate = p.imap(f, inds)
-        else:
-            iterate = map(f, [list(range(len(its)))])
-        for pvals, es, ks in iterate:
-            for (ref, alt), (ref_es, alt_es), k in zip(pvals, es, ks):
-                if k is None:
-                    continue
-                ref_comb_pvals.append(ref)
-                alt_comb_pvals.append(alt)
-                ref_comb_es.append(ref_es)
-                alt_comb_es.append(alt_es)
-                comb_names.append(k)
+            its = manager.dict(its)
+            stats = manager.dict(stats)
+        with Pool(n_jobs) as p:
+            f = partial(combine_stats, snvs=its, stats=stats, groups=groups, min_cnt_sum=min_cnt_sum)
+            if n_jobs > 1:
+                sz = int(np.ceil(len(its) / n_jobs))
+                inds = batched(range(len(its)), sz)
+                iterate = p.imap(f, inds)
+            else:
+                iterate = map(f, [list(range(len(its)))])
+            for pvals, es, ks in iterate:
+                for (ref, alt), (ref_es, alt_es), k in zip(pvals, es, ks):
+                    if k is None:
+                        continue
+                    ref_comb_pvals.append(ref)
+                    alt_comb_pvals.append(alt)
+                    ref_comb_es.append(ref_es)
+                    alt_comb_es.append(alt_es)
+                    comb_names.append(k)
     ref_comb_pvals = np.array(ref_comb_pvals)
     inds = ref_comb_pvals == 0.0
     if np.any(inds):
