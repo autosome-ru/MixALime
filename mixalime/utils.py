@@ -54,7 +54,7 @@ def get_model_creator(**kwargs):
                                                    'adjust_line', 'start_est', 'apply_weights', 'regul_alpha',
                                                    'regul_n', 'regul_slice', 'regul_prior',
                                                    'symmetrify')})
-        m = ModelWindowRec if 'CDNB' in inst_params['dist'] else ModelWindow
+        m = ModelWindowRec if 'MCNB' in inst_params['dist'] else ModelWindow
     elif name == 'slices':
         m = ModelMixtures
     elif name == 'slice':
