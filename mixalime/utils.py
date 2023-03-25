@@ -85,11 +85,15 @@ def parse_filenames(files: list, files_list=None) -> list:
         elif os.path.isfile(file):
             if not file.endswith(('.gz', '.vcf', '.bam')):
                 folder, _ = os.path.split(file)
-                df = dt.fread(file, max_nrows=1)
+                header = True
+                df = dt.fread(file, max_nrows=1, header=header)
+                if df.ncols == 1:
+                    header = False
+                    df = dt.fread(file, max_nrows=1, header=header)
                 r = str(df[0, 0])
                 t, _ = os.path.split(r)
                 if (df.shape[1] == 1) and ((os.path.isabs(t) and os.path.isfile(r)) or os.path.isfile(os.path.join(folder, r))):
-                    df = dt.fread(file)
+                    df = dt.fread(file, header=header)
                     for i in range(df.shape[0]):
                         r = str(df[i, 0])
                         file = os.path.join(folder, df[i, 0]) if folder and not os.path.isabs(r) else df[i, 0]

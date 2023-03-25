@@ -139,7 +139,8 @@ def test(name: str, correction: str = None, gof_tr: float = None, fit: str = Non
             with Pool(n_jobs) as p:
                 f = partial(calc_stats, inst_params=inst_params, params=params, gof_tr=gof_tr, correction=correction, swap=swap,
                             max_size=max_size)
-                for r in p.imap_unordered(f, sub_c, chunksize=chunksize):
+                it = p.imap_unordered(f, sub_c, chunksize=chunksize) if n_jobs > 1 else map(f, sub_c)
+                for r in it:
                     sub_res.update(r)
     filename = f'{name}.comb.{compressor}'
     if os.path.isfile(filename):
@@ -175,7 +176,8 @@ def binom_test(name: str, w: str, n_jobs=-1):
             chunksize = int(np.ceil(len(sub_c) / n_jobs))
             with Pool(n_jobs) as p:
                 f = partial(calc_stats_binom, w=w, bad=bad, left=left, swap=swap)
-                for r in p.imap_unordered(f, sub_c, chunksize=chunksize):
+                it = p.imap_unordered(f, sub_c, chunksize=chunksize) if n_jobs > 1 else map(f, sub_c)
+                for r in it:
                     sub_res.update(r)
     filename = f'{name}.comb.{compressor}'
     if os.path.isfile(filename):
