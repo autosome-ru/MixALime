@@ -614,8 +614,8 @@ def _difftest(name: str = Argument(..., help='Project name.'),
 
 @app_export.command('all', help='Export everything.')
 def _export_all(name: str = Argument(..., help='Project name.'), out: Path = Argument(..., help='Output filename/path.'),
-                rep_info: bool = Option(False, help='Include raw p-values and names of sample scorefiles to the tabular. '
-                                                    'Note that this may bloat output if number of samples is high.'),
+                sample_info: bool = Option(False, help='Include raw p-values and names of sample scorefiles to the tabular. '
+                                                       'Note that this may bloat output if number of samples is high.'),
                 pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     out = str(out)
     t0 = time()
@@ -623,10 +623,10 @@ def _export_all(name: str = Argument(..., help='Project name.'), out: Path = Arg
         p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
         p.add_task(description="Exporting tabular data...", total=None)
         p.start()
-    export.export_all(name, out, rep_info=rep_info)
+    export.export_all(name, out, sample_info=sample_info)
     if pretty:
         p.stop()
-    update_history(name, 'export', out=out, rep_info=rep_info)
+    update_history(name, 'export', out=out, sample_info=sample_info)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
@@ -693,7 +693,7 @@ def _indices(name: str = Argument(..., help='Project name.'), out: Path = Argume
 
 @app_export.command('pvalues')
 def _combined_pvalues(name: str = Argument(..., help='Project name.'), out: Path = Argument(..., help='Output filename/path.'),
-                      rep_info: bool = Option(False, help='Include raw p-values and names of sample scorefiles to the tabular. '
+                      sample_info: bool = Option(False, help='Include raw p-values and names of sample scorefiles to the tabular. '
                                                           'Note that this may bloat output if number of samples is high.'),
                       subname: str = Option(None, help='A subname that can be used to reference a set of combined p-values in case if you'
                                                        ' provided one at [cyan bold]combine[/cyan bold] step.'),
@@ -702,8 +702,8 @@ def _combined_pvalues(name: str = Argument(..., help='Project name.'), out: Path
     Export combined across samples and FDR-corrected p-values.
     '''
     out = str(out)
-    export.export_combined_pvalues(name, out, rep_info=rep_info, subname=subname)
-    update_history(name, 'export pvalues', out=out, rep_info=rep_info, subname=subname)
+    export.export_combined_pvalues(name, out, sample_info=sample_info, subname=subname)
+    update_history(name, 'export pvalues', out=out, sample_info=sample_info, subname=subname)
     if pretty:
         rprint('[green][bold]✔️[/bold] Done![/green]')
     else:
@@ -729,14 +729,14 @@ def _raw_pvalues(name: str, out: Path,
 def _difftests(name: str = Argument(..., help='Project name.'), out: Path = Argument(..., help='Output filename/path.'),
                       subname: str = Option(None, help='A subname that can be used to reference a set of combined p-values in case if you'
                                                        ' provided one at [cyan bold]difftest[/cyan bold] step.'),
-                      rep_info: bool = Option(False, help='Include ref, alt counts and names of sample scorefiles to the tabular. '
+                      sample_info: bool = Option(False, help='Include ref, alt counts and names of sample scorefiles to the tabular. '
                                                           'Note that this may bloat output if number of samples is high.'),
                       pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     '''
     Export FDR-corrected p-values for differential test.
     '''
     out = str(out)
-    export.export_difftests(name, out, subname=subname, rep_info=rep_info)
+    export.export_difftests(name, out, subname=subname, sample_info=sample_info)
     update_history(name, 'export difftest', out=out, subname=subname)
     if pretty:
         rprint('[green][bold]✔️[/bold] Done![/green]')

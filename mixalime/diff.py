@@ -92,7 +92,7 @@ class Model():
             b = ps[i], ps[i + 2]
         else:
             b = (0.0, 1.0)
-        return minimize_scalar(f, bounds=b, options={'xatol': xatol, 'maxiter': 200})
+        return minimize_scalar(f, bounds=b, method='bounded', options={'xatol': xatol, 'maxiter': 200})
     
     def adjust_r(self, r, k, w=None):
         bad = self.bad

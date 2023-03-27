@@ -163,7 +163,7 @@ def export_pvalues(project, out: str):
         os.makedirs(folder, exist_ok=True)
         pd.DataFrame(d).to_csv(file, sep='\t', index=None)
 
-def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
+def export_combined_pvalues(project, out: str, sample_info=False, subname=None):
     if type(project) is str:
         file = get_init_file(project)
         compression = file.split('.')[-1]
@@ -216,7 +216,7 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
         d['#chr'].append(chr); d['start'].append(pos); d['end'].append(end); d['mean_bad'].append(mean_bad); d['id'].append(name)
         d['ref'].append(ref); d['alt'].append(alt); d['n_reps'].append(n);
         
-        if rep_info:
+        if sample_info:
             d['bads'].append(bads)
             d['scorefiles'].append(scores_f)
             d['ref_counts'].append(ref_counts); d['alt_counts'].append(alt_counts); d['ref_es'].append(ref_eses); d['alt_es'].append(alt_eses)
@@ -236,7 +236,7 @@ def export_combined_pvalues(project, out: str, rep_info=False, subname=None):
         os.makedirs(folder, exist_ok=True)
     pd.DataFrame(d).to_csv(out, sep='\t', index=None)
 
-def export_difftests(project, out: str,  rep_info=False, subname=None):
+def export_difftests(project, out: str,  sample_info=False, subname=None):
     if type(project) is str:
         file = get_init_file(project)
         compression = file.split('.')[-1]
@@ -286,7 +286,7 @@ def export_difftests(project, out: str,  rep_info=False, subname=None):
         a_alt_counts.append(','.join(a_alt_count))
         b_alt_counts.append(','.join(b_alt_count))
     diff = tests.drop('ind', axis=1)
-    if rep_info:
+    if sample_info:
         df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'mean_bad': bad, 'id': name, 'ref': ref, 'alt': alt,
                            'a_ref_counts': a_ref_counts, 'a_alt_counts': a_alt_counts, 
                            'b_ref_counts': b_ref_counts, 'b_alt_counts': b_alt_counts})
@@ -320,7 +320,7 @@ def export_difftests(project, out: str,  rep_info=False, subname=None):
     diff.to_csv(out, sep='\t', index=None)
 
 
-def export_all(name: str, out: str, rep_info: bool = None):
+def export_all(name: str, out: str, sample_info: bool = None):
     file = get_init_file(name)
     compression = file.split('.')[-1]
     open = openers[compression]
@@ -341,7 +341,7 @@ def export_all(name: str, out: str, rep_info: bool = None):
             t = (init, difftests)
             for subname in difftests:
                 export_difftests(t, os.path.join(subfolder, f'{subname}.tsv' if subname else 'difftests.tsv'), subname=subname,
-                                 rep_info=rep_info)
+                                 sample_info=sample_info)
     except FileNotFoundError:
         pass     
             
@@ -359,7 +359,7 @@ def export_all(name: str, out: str, rep_info: bool = None):
         return
     t = (init, raw_pvals, pvals)
     for subname in pvals:
-        export_combined_pvalues(t, os.path.join(out, f'{subname}.tsv' if subname else 'pvals.tsv'), subname=subname, rep_info=rep_info)
+        export_combined_pvalues(t, os.path.join(out, f'{subname}.tsv' if subname else 'pvals.tsv'), subname=subname, sample_info=sample_info)
 
 def export_demo(path: str = str()):
     folder = os.path.join(os.path.split(os.path.realpath(__file__))[0], 'data')

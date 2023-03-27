@@ -1,4 +1,4 @@
-__version__ = '2.9.8'
+__version__ = '2.9.9'
 import importlib
 
 __min_reqs__ = [
@@ -9,7 +9,7 @@ __min_reqs__ = [
             'jaxlib>=0.4.4',
             'matplotlib>=3.5.1',
             'pandas>=1.4.1',
-            'scipy>=1.9.3',
+            'scipy>=1.10.1',
             'statsmodels>=0.13.2',
             'betanegbinfit>=1.7.4',
             'datatable>=1.0.0',
