@@ -30,7 +30,7 @@ class Model():
         self.param_mode = param_mode
         self.r_transform = r_transform
         self.grad = jax.jit(jax.jacfwd(self.fun, argnums=0))
-        self.fim = jax.jit(jax.grad(jax.grad(self.negloglik, argnums=0), argnums=0))
+        self.fim = jax.jit(jax.jacfwd(jax.jacfwd(self.negloglik, argnums=0), argnums=0))
         self.bad = bad
         self.symmetrify = symmetrify
     
@@ -87,12 +87,12 @@ class Model():
     def minimize_scalar(self, f, xatol=1e-16, steps=10):
         if steps:
             ps = list(np.linspace(0.01, 0.99, steps))
-            i = np.argmin(list(map(f, ps))) + 1
+            i = np.nanargmin(list(map(f, ps)))
             ps = [0.0] + ps + [1.0]
-            b = ps[i - 1], ps[i + 1]
+            b = ps[i], ps[i + 2]
         else:
             b = (0.0, 1.0)
-        return minimize_scalar(f, bounds=b, method='bounded', options={'xatol': xatol})
+        return minimize_scalar(f, bounds=b, options={'xatol': xatol, 'maxiter': 200})
     
     def adjust_r(self, r, k, w=None):
         bad = self.bad
@@ -113,7 +113,7 @@ class Model():
         return r * correction
         
 
-    def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True, n_bootstrap=100):
+    def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True, n_bootstrap=0):
         name = self.model_name
         if self.symmetrify:
             data = ModelWindow.symmetrify_counts(data)
@@ -427,12 +427,16 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
             df_whole = pd.DataFrame([list(whole_ref) + list(whole_alt)], columns=cols)
         
         counts = [(snv, *[c[bad] for c in build_count_tables({snv: snvs_a[snv]}, {snv: snvs_b[snv]})])
-                  for snv, it in snvs_a.items() if _bad_in(it, bad)] 
+                  for snv, it in snvs_a.items() if _bad_in(it, bad)]
         max_sz = max(c[-1].shape[0] for c in counts)
         f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz)
         chunk_size = len(counts) // n_jobs
         with Pool(n_jobs) as p:
-            for r, t in p.imap_unordered(f, counts, chunksize=chunk_size):
+            if n_jobs > 1:
+                it = p.imap_unordered(f, counts, chunksize=chunk_size)
+            else:
+                it = map(f, counts)
+            for r, t in it:
                 if r is None:
                     continue
                 res.append([*t] + list(r[0]) + list(r[1]))
