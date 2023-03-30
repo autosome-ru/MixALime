@@ -122,11 +122,14 @@ def plot_gof(stats_ref: dict, stats_alt: dict, max_count: int, figsize=(6, 6), d
     plt.xlabel('Read count for the fixed allele')
     plt.ylabel('Goodness of fit, RMSEA')
     
-def plot_stat(stats_ref: dict, stats_alt: dict, max_count: int, stat: str, figsize=(6, 6), dpi=200, spline=False):
+def plot_stat(stats_ref: dict, stats_alt: dict, max_count: int, stat: str, figsize=(6, 6), dpi=200, spline=False, log=False):
     x = set(stats_ref.keys()) & set(stats_alt.keys())
     x = np.array(list(filter(lambda x: x < max_count, sorted(x))))
     stats_ref = np.array([stats_ref[k][stat] for k in x])
     stats_alt = np.array([stats_alt[k][stat] for k in x])
+    if log:
+        stats_ref = np.log10(stats_ref)
+        stats_alt = np.log10(stats_alt)
     plt.figure(figsize=figsize, dpi=dpi)
     plt.plot(x, stats_ref, 'o', color=_ref, markersize=_markersize * 1.1)
     plt.plot(x, stats_alt, 'o', color=_alt, markersize=_markersize, alpha=0.85)
@@ -141,7 +144,7 @@ def plot_stat(stats_ref: dict, stats_alt: dict, max_count: int, stat: str, figsi
     plt.grid(True)
     plt.legend(['ref', 'alt'])
     plt.xlabel('Read count for the fixed allele')
-    plt.ylabel(stat)
+    plt.ylabel(r'$log_{10}$' + stat if log else stat)
 
 def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
                 figsize=(6, 6), dpi=200, inv=False, diag=False, name=None, spline=False,
@@ -248,7 +251,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
                 except KeyError:
                     pass
             filename = os.path.join(subfolder, f'n.{fmt}')
-            plot_stat(fits['ref'][bad]['stats'], fits['alt'][bad]['stats'], max_count, 'n', dpi=dpi)
+            plot_stat(fits['ref'][bad]['stats'], fits['alt'][bad]['stats'], max_count, 'n', dpi=dpi, log=True)
             if show_bad:
                 plt.title(f'BAD = {bad:.2f}')
             plt.tight_layout()

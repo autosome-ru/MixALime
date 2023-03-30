@@ -35,7 +35,7 @@ def _run(aux: tuple, data: dict, left: int,
          regul_n=True, regul_slice=True, regul_prior='laplace', std=False, 
          fix_params=str(), optimizer='SLSQP', r_transform=None,
          symmetrify=False, small_dataset_strategy='conservative',
-         small_dataset_n=1000, use_cpu=False):
+         small_dataset_n=1000, stop_slice_n=10, use_cpu=False):
     if use_cpu:
         os.environ["JAX_PLATFORM_NAME"] = 'cpu'
         os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = 'cpu'
@@ -62,7 +62,7 @@ def _run(aux: tuple, data: dict, left: int,
                    'regul_prior': regul_prior, 'fix_params': fix_params,
                    'r_transform': r_transform, 'symmetrify': symmetrify}
     model = get_model_creator(**inst_params)()
-    fit = model.fit(data, calc_std=std, optimizer=optimizer)
+    fit = model.fit(data, calc_std=std, optimizer=optimizer, stop_slice_n=stop_slice_n)
     _finalize_fit(model, fit)
     stds = list()
     ests = list()
@@ -104,7 +104,7 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
         adjusted_loglik=False, regul_alpha=0.0, regul_n=True, regul_slice=True, 
         regul_prior='laplace', std=False, fix_params=str(), optimizer='SLSQP', 
         r_transform=None, symmetrify=False, small_dataset_strategy='conservative',
-        small_dataset_n=1000, n_jobs=1):
+        small_dataset_n=1000, stop_slice_n=10, n_jobs=1):
     """
 
     Parameters
@@ -201,6 +201,7 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
                   symmetrify=symmetrify,
                   small_dataset_strategy=small_dataset_strategy,
                   small_dataset_n=small_dataset_n,
+                  stop_slice_n=stop_slice_n,
                   use_cpu=(n_jobs != 1))
     result = defaultdict(lambda: defaultdict())
     ralt = {True: 'alt', False: 'ref'}
