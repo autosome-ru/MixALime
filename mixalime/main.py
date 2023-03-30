@@ -377,8 +377,8 @@ def _fit(name: str = Argument(..., help='Project name.'),
                                                       '[red]r[/red] itself.'),
          symmetrify: bool = Option(False, help='Symmetrifies count data before fitting model to it. Might be helpful in cases when you know'
                                                 ' that ref|alt model should be equal to alt|ref, e.g. when fitting the model to post-WASP data.'),
-         small_dataset_n: int = Option(1000, help='If a number of observations at BAD is below this threshold, [yellow]small_dataset_strategy[/yellow]'
-                                                  ' will be applied.'),
+         small_dataset_n: int = Option(10000, help='If a number of observations at BAD is below this threshold, [yellow]small_dataset_strategy[/yellow]'
+                                                   ' will be applied.'),
          small_dataset_strategy: SmallDatasetStrategy = Option('conservative', help='[yellow]fixed_r[/yellow] constraints r as it is constrained in'
                                                                                     ' [yellow]conservative[/yellow] mode.'),
          n_jobs: int = Option(-1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
