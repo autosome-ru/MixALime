@@ -36,8 +36,7 @@ _markersize = 8
 def plot_heatmap(counts: np.ndarray, max_count: int, slices=None, shift=10, cmap=_cmap):
     hm = np.ones((max_count + shift , max_count + shift))
     counts = counts[(counts[:, 0] < max_count + shift) & (counts[:, 1] < max_count + shift)]
-    m = counts[:, [0,1]].min()
-    hm[counts[:, 0] - m, counts[:, 1] - m] += counts[:, 2]
+    hm[counts[:, 0], counts[:, 1]] += counts[:, 2]
     max_order = int(np.ceil(np.log10(counts[:, 2].max() + 1 )))
     hm = np.log10(hm)
 

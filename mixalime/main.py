@@ -70,6 +70,13 @@ class RTransforms(str, Enum):
     NB = 'NB'
     mean = 'mean'
 
+class SmallDatasetStrategy(str, Enum):
+    none = 'none'
+    conservative = 'conservative'
+    fixed_r = 'fixed_r'
+   
+
+
 
 class OrderCommands(TyperGroup):
   def list_commands(self, ctx: Context):
@@ -370,6 +377,10 @@ def _fit(name: str = Argument(..., help='Project name.'),
                                                       '[red]r[/red] itself.'),
          symmetrify: bool = Option(False, help='Symmetrifies count data before fitting model to it. Might be helpful in cases when you know'
                                                 ' that ref|alt model should be equal to alt|ref, e.g. when fitting the model to post-WASP data.'),
+         small_dataset_n: int = Option(1000, help='If a number of observations at BAD is below this threshold, [yellow]small_dataset_strategy[/yellow]'
+                                                  ' will be applied.'),
+         small_dataset_strategy: SmallDatasetStrategy = Option('conservative', help='[yellow]fixed_r[/yellow] constraints r as it is constrained in'
+                                                                                    ' [yellow]conservative[/yellow] mode.'),
          n_jobs: int = Option(-1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
          pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -392,6 +403,8 @@ def _fit(name: str = Argument(..., help='Project name.'),
         regul_prior = regul_prior.value
     if type(r_transform) is RTransforms:
         r_transform = r_transform.value
+    if type(small_dataset_strategy) is SmallDatasetStrategy:
+        small_dataset_strategy = small_dataset_strategy.value
     t0 = time()
     if pretty:
         p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
@@ -404,14 +417,15 @@ def _fit(name: str = Argument(..., help='Project name.'),
         max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, start_est=start_est,
         apply_weights=apply_weights, regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
         fix_params=fix_params, std=std, optimizer=optimizer, r_transform=None if r_transform == 'none' else r_transform,
-        symmetrify=symmetrify)
+        symmetrify=symmetrify, small_dataset_strategy=small_dataset_strategy, small_dataset_n=small_dataset_n)
     if pretty:
         p.stop()
     update_history(name, 'fit', dist=dist, model=model, left=left, estimate_p=estimate_p, window_size=window_size, 
                    window_behavior=window_behavior, min_slices=min_slices, adjust_line=adjust_line, k_left_bound=k_left_bound,
                    max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, 
                    regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
-                   fix_params=fix_params, std=std, optimizer=optimizer, r_transform=r_transform, symmetrify=symmetrify)
+                   fix_params=fix_params, std=std, optimizer=optimizer, r_transform=r_transform, symmetrify=symmetrify,
+                   small_dataset_strategy=small_dataset_strategy, small_dataset_n=small_dataset_n)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
@@ -424,8 +438,8 @@ def _test(name: str = Argument(..., help='Project name.'),
           correction: Correction = Option(Correction.none.value, help='Posterior weight correction method. It effectively helps to choose'
                                                                       ' a particular component of a distribution for further tests, neglecting '
                                                                       ' an impact of more distant component.'),
-          gof_tr: float = Option(None, help='Conservative scoring will be used if goodness-of-fit statistic (RMSEA) exceeds [cyan]gof-tr[/cyan] '
-                                            'for a particular slice.'),
+          gof_thr: float = Option(None, help='Conservative scoring will be used if goodness-of-fit statistic (RMSEA) exceeds [cyan]gof-thr[/cyan] '
+                                                'for a particular slice.'),
           n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
           pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -440,10 +454,10 @@ def _test(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Computing p-values and effect sizes...')
-    test(name, correction=correction, gof_tr=gof_tr, fit=fit, n_jobs=n_jobs)
+    test(name, correction=correction, gof_tr=gof_thr, fit=fit, n_jobs=n_jobs)
     if pretty:
         p.stop()
-    update_history(name, 'test', correction=correction, gof_tr=gof_tr, fit=fit, n_jobs=n_jobs)
+    update_history(name, 'test', correction=correction, gof_tr=gof_thr, fit=fit, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')

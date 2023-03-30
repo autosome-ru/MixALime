@@ -41,7 +41,8 @@ def get_init_files(path: str):
 def dictify_fix(s: str):
     if type(s) is not str:
         return s
-    return {a: float(b) for t in s.split(';') for a, b in [t.split('=')]}     
+    s = s.replace(' ', '').strip()
+    return {a: float(b) for t in s.split(';') if t for a, b in [t.split('=')]}     
 
 def get_model_creator(**kwargs):
     name = kwargs['name']
@@ -87,6 +88,7 @@ def parse_filenames(files: list, files_list=None) -> list:
                 folder, _ = os.path.split(file)
                 header = True
                 df = dt.fread(file, max_nrows=1, header=header)
+                print('arar')
                 if df.ncols == 1:
                     header = False
                     df = dt.fread(file, max_nrows=1, header=header)

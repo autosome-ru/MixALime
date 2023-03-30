@@ -34,14 +34,20 @@ def _run(aux: tuple, data: dict, left: int,
          adjusted_loglik=False, adjust_line=False, regul_alpha=0.0, 
          regul_n=True, regul_slice=True, regul_prior='laplace', std=False, 
          fix_params=str(), optimizer='SLSQP', r_transform=None,
-         symmetrify=False, use_cpu=False):
+         symmetrify=False, small_dataset_strategy='conservative',
+         small_dataset_n=1000, use_cpu=False):
     if use_cpu:
         os.environ["JAX_PLATFORM_NAME"] = 'cpu'
         os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = 'cpu'
     bad, switch = aux
     data = data[bad]
-    # if symmetrify:
-    #     data = symmetrify_counts(data)
+    if data[:, -1].sum() < small_dataset_n:
+        if small_dataset_strategy == 'conservative':
+            if dist == 'BetaNB':
+                dist = 'NB'
+            fix_params = 'b=1;mu=0;w=1;' + fix_params
+        elif small_dataset_strategy == 'fix_r':
+            fix_params = 'b=1;mu=0;' + fix_params
     prefix = 'alt_' if switch else 'ref_'
     logging.info(f'[BAD={bad}, {prefix[:-1]}] Optimization...')
     if switch:
@@ -97,7 +103,8 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
         max_count=np.inf, max_cover=np.inf, apply_weights=False,  start_est=True,
         adjusted_loglik=False, regul_alpha=0.0, regul_n=True, regul_slice=True, 
         regul_prior='laplace', std=False, fix_params=str(), optimizer='SLSQP', 
-        r_transform=None, symmetrify=False, n_jobs=1):
+        r_transform=None, symmetrify=False, small_dataset_strategy='conservative',
+        small_dataset_n=1000, n_jobs=1):
     """
 
     Parameters
@@ -160,9 +167,14 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
     data = {bad : mx[(mx[:, 0] < max_count) & (mx[:, 1] < max_count) & \
                       (mx[:, 0] > left) & (mx[:, 1] > left) & ((mx[:, 0] + mx[:, 1]) < max_cover), :] 
             for bad, mx in data.items()}
-    # data = {bad : mx[(mx[:, 0] < max_count) & (mx[:, 1] < max_count) & \
-    #                   (mx[:, 0] > left) & (mx[:, 1] > left) & ((mx[:, 0] < max_cover) & (mx[:, 1] < max_cover)), :] 
-    #         for bad, mx in data.items()}
+    
+    for bad, mx in data.items():
+        n = mx[:, -1].sum()
+        if n < window_size:
+            s = f'Total number of samples at BAD {bad} is less than a window size ({n} < {window_size}).'
+            if n < small_dataset_n:
+                s += f' Number of samples is too small for a sensible fit, a {small_dataset_strategy} fit will be used.'
+            logging.warning(s)
     if left == -1:
         left = data[min(data)][:, [0, 1]].min() - 1
     aux = list(product(sorted(data), (False, True)))
@@ -187,6 +199,8 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
                   optimizer=optimizer,
                   r_transform=r_transform,
                   symmetrify=symmetrify,
+                  small_dataset_strategy=small_dataset_strategy,
+                  small_dataset_n=small_dataset_n,
                   use_cpu=(n_jobs != 1))
     result = defaultdict(lambda: defaultdict())
     ralt = {True: 'alt', False: 'ref'}
