@@ -407,6 +407,8 @@ def _fit(name: str = Argument(..., help='Project name.'),
         r_transform = r_transform.value
     if type(small_dataset_strategy) is SmallDatasetStrategy:
         small_dataset_strategy = small_dataset_strategy.value
+    if fix_params is None:
+        fix_params = str()
     t0 = time()
     if pretty:
         p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
