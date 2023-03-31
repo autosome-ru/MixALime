@@ -12,11 +12,12 @@ import os
 
 
 def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
-               correction: str = None, gof_tr=None, max_size=None):
-    alt, counts, rmsea = t
+               correction: str = None, gof_tr=None, dataset_n_thr=float('inf'),
+               max_size=None):
+    alt, counts, rmsea, dataset_n = t
     res = list()
     params = get_params_at_slice(params, alt, clip_at_max_slice=False)
-    if gof_tr is not None and rmsea.get(alt, np.inf) > gof_tr:
+    if (gof_tr is not None and rmsea.get(alt, np.inf) > gof_tr) or (dataset_n.get(alt, 0) < dataset_n_thr):
         params['r'] = alt
         if 'k' in params:
             inst_params = inst_params.copy()
@@ -103,7 +104,8 @@ def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool):
     return res
 
 
-def test(name: str, correction: str = None, gof_tr: float = None, fit: str = None, n_jobs: int = -1):
+def test(name: str, correction: str = None, gof_tr: float = None, dataset_n_thr : int = float('inf'),
+         fit: str = None, n_jobs: int = -1):
     n_jobs = cpu_count() - 1 if n_jobs == -1 else n_jobs
     filename = get_init_file(name)
     compressor = filename.split('.')[-1]
@@ -133,12 +135,12 @@ def test(name: str, correction: str = None, gof_tr: float = None, fit: str = Non
             st = fit[allele][bad]['stats']
             counts = counts_d[bad][:, (1, 0) if swap else (0, 1)]
             alt = counts[:, 1]
-            sub_c = [(u, counts[alt == u, 0], st.get(u, {'rsmea': np.nan})) for u in np.unique(alt)]
+            sub_c = [(u, counts[alt == u, 0], st.get(u, {'rsmea': np.nan}), st.get(u, {'n': 0})) for u in np.unique(alt)]
             max_size = max(map(lambda x: len(x[1]), sub_c))
             chunksize = int(np.ceil(len(sub_c) / n_jobs))
             with Pool(n_jobs) as p:
                 f = partial(calc_stats, inst_params=inst_params, params=params, gof_tr=gof_tr, correction=correction, swap=swap,
-                            max_size=max_size)
+                            max_size=max_size, dataset_n_thr=dataset_n_thr)
                 it = p.imap_unordered(f, sub_c, chunksize=chunksize) if n_jobs > 1 else map(f, sub_c)
                 for r in it:
                     sub_res.update(r)

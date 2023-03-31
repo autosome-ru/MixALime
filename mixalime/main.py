@@ -445,6 +445,8 @@ def _test(name: str = Argument(..., help='Project name.'),
                                                                       ' an impact of more distant component.'),
           gof_thr: float = Option(None, help='Conservative scoring will be used if goodness-of-fit statistic (RMSEA) exceeds [cyan]gof-thr[/cyan] '
                                                 'for a particular slice.'),
+          dataset_n_thr: int = Option(None, help='Conservative scoring will be used if number of samples at a slice is below '
+                                                  '[cyan]dataset-n-thr[/cyan] for a particular slice.'),
           n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
           pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -452,6 +454,8 @@ def _test(name: str = Argument(..., help='Project name.'),
     """
     if type(correction) is Correction:
         correction = correction.value
+    if dataset_n_thr is None:
+        dataset_n_thr = float('inf')
     t0 = time()
     if pretty:
         p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
@@ -459,10 +463,11 @@ def _test(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Computing p-values and effect sizes...')
-    test(name, correction=correction, gof_tr=gof_thr, fit=fit, n_jobs=n_jobs)
+    test(name, correction=correction, gof_tr=gof_thr, fit=fit, dataset_n_thr=dataset_n_thr, n_jobs=n_jobs)
     if pretty:
         p.stop()
-    update_history(name, 'test', correction=correction, gof_tr=gof_thr, fit=fit, n_jobs=n_jobs)
+    update_history(name, 'test', correction=correction, gof_tr=gof_thr, fit=fit, 
+                   dataset_n_thr=dataset_n_thr, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
