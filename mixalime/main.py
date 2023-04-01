@@ -445,8 +445,8 @@ def _test(name: str = Argument(..., help='Project name.'),
                                                                       ' an impact of more distant component.'),
           gof_thr: float = Option(None, help='Conservative scoring will be used if goodness-of-fit statistic (RMSEA) exceeds [cyan]gof-thr[/cyan] '
                                                 'for a particular slice.'),
-          dataset_n_thr: int = Option(None, help='Conservative scoring will be used if number of samples at a slice is below '
-                                                  '[cyan]dataset-n-thr[/cyan] for a particular slice.'),
+          dataset_n_thr: int = Option(0, help='Conservative scoring will be used if number of samples at a slice is below '
+                                              '[cyan]dataset-n-thr[/cyan] for a particular slice.'),
           n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
           pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -454,8 +454,6 @@ def _test(name: str = Argument(..., help='Project name.'),
     """
     if type(correction) is Correction:
         correction = correction.value
-    if dataset_n_thr is None:
-        dataset_n_thr = 0
     t0 = time()
     if pretty:
         p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
