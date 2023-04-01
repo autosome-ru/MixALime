@@ -455,7 +455,7 @@ def _test(name: str = Argument(..., help='Project name.'),
     if type(correction) is Correction:
         correction = correction.value
     if dataset_n_thr is None:
-        dataset_n_thr = float('inf')
+        dataset_n_thr = 0
     t0 = time()
     if pretty:
         p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
