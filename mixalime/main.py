@@ -445,7 +445,7 @@ def _test(name: str = Argument(..., help='Project name.'),
                                                                       ' an impact of more distant component.'),
           gof_thr: float = Option(None, help='Conservative scoring will be used if goodness-of-fit statistic (RMSEA) exceeds [cyan]gof-thr[/cyan] '
                                                 'for a particular slice.'),
-          dataset_n_thr: int = Option(0, help='Conservative scoring will be used if number of samples at a slice is below '
+          dataset_n_thr: int = Option(-1, help='Conservative scoring will be used if number of samples at a slice is below '
                                               '[cyan]dataset-n-thr[/cyan] for a particular slice.'),
           n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
           pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):

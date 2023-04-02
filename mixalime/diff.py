@@ -126,8 +126,8 @@ class Model():
                 slc = fixed[i]
                 ps = get_closest_param(params, slc, name, True)
                 r[i] = ps['r']
-                if self.dist == 'BetaNB' and 'k' in ps:
-                    k[i] = ps['k']
+                if self.dist == 'BetaNB':
+                    k[i] = ps.get('k', 6e3)
         else:
             slc = fixed.mean()
             ps = get_closest_param(params, slc, name, False)
@@ -137,6 +137,8 @@ class Model():
             else:
                 k = np.zeros(len(r))
             r = self.adjust_r(r, k, ps.get('w', None))
+        print(self.dist, fixed.flatten())
+        print(ps)
         data, r, k, w = self.update_mask(data, r, k, w)
         mask = self.mask
         f = partial(self.negloglik, r=r, k=k, data=data, w=w, mask=mask)
