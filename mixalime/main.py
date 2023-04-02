@@ -360,7 +360,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
          max_cover: int = Option(None, help='Maximal sum of ref + alt.'), 
          regul_alpha: float = Option(0.0, help='Regularization/prior strength hyperparameter alpha. Valid only for [cyan]model[/cyan]='
                                                '[yellow]window[/yellow].'),
-         regul_n: bool = Option(True, help='Multiply alpha by a number of observations captured by a particular window. Valid only for '
+         regul_n: bool = Option(True, help='Multiply alpha by a number of SNV records captured by a particular window. Valid only for '
                                            '[cyan]model[/cyan]=[yellow]window[/yellow].'),
          regul_slice: bool = Option(True, help='Multiply alpha by a an average slice captured by a particular window. Valid only for '
                                            '[cyan]model[/cyan]=[yellow]window[/yellow].'),
@@ -379,7 +379,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
                                                       '[red]r[/red] itself.'),
          symmetrify: bool = Option(False, help='Symmetrifies count data before fitting model to it. Might be helpful in cases when you know'
                                                 ' that ref|alt model should be equal to alt|ref, e.g. when fitting the model to post-WASP data.'),
-         small_dataset_n: int = Option(10000, help='If a number of observations at BAD is below this threshold, [yellow]small_dataset_strategy[/yellow]'
+         small_dataset_n: int = Option(10000, help='If a number of SNV records at BAD is below this threshold, [yellow]small_dataset_strategy[/yellow]'
                                                    ' will be applied.'),
          small_dataset_strategy: SmallDatasetStrategy = Option('conservative', help='[yellow]fixed_r[/yellow] constraints r as it is constrained in'
                                                                                     ' [yellow]conservative[/yellow] mode.'),
@@ -445,8 +445,8 @@ def _test(name: str = Argument(..., help='Project name.'),
                                                                       ' an impact of more distant component.'),
           gof_thr: float = Option(None, help='Conservative scoring will be used if goodness-of-fit statistic (RMSEA) exceeds [cyan]gof-thr[/cyan] '
                                                 'for a particular slice.'),
-          dataset_n_thr: int = Option(-1, help='Conservative scoring will be used if number of samples at a slice is below '
-                                              '[cyan]dataset-n-thr[/cyan] for a particular slice.'),
+          stop_slice_n_thr: int = Option(-1, help='Conservative scoring will be used if number of samples at a slice is below '
+                                                  '[cyan]dataset-n-thr[/cyan] for a particular slice.'),
           n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
           pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -461,11 +461,11 @@ def _test(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Computing p-values and effect sizes...')
-    test(name, correction=correction, gof_tr=gof_thr, fit=fit, dataset_n_thr=dataset_n_thr, n_jobs=n_jobs)
+    test(name, correction=correction, gof_tr=gof_thr, fit=fit, dataset_n_thr=stop_slice_n_thr, n_jobs=n_jobs)
     if pretty:
         p.stop()
     update_history(name, 'test', correction=correction, gof_tr=gof_thr, fit=fit, 
-                   dataset_n_thr=dataset_n_thr, n_jobs=n_jobs)
+                   dataset_n_thr=stop_slice_n_thr, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
