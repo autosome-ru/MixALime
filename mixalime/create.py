@@ -77,7 +77,6 @@ def _read_bedlike(filename: str):
     for i in range(df.shape[0]):
         it = [t[0] for t in df[i, inds].to_list()]
         it[-4] = tuple(it[-4])
-        it[1] += 1
         res.append(BEDRow(*it))
     return res
 
