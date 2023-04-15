@@ -88,7 +88,6 @@ def parse_filenames(files: list, files_list=None) -> list:
                 folder, _ = os.path.split(file)
                 header = True
                 df = dt.fread(file, max_nrows=1, header=header)
-                print('arar')
                 if df.ncols == 1:
                     header = False
                     df = dt.fread(file, max_nrows=1, header=header)
