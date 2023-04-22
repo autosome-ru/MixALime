@@ -218,7 +218,8 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
                         lt.append((name, row.ref, ','.join(row.alts)))
                     else:
                         if snp_bad_check and lt[1][-1] != bad:
-                            raise Exception(f'SNV at {chrom}:{start} comes from at least two different BADs: {bad} and {lt[1][-1]}.')
+                            raise Exception(f'SNV at {chrom}:{start} comes from at least two different BADs: {bad} and {lt[1][-1]}.'
+                                            ' If that is expected, consider setting --no-snp-bad-check flag.')
                     lt.append((filename_id, ref, alt, bad))
         if flag and snps_set is not None:
             snps_set[bad].add((chrom, start))

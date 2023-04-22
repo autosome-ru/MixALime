@@ -239,7 +239,8 @@ BED-like file formats):
 A [i]scorefiles[/i] folder should appear now in a working directory with plenty of BED-like files.\
 First, we'd like to parse those files into a [bold]MixALime[/bold]-friendly and efficient data structures for further usage, as well as perform some \
 basic filtering if necessary:
-[magenta]>[/magenta] [cyan]mixalime create myprojectname [i]scorefiles[/i][/cyan]
+[magenta]>[/magenta] [cyan]mixalime create myprojectname [i]scorefiles[/i] --no-snp-bad-check[/cyan]
+Here, --no-snp-bad-check is necessarily for our demo: we used cancer data from the K562 cell line, and SNVs can indeed come from different BAD regions.
 Then we fit model parameters to the data with Negative Binomial distribution:
 [magenta]>[/magenta] [cyan]mixalime fit myprojectname NB[/cyan]
 Next we obtain raw p-values:
