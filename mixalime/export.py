@@ -363,6 +363,6 @@ def export_all(name: str, out: str, sample_info: bool = None):
 
 def export_demo(path: str = str()):
     folder = os.path.join(os.path.split(os.path.realpath(__file__))[0], 'data')
-    filename = os.path.join(folder, 'chip.tar.gz')
+    filename = os.path.join(folder, 'dnase_k562.tar.gz')
     with tarfile.open(filename, 'r:gz') as f:
         f.extractall(os.path.join(path, 'scorefiles'))
