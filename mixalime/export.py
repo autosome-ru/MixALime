@@ -208,12 +208,14 @@ def export_combined_pvalues(project, out: str, sample_info=False, subname=None):
             bads.append(bad)
         mean_bad = sum(bads) / len(bads)
         bads = ','.join(map(str, bads))
+        max_cover = (np.array(list(map(int, ref_counts))) + np.array(list(map(int, alt_counts)))).max()
         ref_counts = ','.join(ref_counts);alt_counts = ','.join(alt_counts)
         ref_pvals = ','.join(ref_pvals); alt_pvals = ','.join(alt_pvals)
         ref_eses = ','.join(ref_eses); alt_eses = ','.join(alt_eses)
         n = len(scores_f)
         scores_f = ','.join(scores_f)
         d['#chr'].append(chr); d['start'].append(pos); d['end'].append(end); d['mean_bad'].append(mean_bad); d['id'].append(name)
+        d['max_cover'].append(max_cover)
         d['ref'].append(ref); d['alt'].append(alt); d['n_reps'].append(n);
         
         if sample_info:
