@@ -49,11 +49,11 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
         elif correction == 'single':
             lpdf, rpdf = model.logprob_modes(params, counts)
             lpdf = lpdf[:m]; rpdf = rpdf[:m]; counts = counts[:m]
-            tt = w
             odds_old = w / (1 - w)
             odds_new = odds_old * np.exp(lpdf - rpdf)
             w = odds_new / (odds_new + 1)
             w = np.array(w, dtype=float)
+            w[np.isinf(odds_new)] = 1.0
             iter_w = True
     cdfs = model.cdf_modes(params, counts - 1)
     if not iter_w:
