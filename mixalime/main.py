@@ -809,9 +809,11 @@ def _plot_all(name: str = Argument(..., help='Project name.'), out: Path = Argum
 
 @app.command('test_binom')
 def _test_binom(name: str = Argument(..., help='Project name.'),
-          w: str = Option('1', help='Right mode weight. It can be a formulae that uses both "n" and "bad".'),
-          n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
-          pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
+                beta: bool = Option(False, help='Use beta-binomial model instead of binomial. In that case, concentration paremeter will be'
+                                                ' estimated from the data for each BAD.'),
+                w: str = Option('1', help='Right mode weight. It can be a formulae that uses both "n" and "bad".'),
+                n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
+                pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
     Calculate p-values with a non-bias adjusted left truncated binomial model.
     """
@@ -822,10 +824,10 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Computing p-values and effect sizes...')
-    binom_test(name, w=w, n_jobs=n_jobs)
+    binom_test(name, w=w, beta=beta, n_jobs=n_jobs)
     if pretty:
         p.stop()
-    update_history(name, 'binom_test', w=w, n_jobs=n_jobs)
+    update_history(name, 'binom_test', w=w, beta=beta, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')

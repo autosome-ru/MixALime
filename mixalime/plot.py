@@ -42,9 +42,12 @@ def plot_heatmap(counts: np.ndarray, max_count: int, slices=None, shift=10, cmap
 
     plt.imshow(hm, cmap=cmap, vmin=0, vmax=max_order)
     if slices:
-        a, b = slices
-        plt.vlines(a, 0, max_count, colors=_alt, linestyles='dashed', linewidth=3)
-        plt.hlines(b, 0, max_count, colors=_ref, linestyles='dashed', linewidth=3)
+        try:
+            a, b = slices
+            plt.vlines(a, 0, max_count, colors=_alt, linestyles='dashed', linewidth=3)
+            plt.hlines(b, 0, max_count, colors=_ref, linestyles='dashed', linewidth=3)
+        except TypeError:
+            plt.plot([0, slices], [slices, 0], color='k', linestyle='dashed', linewidth=3)
     plt.xlim(0, max_count)
     plt.ylim(0, max_count)
     plt.xlabel('Reference allele read count')
@@ -62,10 +65,12 @@ def get_pdf_computer(m: ModelMixture, params: dict):
     return lambda x, y: np.exp(m.logprob(m.dict_to_vec(get_params_at_slice(params, y)), x))
 
     
-def plot_histogram(counts: np.ndarray, max_count: int, slc: int, pdf_computer, s=0, c='r'):
-    
+def plot_histogram(counts: np.ndarray, max_count: int, slc: int, pdf_computer, s=0, c='r', slc_sum=False):
     counts = counts[counts[:, s] < max_count, :]
-    counts = counts[counts[:, 1 - s] == slc][:, [s, 2]]
+    if slc_sum:
+        counts = counts[counts[:, 1 - s] + counts[:, s] == slc][:, [s, 2]]
+    else:
+        counts = counts[counts[:, 1 - s] == slc][:, [s, 2]]
     plt.bar(counts[:, 0], counts[:, 1] / counts[:, 1].sum(), width=1, color=_count)
     x = np.arange(0, max_count)
     y = pdf_computer(x, slc)

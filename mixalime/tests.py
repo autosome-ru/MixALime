@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from .utils import get_init_file, dictify_params, get_model_creator, openers
-from betanegbinfit.distributions import LeftTruncatedBinom
+from betanegbinfit.distributions import LeftTruncatedBinom, LeftTruncatedBetaBinom
 from betanegbinfit.utils import get_params_at_slice
 from multiprocessing import cpu_count, Pool
+from scipy.optimize import minimize_scalar
+from collections import defaultdict
 from functools import partial
+from itertools import product
 from gmpy2 import mpfr
 import numpy as np
 import dill
@@ -46,6 +49,7 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
         elif correction == 'single':
             lpdf, rpdf = model.logprob_modes(params, counts)
             lpdf = lpdf[:m]; rpdf = rpdf[:m]; counts = counts[:m]
+            tt = w
             odds_old = w / (1 - w)
             odds_new = odds_old * np.exp(lpdf - rpdf)
             w = odds_new / (odds_new + 1)
@@ -72,7 +76,7 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
         res = {(c, alt): v for c, v in zip(counts, res)}
     return res
 
-def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool):
+def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool, params=None):
     alt, counts = t
     n = counts + alt
     res = list()
@@ -89,7 +93,6 @@ def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool):
         cdf2 = dist.long_cdf(counts - 1, n, 1 - p, left)
         mean_l = dist.mean(n, p, left)
         mean_r = dist.mean(n, 1 - p, left)
-        # print(alt, counts, n)
         for cdf_l, cdf_r,  mean_r, mean_l, c, n in zip(cdf1, cdf2, mean_l, mean_r, counts, n):
             w = float(eval(tw))
             mean = w * mean_l + (1 - w) * mean_r
@@ -101,6 +104,72 @@ def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool):
         res = {(alt, c): v for c, v in zip(counts, res)}
     else:
         res = {(c, alt): v for c, v in zip(counts, res)}
+    return res
+
+def calc_stats_betabinom(t: tuple, w: str, bad: float, left: int, swap: bool, params=None):
+    alt, counts = t
+    n = counts + alt
+    k = params[bad]['alt' if swap else 'ref']
+    res = list()
+    dist = LeftTruncatedBetaBinom
+    p = bad / (bad + 1)
+    if bad == 1:
+        pv = np.array(list(map(float, dist.long_sf(counts - 1, n, p, k, left))))
+        es = np.log2(counts) - np.log2(list(map(float, dist.mean(n, p, k, left))))
+        for pv, es in zip(pv, es):
+            res.append((pv, es))
+    else:
+        tw = w
+        cdf1 = dist.long_cdf(counts - 1, n, p, k, left)
+        cdf2 = dist.long_cdf(counts - 1, n, 1 - p, k, left)
+        mean_l = dist.mean(n, p, k, left)
+        mean_r = dist.mean(n, 1 - p, k, left)
+        for cdf_l, cdf_r,  mean_r, mean_l, c, n in zip(cdf1, cdf2, mean_l, mean_r, counts, n):
+            w = float(eval(tw))
+            mean = w * mean_l + (1 - w) * mean_r
+            cdf = w * cdf_l + (1 - w) * cdf_r
+            mean = w * mean_l + (1 - w) * mean_r
+            res.append((float(1 - cdf), np.log2(c) - np.log2(mean), ))
+            
+    if swap:
+        res = {(alt, c): v for c, v in zip(counts, res)}
+    else:
+        res = {(c, alt): v for c, v in zip(counts, res)}
+    return res
+
+def est_betabinom_params(counts_d: dict, left: int, n_jobs:int=1):
+    dist = LeftTruncatedBetaBinom
+    res = defaultdict(dict)
+    def est(t):
+        bad, swap = t
+        counts = counts_d[bad]
+        if swap:
+            counts = counts[:, [1, 0, 2]]
+        r = counts[:, 0] + counts[:, 1]
+        def fun(k):
+            return -np.sum(dist.logprob(counts[:, 0], r=r, mu=bad/(bad + 1), concentration=k, left=left) * counts[:, -1])
+        seps = np.linspace(1.0, 500.0, 100)
+        best_f = float('inf')
+        for i, k in enumerate(seps):
+            f = fun(k)
+            if f < best_f:
+                best_f = f
+                min_i = i
+        seps = [1.0] + list(seps) + [500]
+        a = seps[min_i]
+        b = seps[min_i + 1]
+                
+            
+        return minimize_scalar(fun, bounds=(a, b)).x
+    its = list(product(list(counts_d.keys()), (False, True)))
+    if n_jobs > 1:
+        with Pool(n_jobs) as p:
+            for i, k in enumerate(p.map(est, its)):
+                bad, swap = its[i]
+                res[bad]['alt' if swap else 'ref'] = k
+    for i, k in enumerate(map(est, its)):
+        bad, swap = its[i]
+        res[bad]['alt' if swap else 'ref'] = k
     return res
 
 
@@ -152,7 +221,7 @@ def test(name: str, correction: str = None, gof_tr: float = None, dataset_n_thr 
     return res
 
 
-def binom_test(name: str, w: str, n_jobs=-1):
+def binom_test(name: str, w: str, beta=False, n_jobs=-1):
     n_jobs = cpu_count() - 1 if n_jobs == -1 else n_jobs
     filename = get_init_file(name)
     compressor = filename.split('.')[-1]
@@ -165,6 +234,13 @@ def binom_test(name: str, w: str, n_jobs=-1):
     for c in counts_d.values():
         left = min(c[:, (0, 1)].min(), left)
     left -= 1
+    if beta:
+        stat_fun = calc_stats_betabinom
+        params = est_betabinom_params(counts_d, left, n_jobs=n_jobs)
+        print(params)
+    else:
+        stat_fun = calc_stats_binom
+        params = None
     for bad in counts_d:
         for allele in ('ref', 'alt'):
             sub_res = dict()
@@ -177,7 +253,7 @@ def binom_test(name: str, w: str, n_jobs=-1):
             sub_c = [(u, counts[alt == u, 0]) for u in np.unique(alt)]
             chunksize = int(np.ceil(len(sub_c) / n_jobs))
             with Pool(n_jobs) as p:
-                f = partial(calc_stats_binom, w=w, bad=bad, left=left, swap=swap)
+                f = partial(stat_fun, w=w, bad=bad, left=left, params=params, swap=swap)
                 it = p.imap_unordered(f, sub_c, chunksize=chunksize) if n_jobs > 1 else map(f, sub_c)
                 for r in it:
                     sub_res.update(r)
