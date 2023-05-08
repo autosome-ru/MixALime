@@ -107,21 +107,28 @@ def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool, params
     return res
 
 def calc_stats_betabinom(t: tuple, w: str, bad: float, left: int, swap: bool, params=None):
+    dist = LeftTruncatedBetaBinom
     alt, counts = t
     n = counts + alt
     k = params[bad]['alt' if swap else 'ref']
+    def sf(p):
+        res = np.empty(len(n), dtype=object)
+        for nv in np.unique(n):
+            ind = n == nv
+            res[ind] = dist.long_sf(counts[ind] - 1, nv, p, k, left)
+        return res
+            
     res = list()
-    dist = LeftTruncatedBetaBinom
     p = bad / (bad + 1)
     if bad == 1:
-        pv = np.array(list(map(float, dist.long_sf(counts - 1, n, p, k, left))))
+        pv = np.array(list(map(float, sf(p))))
         es = np.log2(counts) - np.log2(list(map(float, dist.mean(n, p, k, left))))
         for pv, es in zip(pv, es):
             res.append((pv, es))
     else:
         tw = w
-        cdf1 = dist.long_cdf(counts - 1, n, p, k, left)
-        cdf2 = dist.long_cdf(counts - 1, n, 1 - p, k, left)
+        cdf1 = sf(p)
+        cdf2 = sf(1 - p)
         mean_l = dist.mean(n, p, k, left)
         mean_r = dist.mean(n, 1 - p, k, left)
         for cdf_l, cdf_r,  mean_r, mean_l, c, n in zip(cdf1, cdf2, mean_l, mean_r, counts, n):
@@ -148,19 +155,17 @@ def est_betabinom_params(counts_d: dict, left: int, n_jobs:int=1):
         r = counts[:, 0] + counts[:, 1]
         def fun(k):
             return -np.sum(dist.logprob(counts[:, 0], r=r, mu=bad/(bad + 1), concentration=k, left=left) * counts[:, -1])
-        seps = np.linspace(1.0, 500.0, 100)
+        seps = np.linspace(0.0, 500.0, 100)
         best_f = float('inf')
         for i, k in enumerate(seps):
             f = fun(k)
             if f < best_f:
                 best_f = f
                 min_i = i
-        seps = [1.0] + list(seps) + [500]
+        seps = [0] + list(seps) + [500]
         a = seps[min_i]
-        b = seps[min_i + 1]
-                
-            
-        return minimize_scalar(fun, bounds=(a, b)).x
+        b = seps[min_i + 2]
+        return minimize_scalar(fun, bounds=(a, b), method='bounded').x
     its = list(product(list(counts_d.keys()), (False, True)))
     if n_jobs > 1:
         with Pool(n_jobs) as p:
@@ -237,7 +242,6 @@ def binom_test(name: str, w: str, beta=False, n_jobs=-1):
     if beta:
         stat_fun = calc_stats_betabinom
         params = est_betabinom_params(counts_d, left, n_jobs=n_jobs)
-        print(params)
     else:
         stat_fun = calc_stats_binom
         params = None
@@ -262,4 +266,4 @@ def binom_test(name: str, w: str, beta=False, n_jobs=-1):
         os.remove(filename)
     with open(f'{name}.test.{compressor}', 'wb') as f:
         dill.dump(res, f)
-    return res
+    return res, params

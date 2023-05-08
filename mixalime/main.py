@@ -824,9 +824,21 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Computing p-values and effect sizes...')
-    binom_test(name, w=w, beta=beta, n_jobs=n_jobs)
+    _, params = binom_test(name, w=w, beta=beta, n_jobs=n_jobs)
     if pretty:
+        if beta:
+            table = Table('BAD', 'ref', 'alt')
+            for bad in sorted(params):
+                d = params[bad]
+                ref = '{:.3f}'.format(d['ref'])
+                alt = '{:.3f}'.format(d['alt'])
+                table.add_row('{:.2f}'.format(bad), ref, alt)
+            rprint('Estimated concentration parameters:')
+            rprint(table)
         p.stop()
+    else:
+        print('Estimated concentration parameters:')
+        print(params)
     update_history(name, 'binom_test', w=w, beta=beta, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
