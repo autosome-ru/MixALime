@@ -70,7 +70,7 @@ def _read_bedlike(filename: str):
     except StopIteration:
         bad_col = len(names)
         names.append('bad')
-        df['db'] = 0
+        df['bad'] = 0
     met.add(db_col)
     inds = (chr_col, start_col, id_col, ref_count_col, alt_count_col,  ref_col, alt_col, qual_col, db_col, bad_col)
     res = list()

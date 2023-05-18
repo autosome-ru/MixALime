@@ -137,8 +137,6 @@ class Model():
             else:
                 k = np.zeros(len(r))
             r = self.adjust_r(r, k, ps.get('w', None))
-        print(self.dist, fixed.flatten())
-        print(ps)
         data, r, k, w = self.update_mask(data, r, k, w)
         mask = self.mask
         f = partial(self.negloglik, r=r, k=k, data=data, w=w, mask=mask)
@@ -178,6 +176,8 @@ def get_snvs_for_group(snvs: dict, group: set, min_samples: int = 0, min_cover :
     res = dict()
     for k, lt in snvs.items():
         t = list(filter(lambda x: (x[0] in group) and sum(x[1:]) < max_cover, lt[1:]))
+        if not t:
+            continue
         if len(t) >= min_samples and max(sum(v[1:]) for v in t) >= min_cover:
             res[k] = [lt[0]] + t
     return res
@@ -430,6 +430,8 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
         
         counts = [(snv, *[c[bad] for c in build_count_tables({snv: snvs_a[snv]}, {snv: snvs_b[snv]})])
                   for snv, it in snvs_a.items() if _bad_in(it, bad)]
+        if not counts:
+            continue
         max_sz = max(c[-1].shape[0] for c in counts)
         f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz)
         chunk_size = len(counts) // n_jobs
@@ -443,8 +445,12 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
                     continue
                 res.append([*t] + list(r[0]) + list(r[1]))
     df = pd.DataFrame(res, columns=['ind', 'n_control', 'n_test'] + cols)
-    _, df['ref_fdr_pval'], _, _ = multitest.multipletests(df['ref_pval'], alpha=alpha, method='fdr_bh')
-    _, df['alt_fdr_pval'], _, _ = multitest.multipletests(df['alt_pval'], alpha=alpha, method='fdr_bh')
+    if df.empty:
+        df['ref_fdr_pval'] = None
+        df['alt_fdr_pval'] = None
+    else:
+        _, df['ref_fdr_pval'], _, _ = multitest.multipletests(df['ref_pval'], alpha=alpha, method='fdr_bh')
+        _, df['alt_fdr_pval'], _, _ = multitest.multipletests(df['alt_pval'], alpha=alpha, method='fdr_bh')
     
     res = {subname: {'tests': df, 'snvs': (snvs_a, snvs_b)}}
     if group_test:

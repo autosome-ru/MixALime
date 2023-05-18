@@ -610,16 +610,22 @@ def _difftest(name: str = Argument(..., help='Project name.'),
     ref = ref.sum()
     alt = alt.sum()
     if pretty:
-        rprint('Number of significantly differentially expressed SNVs after FDR correction:')
-        table = Table('Ref', 'Alt', 'Both', 'Total\nPercentage of total SNVs ')
-        table.add_row(str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')
-        rprint(table)
-        rprint('Total SNVs tested:', len(r))
+        if not total:
+            rprint('No SNVs passed filters for differential test.')
+        else:
+            rprint('Number of significantly differentially expressed SNVs after FDR correction:')
+            table = Table('Ref', 'Alt', 'Both', 'Total\nPercentage of total SNVs ')
+            table.add_row(str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')
+            rprint(table)
+            rprint('Total SNVs tested:', len(r))
     else:
-        print('Number of significantly differentially expressed SNVs after FDR correction:')
-        print('\t'.join('Ref', 'Alt', 'Both', 'Total/Percentage of total SNVs'))
-        print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
-        rprint('Total SNVs tested:', len(r))
+        if not total:
+            print('No SNVs passed filters for differential test.')
+        else:
+            print('Number of significantly differentially expressed SNVs after FDR correction:')
+            print('\t'.join('Ref', 'Alt', 'Both', 'Total/Percentage of total SNVs'))
+            print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
+            print('Total SNVs tested:', len(r))
     expected_res = [int(ref), int(alt), int(total)]
     update_history(name, 'difftest', group_control=group_a, group_test=group_b, alpha=alpha, min_samples=min_samples, min_cover=min_cover,
                    mode=mode, subname=subname, test_groups=test_groups, max_cover=max_cover, filter_id=filter_id,
