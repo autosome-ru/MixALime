@@ -11,11 +11,14 @@ The package is *almost* easy to use and we advise everyone to just jump straight
 > mixalime --help
 ```
 
-We believe that the help section of **MixALime** covers its functionality well enough. Furthermore, the package arrives with a small demo dataset included and an easy-to-follow instruction in the abovementioned help section. So do not waste your time looking for how-to-clues or tutorials here, just use `--help`.
+We believe that the help section of **MixALime** covers its functionality well enough. Furthermore, the package arrives with a small demo dataset included and an easy-to-follow instruction in the abovementioned help section. Furthermore, note that all commands avaliable **MixALime**'s command-line interface have their own `help` page too, e.g.:
+'''
+> mixalime fit --help
+'''
 
-*Actually this README.md will probably be more complete and detailed one day than it is now, the README-writing person was just too tired at the moment.*
+So do not waste your time looking for how-to-clues or tutorials here, just use `--help`. 
 
-For the sake of following the social norms that impose a requirement of README files to be useful, in the next section you'll find the excerpt from `--help` command:
+Yet, for the sake of following the social norms that impose a requirement of README files to be useful, in the next section you'll find the excerpt from `--help` command as well as some other possibly useful details:
 
 # Demo
 A typical **MixALime** session consists of sequential runs of `create`, `fit`, `test`, `combine` and, finally, `export all`, `plot` commands. For instance, we provide a demo dataset that consists of a bunch of BED-like files with allele counts at SNVs (just for the record, **MixALime** can work with most vcf and  BED-like file formats):
@@ -48,6 +51,7 @@ Finally, we obtain fancy plots fir diagnostic purposes and easy-to-work with tab
 You'll find everything of interest in *results_folder*.
 
 
+
 # Combination of p-values across groups
 
 *Note: a popular synonym for "combination" in this context is _aggregation_.*
@@ -63,3 +67,31 @@ or
 > mixalime combine --subname control -g group_control.tsv combine myproject
 ```
 The `--subname` option is necessary if you wish to avoid different `combine` invocations overriding each other.
+
+# Scoring models
+The package provides a variety of models for datasets of varying dispersion:
+| Name               | Dataset variance | Comments                                                                                                                                                                                             |
+|--------------------|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| NB                 | Low              | Fastest parameter estimation; might be too liberal for some datasets                                                                                                                                 |
+| MCNB               | Medium-low       | The safest compromise between liberal NB and conservative BetaNB                                                                                                                                     |
+| BetaNB             | High             | Introduces an extra parameter to control for higher variance, fits most datasets perfectly, yet the scoring is often overly conservative                                                             |
+| Regularized BetaNB | Depends          | Introduces penalty on the extra parameter to make the model less likely to overfit with the `--regul-a' command. Requires tuning the regularization hyperparameter alpha which might not be feasible |
+
+The name of the appropriate model is supplied to the `fit` command as an argument (except for regularized BetaNB which is just an `fit ProjectName BetaNB' with an '--regul-a alpha_value` option where `alpha_value` is your hyperparameter value, e.g. 1.0).
+## Binomial and beta-binomial models
+**MixALime** also can do good old-fashion binomial and beta-binomial tests. They can be done with the separate `test_binom` (with `--beta` flag if you want beta-binomial). Note, that with this command you can skip the `fit` (as not fit is done here, except for beta-binomial, where a single variance parameter is estimated for each BAD) and `test` step.
+
+# Inner clockworks & Citing
+For the time being, you can cite [our technical arXiv paper](https://doi.org/10.48550/arXiv.2306.08287) that explains MixALime's inner clockworks in a great detail:
+
+'''
+@misc{meshcheryakov2023mixalime,
+    doi={10.48550/arXiv.2306.08287},
+    title={MIXALIME: MIXture models for ALlelic IMbalance Estimation in high-throughput sequencing data},
+    author={Georgy Meshcheryakov and Sergey Abramov and Aleksandr Boytsov and Andrey I. Buyan and Vsevolod J. Makeev and Ivan V. Kulakovskiy},
+    year={2023},
+    eprint={2306.08287},
+    archivePrefix={arXiv},
+    primaryClass={stat.AP}
+}
+'''
