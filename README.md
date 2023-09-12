@@ -1,3 +1,5 @@
+<img src="http://data.georgy.top/media/MixALime_logo.png" alt="drawing" width="800"/>
+
 # MixALime: Mixture models for Allelic Imbalance Estimation
 
 **Python 3.10+ as of now is not supported due to the fact that datatable package does not support it either. This will change as soon as datatable is released to 1.1.0.**
