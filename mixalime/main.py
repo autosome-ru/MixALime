@@ -25,6 +25,7 @@ from . import __version__ as mixalime_version
 import json
 from . import plot
 
+
 __all__ = ['main']
 
 class Compression(str, Enum):

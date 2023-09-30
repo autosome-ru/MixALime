@@ -2,7 +2,7 @@
 
 # MixALime: Mixture models for Allelic Imbalance Estimation
 
-**Python 3.10+ as of now is not supported due to the fact that datatable package does not support it either. This will change as soon as datatable is released to 1.1.0.**
+**If you use Python 3.10+, the datatable package will be installed from git instead of pip. It might fail in some conda environments due to the outdated versions of libstdcxx-ng: make sure you have the latest version by running "conda install -c conda-forge libstdcxx-ng" beforehand.**
 
 **MixALime** is a tool for the identification of allele-specific events in high-throughput sequencing data. It works by modelling counts data as a mixture of two Negative Binomial or Beta Negative Binomial distributions (where the latter is more applicable in case of noisy data at a cost of loss of sensitivity).
 

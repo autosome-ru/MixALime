@@ -1,5 +1,8 @@
-__version__ = '2.14.10'
+__version__ = '2.14.11'
 import importlib
+import sys
+
+ge_10 = sys.version_info[1] >= 10
 
 __min_reqs__ = [
             'pip>=23.0',
@@ -12,7 +15,7 @@ __min_reqs__ = [
             'scipy>=1.10.1',
             'statsmodels>=0.13.2',
             'betanegbinfit>=1.9.5',
-            'datatable>=1.0.0',
+            'datatable @ git+https://github.com/h2oai/datatable.git' if ge_10 else 'datatable>=1.0.0' ,
             'dill>=0.3.6',
             'rich>=12.6.0',
             'portion>=2.3.0',
@@ -24,11 +27,11 @@ def versiontuple(v):
 
 def check_packages():
     for req in __min_reqs__:
-        module, ver = req.split('>=')
-        ver = versiontuple(ver)
         try:
+            module, ver = req.split(' @').split('>=')
+            ver = versiontuple(ver)
             v = versiontuple(importlib.import_module(module).__version__)
-        except AttributeError:
+        except (AttributeError, ValueError):
             continue
         if v < ver:
             raise ImportError(f'Version of the {module} package should be at least {ver} (found: {v}).')
