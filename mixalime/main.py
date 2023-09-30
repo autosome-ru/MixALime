@@ -777,7 +777,7 @@ def _difftests(name: str = Argument(..., help='Project name.'), out: Path = Argu
 def _demo(export_path: Path = Option(str(), help='Path where the demo data will be extracted.'),
           pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     '''
-    Extract demonstration data from ChIP-seq experiment.
+    Extract demonstration data from DNase-seq experiment for the cell line K562.
     '''
     export_path = str(export_path)
     export.export_demo(export_path)
