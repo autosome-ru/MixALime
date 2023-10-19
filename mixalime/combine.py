@@ -6,6 +6,7 @@ import os
 import re
 from .utils import get_init_file, openers, parse_filenames
 from multiprocessing import cpu_count, Pool, Manager
+from collections import defaultdict
 from functools import partial
 from itertools import islice
 from statsmodels.stats import multitest
@@ -46,6 +47,27 @@ def combine_es(es, pvalues):
         weights /= s
     return np.sum(weights * es)
 
+def estimate_min_coverage(test, es_cutoff: float = 1, pval_cutoff: float = 0.5):
+    res = defaultdict(dict)
+    for allele in test:
+        for bad in test[allele]:
+            it = test[allele][bad]
+            counts = np.array(list(it.keys()))
+            coverage = counts.sum(axis=1)
+            stop = False
+            for cov in np.unique(coverage):
+                ind = coverage == cov
+                pairs = counts[ind]
+                for t in pairs:
+                    pvalue, es = it[tuple(t)]
+                    if (es > es_cutoff) and (pvalue < pval_cutoff):
+                        stop = True
+                        break
+                if stop:
+                    break
+            res[allele][bad] = cov if stop else float('inf')
+    return res
+
 def combine_stats(inds, snvs, stats, groups, min_cnt_sum=20):
     pvalues = list()
     es = list()
@@ -56,7 +78,7 @@ def combine_stats(inds, snvs, stats, groups, min_cnt_sum=20):
         if groups:
             lt = filter(lambda x: x[0] in groups, lt)
         lt = [t[1:] for t in lt]
-        if not lt or max(sum(t[:-1]) for t in lt) < min_cnt_sum:
+        if not lt or not max(sum(t[:-1]) >= min_cnt_sum[t[-1]] for t in lt):
             ref = alt = ref_es = alt_es = np.nan
             k = None
         else:
@@ -76,7 +98,8 @@ def batched(iterable, n):
     while (batch := tuple(islice(it, n))):
         yield batch
 
-def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=None, filter_chr=None, subname=None, n_jobs=1, save_to_file=True):
+def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, adaptive_min_cover=False, adaptive_es=1.0, adaptive_pval=0.05,
+            filter_id=None, filter_chr=None, subname=None, n_jobs=1, save_to_file=True):
     if group_files is None:
         group_files = list()
     else:
@@ -104,6 +127,12 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=N
             groups.add(i)
         except ValueError:
             logging.error(f'Unknown scorefile {file}')
+    if adaptive_min_cover:
+        adaptive_coverage = estimate_min_coverage(stats, es_cutoff=adaptive_es, pval_cutoff=adaptive_pval)
+        min_coverage = {bad: min(adaptive_coverage['ref'][bad], adaptive_coverage['alt'][bad]) for bad in adaptive_coverage['ref']}
+    else:
+        adaptive_coverage = None
+        min_coverage = {bad: min_cnt_sum for bad in stats['ref']}
     del scorefiles
     ref_comb_pvals = list()
     alt_comb_pvals = list()
@@ -117,12 +146,12 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=N
         its = list(filter(lambda x: x[1][0][1] and filter_id.match(x[1][0][1]), its))
     if filter_chr:
         its = list(filter(lambda x: filter_chr.match(x[0]), its))
-
+    
     with Manager() as manager:
         if n_jobs > 1:
             its = manager.list(its)
         with Pool(n_jobs) as p:
-            f = partial(combine_stats, snvs=its, stats=stats, groups=groups, min_cnt_sum=min_cnt_sum)
+            f = partial(combine_stats, snvs=its, stats=stats, groups=groups, min_cnt_sum=min_coverage)
             if n_jobs > 1:
                 sz = int(np.ceil(len(its) / n_jobs))
                 inds = batched(range(len(its)), sz)
@@ -165,4 +194,4 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, filter_id=N
     if save_to_file:
         with open(f'{name}.comb.{compressor}', 'wb') as f:
             dill.dump(res, f)
-    return res
+    return res, adaptive_coverage

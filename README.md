@@ -13,7 +13,7 @@ The package is *almost* easy to use and we advise everyone to just jump straight
 > mixalime --help
 ```
 
-We believe that the help section of **MixALime** covers its functionality well enough. Furthermore, the package arrives with a small demo dataset included and an easy-to-follow instruction in the abovementioned help section. Furthermore, note that all commands avaliable **MixALime**'s command-line interface have their own `help` page too, e.g.:
+We believe that the help section of **MixALime** covers its functionality well enough. Furthermore, the package arrives with a small demo dataset included and an easy-to-follow instruction in the abovementioned help section. Furthermore, note that all commands avaliable in **MixALime**'s command-line interface have their own `help` page too, e.g.:
 ```
 > mixalime fit --help
 ```
@@ -45,7 +45,7 @@ Usually we'd want to combine p-values across samples and apply a FDR correction:
 ```
 > mixalime combine myprojectname
 ```
-Finally, we obtain fancy plots fir diagnostic purposes and easy-to-work with tabular data:
+Finally, we obtain fancy plots fir diagnostic purposes and easy-to-work-with tabular data:
 ```
 > mixalime export all myprojectname results_folder
 > mixalime plot myprojectname results_folder
@@ -68,14 +68,14 @@ or
 > mixalime combine --subname treatment -g group_treatment.tsv combine myproject
 > mixalime combine --subname control -g group_control.tsv combine myproject
 ```
-The `--subname` option is necessary if you wish to avoid different `combine` invocations overriding each other.
+The `--subname` option is necessary if you wish to avoid different `combine` invocations overwriting each other.
 
 # Scoring models
 The package provides a variety of models for datasets of varying dispersion:
 | Name               | Dataset variance | Comments                                                                                                                                                                                             |
 |--------------------|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | NB                 | Low              | Fastest parameter estimation; might be too liberal for some datasets                                                                                                                                 |
-| MCNB               | Medium-low       | The safest compromise between liberal NB and conservative BetaNB                                                                                                                                     |
+| MCNB               | Medium-low       | Marginalized Compound Negative Binomial (MCNB), the safest compromise between liberal NB and conservative BetaNB                                                                                                                                     |
 | BetaNB             | High             | Introduces an extra parameter to control for higher variance, fits most datasets perfectly, yet the scoring is often overly conservative                                                             |
 | Regularized BetaNB | Depends          | Introduces penalty on the extra parameter to make the model less likely to overfit with the `--regul-a` command. Requires tuning the regularization hyperparameter alpha which might not be feasible |
 
