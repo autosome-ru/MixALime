@@ -81,7 +81,7 @@ def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool, params
     n = counts + alt
     res = list()
     dist = LeftTruncatedBinom
-    if bad == 1:
+    if w is None or bad == 1:
         pv = np.array(list(map(float, dist.long_sf(counts - 1, n, 0.5, left))))
         es = np.log2(counts) - np.log2(list(map(float, dist.mean(n, 0.5, left))))
         for pv, es in zip(pv, es):
@@ -119,13 +119,14 @@ def calc_stats_betabinom(t: tuple, w: str, bad: float, left: int, swap: bool, pa
         return res
             
     res = list()
-    p = bad / (bad + 1)
-    if bad == 1:
+    if w is None or bad == 1:
+        p = 0.5
         pv = np.array(list(map(float, sf(p))))
         es = np.log2(counts) - np.log2(list(map(float, dist.mean(n, p, k, left))))
         for pv, es in zip(pv, es):
             res.append((pv, es))
     else:
+        p = bad / (bad + 1)
         tw = w
         cdf1 = sf(p)
         cdf2 = sf(1 - p)
@@ -144,7 +145,7 @@ def calc_stats_betabinom(t: tuple, w: str, bad: float, left: int, swap: bool, pa
         res = {(c, alt): v for c, v in zip(counts, res)}
     return res
 
-def est_betabinom_params(counts_d: dict, left: int, n_jobs:int=1):
+def est_betabinom_params(counts_d: dict, left: int, w: float, n_jobs:int=1):
     dist = LeftTruncatedBetaBinom
     res = defaultdict(dict)
     def est(t):
@@ -154,7 +155,14 @@ def est_betabinom_params(counts_d: dict, left: int, n_jobs:int=1):
             counts = counts[:, [1, 0, 2]]
         r = counts[:, 0] + counts[:, 1]
         def fun(k):
-            return -np.sum(dist.logprob(counts[:, 0], r=r, mu=bad/(bad + 1), concentration=k, left=left) * counts[:, -1])
+            if w is None:
+                t = dist.logprob(counts[:, 0], r=r, mu=0.5, concentration=k, left=left) * counts[:, -1]
+            else:
+                p = bad/(bad + 1)
+                t1 = dist.logprob(counts[:, 0], r=r, mu=p, concentration=k, left=left) 
+                t2 = dist.logprob(counts[:, 0], r=r, mu=1 - p, concentration=k, left=left)
+                t = np.log((1 - w) * np.exp(t1) + w * np.exp(t2)) * counts[:, -1]
+            return -np.sum(t)
         seps = np.linspace(0.0, 500.0, 100)
         best_f = float('inf')
         for i, k in enumerate(seps):
@@ -226,7 +234,7 @@ def test(name: str, correction: str = None, gof_tr: float = None, dataset_n_thr 
     return res
 
 
-def binom_test(name: str, w: str, beta=False, n_jobs=-1):
+def binom_test(name: str, w: float, beta=False, n_jobs=-1):
     n_jobs = cpu_count() - 1 if n_jobs == -1 else n_jobs
     filename = get_init_file(name)
     compressor = filename.split('.')[-1]
@@ -241,7 +249,7 @@ def binom_test(name: str, w: str, beta=False, n_jobs=-1):
     left -= 1
     if beta:
         stat_fun = calc_stats_betabinom
-        params = est_betabinom_params(counts_d, left, n_jobs=n_jobs)
+        params = est_betabinom_params(counts_d, left, n_jobs=n_jobs, w=w)
     else:
         stat_fun = calc_stats_binom
         params = None

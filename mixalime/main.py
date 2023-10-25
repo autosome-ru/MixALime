@@ -844,7 +844,7 @@ def _plot_all(name: str = Argument(..., help='Project name.'), out: Path = Argum
 def _test_binom(name: str = Argument(..., help='Project name.'),
                 beta: bool = Option(False, help='Use beta-binomial model instead of binomial. In that case, concentration paremeter will be'
                                                 ' estimated from the data for each BAD.'),
-                w: str = Option('1', help='Right mode weight. It can be a formulae that uses both "n" and "bad".'),
+                w: str = Option(str(), help='Left mode weight. If None, then p=1/2, w=1 will be used everywhere.'),
                 n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
                 pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -857,7 +857,7 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Computing p-values and effect sizes...')
-    _, params = binom_test(name, w=w, beta=beta, n_jobs=n_jobs)
+    _, params = binom_test(name, w=None if not w else float(w), beta=beta, n_jobs=n_jobs)
     if pretty:
         if beta:
             table = Table('BAD', 'ref', 'alt')
