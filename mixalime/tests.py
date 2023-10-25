@@ -94,7 +94,7 @@ def calc_stats_binom(t: tuple, w: str, bad: float, left: int, swap: bool, params
         mean_l = dist.mean(n, p, left)
         mean_r = dist.mean(n, 1 - p, left)
         for cdf_l, cdf_r,  mean_r, mean_l, c, n in zip(cdf1, cdf2, mean_l, mean_r, counts, n):
-            w = float(eval(tw))
+            w = float(tw)
             mean = w * mean_l + (1 - w) * mean_r
             cdf = w * cdf_l + (1 - w) * cdf_r
             mean = w * mean_l + (1 - w) * mean_r
@@ -133,7 +133,7 @@ def calc_stats_betabinom(t: tuple, w: str, bad: float, left: int, swap: bool, pa
         mean_l = dist.mean(n, p, k, left)
         mean_r = dist.mean(n, 1 - p, k, left)
         for cdf_l, cdf_r,  mean_r, mean_l, c, n in zip(cdf1, cdf2, mean_l, mean_r, counts, n):
-            w = float(eval(tw))
+            w = float(tw)
             mean = w * mean_l + (1 - w) * mean_r
             cdf = w * cdf_l + (1 - w) * cdf_r
             mean = w * mean_l + (1 - w) * mean_r
