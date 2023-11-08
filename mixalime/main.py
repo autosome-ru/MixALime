@@ -294,6 +294,8 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
             pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     if max_cover is None:
         max_cover = float('inf')
+    if type(compression) is Compression:
+        compression = str(compression.value)
     files = list(map(str, files))
     if bad_maps:
         bad_maps = str(bad_maps)
