@@ -13,7 +13,6 @@ setup(
     include_package_data=True,
     package_data={'': ['data/*']},
     description='Identification of allele-specific events in sequencing experiments.',
-    dependency_links=['https://github.com/h2oai/datatable.git'],
     long_description=long_description,
     long_description_content_type="text/markdown",
     entry_points={
