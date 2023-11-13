@@ -1,4 +1,4 @@
-<img src="http://data.georgy.top/media/MixALime.png" alt="drawing" width="800"/>
+<img src="http://data.georgy.top/media/mixalime.png" alt="drawing" width="800"/>
 
 # MixALime: Mixture models for Allelic Imbalance Estimation
 
