@@ -1,4 +1,4 @@
-__version__ = '2.15.4'
+__version__ = '2.15.5'
 import importlib
 import sys
 
@@ -7,19 +7,19 @@ ge_10 = sys.version_info[1] >= 10
 __min_reqs__ = [
             'pip>=23.0',
             'typer>=0.6.1',
-            'numpy>=1.23.4',
-            'jax>=0.4.4',
-            'jaxlib>=0.4.4',
+            'numpy>=1.26.2',
+            'jax>=0.4.20',
+            'jaxlib>=0.4.20',
             'matplotlib>=3.5.1',
             'pandas>=1.4.1',
-            'scipy>=1.10.1',
+            'scipy>=1.11.3',
             'statsmodels>=0.13.2',
-            'betanegbinfit>=1.9.5',
+            'betanegbinfit>=1.9.6',
             'datatable>1.0.0' if ge_10 else 'datatable>=1.0.0' ,
-            'dill>=0.3.6',
+            'dill>=0.3.7',
             'rich>=12.6.0',
             'portion>=2.3.0',
-            'pysam>=0.19.1'
+            'pysam>=0.22.0'
            ]
 
 def versiontuple(v):
