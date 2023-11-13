@@ -345,7 +345,6 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
 @app.command('fit')
 def _fit(name: str = Argument(..., help='Project name.'),
          dist: Dist = Argument(..., help='Name of distribution that will be used in the mixture model.'),
-         model: Model = Option(Model.window.value, help='Model to be used.'),
          left: int = Option(4, help='Left-truncation bound. If None, then it will be estimated from the counts data as the minimal present count minus 1.'),
          estimate_p: bool = Option(False, help='If True, then p will be estimated instead of assuming it to be fixed to bad / (bad + 1)'),
          window_size: int = Option(10000, help='Has effect only if [cyan]model[/cyan] = "[bold]window[/bold]", sets the required minimal window size.'),
@@ -361,15 +360,17 @@ def _fit(name: str = Argument(..., help='Project name.'),
                                                 ' as little as possible from the previous b and mu estimates.'),
          k_left_bound: int = Option(1, help='Minimal allowed value for concentration parameter [italic]k[/italic].'),
          max_count: int = Option(None, help='Maximal number of counts for an allele (be it ref or alt).'),
-         max_cover: int = Option(None, help='Maximal sum of ref + alt.'), 
-         regul_alpha: float = Option(0.0, help='Regularization/prior strength hyperparameter alpha. Valid only for [cyan]model[/cyan]='
-                                               '[yellow]window[/yellow].'),
-         regul_n: bool = Option(True, help='Multiply alpha by a number of SNV records captured by a particular window. Valid only for '
-                                           '[cyan]model[/cyan]=[yellow]window[/yellow].'),
-         regul_slice: bool = Option(True, help='Multiply alpha by a an average slice captured by a particular window. Valid only for '
-                                           '[cyan]model[/cyan]=[yellow]window[/yellow].'),
-         regul_prior: Prior = Option('laplace', help='Prior distribution used to penalize concentration parameter kappa. Valid only for '
-                                                     '[cyan]model[/cyan]=[yellow]window[/yellow].'),
+         max_cover: int = Option(None, help='Maximal sum of ref + alt.'),
+         regul: bool = Option(False, help='Apply regularization/encourage high kappa parameter estimates. Valid only for [cyan]dist[/cyan]='
+                                               '[yellow]BetaNB[/yellow].'),
+         regul_alpha: float = Option(1.0, help='Regularization/prior strength hyperparameter alpha. Valid only for [cyan]dist[/cyan]='
+                                               '[yellow]BetaNB[/yellow].'),
+         regul_n: bool = Option(True, help='Multiply alpha by a number of SNV records captured by a particular window. Valid only for [cyan]dist[/cyan]='
+                                               '[yellow]BetaNB[/yellow].'),
+         regul_slice: bool = Option(True, help='Multiply alpha by a an average slice captured by a particular window. Valid only for [cyan]dist[/cyan]='
+                                               '[yellow]BetaNB[/yellow].'),
+         regul_prior: Prior = Option('laplace', help='Prior distribution used to penalize concentration parameter kappa. Valid only for [cyan]dist[/cyan]='
+                                               '[yellow]BetaNB[/yellow].'),
          std : bool = Option(False, help='Compute standard errors for parameter estimates. Note that it may significantly increase computation'
                                          ' time.'),
          fix_params : str = Option(None, help='Parameters that are not estimated, but fixed to a constant float argument instead. This argument '
@@ -395,6 +396,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
     
     start_est = True
     apply_weights = False
+    model = Model.window.value
     if max_count is None:
         max_count = float('inf')
     if max_cover is None:
@@ -423,16 +425,16 @@ def _fit(name: str = Argument(..., help='Project name.'),
     fit(name, dist=dist, model=model, left=left, estimate_p=estimate_p, window_size=window_size, 
         window_behavior=window_behavior, min_slices=min_slices, adjust_line=adjust_line, k_left_bound=k_left_bound,
         max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, start_est=start_est,
-        apply_weights=apply_weights, regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
+        apply_weights=apply_weights, regul_alpha=regul_alpha if regul else 0, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
         fix_params=fix_params, std=std, optimizer=optimizer, r_transform=None if r_transform == 'none' else r_transform,
         symmetrify=symmetrify, small_dataset_strategy=small_dataset_strategy, small_dataset_n=small_dataset_n,
         stop_slice_n=stop_slice_n)
     if pretty:
         p.stop()
-    update_history(name, 'fit', dist=dist, model=model, left=left, estimate_p=estimate_p, window_size=window_size, 
+    update_history(name, 'fit', dist=dist, left=left, estimate_p=estimate_p, window_size=window_size, 
                    window_behavior=window_behavior, min_slices=min_slices, adjust_line=adjust_line, k_left_bound=k_left_bound,
                    max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, 
-                   regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
+                   regul=regul, regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
                    fix_params=fix_params, std=std, optimizer=optimizer, r_transform=r_transform, symmetrify=symmetrify,
                    small_dataset_strategy=small_dataset_strategy, small_dataset_n=small_dataset_n, stop_slice_n=stop_slice_n)
     dt = time() - t0
