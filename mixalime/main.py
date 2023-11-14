@@ -269,8 +269,9 @@ help_str = 'Initialize [bold]MixALime[/bold] projects initial files: do parsing 
 def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] will produce files for internal usage that start with [cyan]'
                                             'name[/cyan].'),
             files: List[Path] = Argument(..., help='A list (if applicable, separated by space) of either filenames in VCF or BED-like format, '
-                                                    'paths to folder with those files or paths to files that contain list of paths to those '
-                                                    'files. '),
+                                                    'paths to folder with those files, paths to files that contain list of paths to those '
+                                                    'files or  mask (masks should start with "[yellow]m:[/yellow]"'
+                                                    'prefix, e.g. "m:vcfs/*_M_*.vcf.gz")  '),
             bad_maps: Path = Option(None, help='A path to an interval file that separates genome into BADs. The file must be tabular with '
                                               'columns "[bold]chr[/bold]", "[bold]start[/bold]", "[bold]end[/bold]", "[bold]bad[/bold]".'
                                               ' The "[bold]end[/bold]" column is optional, if it is not present, then the file is '
@@ -452,7 +453,7 @@ def _test(name: str = Argument(..., help='Project name.'),
           gof_thr: float = Option(None, help='Conservative scoring will be used if goodness-of-fit statistic (RMSEA) exceeds [cyan]gof-thr[/cyan] '
                                                 'for a particular slice.'),
           stop_slice_n_thr: int = Option(-1, help='Conservative scoring will be used if number of samples at a slice is below '
-                                                  '[cyan]dataset-n-thr[/cyan] for a particular slice.'),
+                                                  '[cyan]dataset-n-thr[/cyan].'),
           n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
           pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -470,8 +471,8 @@ def _test(name: str = Argument(..., help='Project name.'),
     test(name, correction=correction, gof_tr=gof_thr, fit=fit, dataset_n_thr=stop_slice_n_thr, n_jobs=n_jobs)
     if pretty:
         p.stop()
-    update_history(name, 'test', correction=correction, gof_tr=gof_thr, fit=fit, 
-                   dataset_n_thr=stop_slice_n_thr, n_jobs=n_jobs)
+    update_history(name, 'test', correction=correction, gof_thr=gof_thr, fit=fit, 
+                   stop_slice_n_thr=stop_slice_n_thr, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
@@ -481,7 +482,9 @@ def _test(name: str = Argument(..., help='Project name.'),
 @app.command('combine')
 def _combine(name: str = Argument(..., help='Project name.'),
              group: List[Path] = Option(None, '--group', '-g', help='A list of either filenames (vcf or BAM-like tabulars) or folders that contain '
-                                                                      'those filenames or file(s) that contain a list of paths to files.'
+                                                                      'those filenames or file(s) that contain a list of paths to files, or a mask'
+                                                                      ' (masks should start with "[yellow]m:[/yellow]"'
+                                                                      ' prefix, e.g. "m:vcfs/*_M_*.vcf.gz"). '
                                                                       ' SNV p-values from those files shall be combined via logit method.'),
              alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
              min_cover: int = Option(20, help='If none one of combined p-values is associated with a sample whose ref + alt exceeds'
@@ -489,8 +492,8 @@ def _combine(name: str = Argument(..., help='Project name.'),
              adaptive_min_cover: bool = Option(False, help='Use adaptive [cyan]min_cover[/cyan] for each BAD. The algorithm has two hyperparameters:'
                                                '[cyan]adaptive_es[/cyan] and [cyan]adaptive_pval[/cyan]. The minimal coverage where effect-size of'
                                                'at least [cyan]adative_es[/cyan] is achievable for a p-value of [cyan]adaptive_pval[/cyan].'),
-             adaptive_es: float = Option(1.0, help='Minimal requires effect-size for the adaptive coverage algorithm.'),
-             adaptive_pval: float = Option(0.05, help='Minimal require p-value for the adaptive coverage algorithm.'),
+             adaptive_es: float = Option(1.0, help='Minimal required effect-size for the adaptive coverage algorithm.'),
+             adaptive_pval: float = Option(0.05, help='Minimal required p-value for the adaptive coverage algorithm.'),
              filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
              filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
              subname: str = Option(None, help='You may give a result a subname in case you plan to use multiple groups.'),
@@ -512,8 +515,8 @@ def _combine(name: str = Argument(..., help='Project name.'),
         subname = str(subname)
     else:
         subname = None
-    r, adaptive_coverage = combine(name, group_files=group, alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
-                                   subname=subname, min_cnt_sum=min_cover, adaptive_min_cover=adaptive_min_cover,
+    r, adaptive_coverage = combine(name, group=group, alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
+                                   subname=subname, min_cover=min_cover, adaptive_min_cover=adaptive_min_cover,
                                    adaptive_es=adaptive_es, adaptive_pval=adaptive_pval, n_jobs=n_jobs)
     r = r[subname]['snvs']
     if pretty:
