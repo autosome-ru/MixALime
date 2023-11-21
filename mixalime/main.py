@@ -447,7 +447,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
 @app.command('test')
 def _test(name: str = Argument(..., help='Project name.'),
           fit: str = Option(None, help='Path to a fit file from a different project. If not provided, fit from the same project is used.'),
-          correction: Correction = Option(Correction.none.value, help='Posterior weight correction method. It effectively helps to choose'
+          correction: Correction = Option(Correction.single.value, help='Posterior weight correction method. It effectively helps to choose'
                                                                       ' a particular component of a distribution for further tests, neglecting '
                                                                       ' an impact of more distant component.'),
           gof_thr: float = Option(None, help='Conservative scoring will be used if goodness-of-fit statistic (RMSEA) exceeds [cyan]gof-thr[/cyan] '
@@ -515,7 +515,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
         subname = str(subname)
     else:
         subname = None
-    r, adaptive_coverage = combine(name, group=group, alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
+    r, adaptive_coverage = combine(name, groups=group, alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
                                    subname=subname, min_cover=min_cover, adaptive_min_cover=adaptive_min_cover,
                                    adaptive_es=adaptive_es, adaptive_pval=adaptive_pval, n_jobs=n_jobs)
     r = r[subname]['snvs']
