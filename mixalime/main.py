@@ -20,11 +20,14 @@ from .fit import fit
 from time import time
 from dill import __version__ as dill_version
 import importlib
+import logging
 from . import export
 from . import __version__ as mixalime_version
 import json
 from . import plot
 
+logging.getLogger("jax._src.xla_bridge").addFilter(logging.Filter("No GPU/TPU found, falling back to CPU."))
+logging.getLogger("jax._src.xla_bridge").addFilter(logging.Filter("An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu."))
 
 __all__ = ['main']
 
@@ -487,7 +490,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
                                                                       ' prefix, e.g. "m:vcfs/*_M_*.vcf.gz"). '
                                                                       ' SNV p-values from those files shall be combined via logit method.'),
              alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
-             min_cover: int = Option(20, help='If none one of combined p-values is associated with a sample whose ref + alt exceeds'
+             min_cover: int = Option(20, help='If none of combined p-values is associated with a sample whose ref + alt exceeds'
                                               ' [cyan]min_cover[/cyan], the SNV is omitted.'),
              adaptive_min_cover: bool = Option(False, help='Use adaptive [cyan]min_cover[/cyan] for each BAD. The algorithm has two hyperparameters:'
                                                '[cyan]adaptive_es[/cyan] and [cyan]adaptive_pval[/cyan]. The minimal coverage where effect-size of'
@@ -515,8 +518,8 @@ def _combine(name: str = Argument(..., help='Project name.'),
         subname = str(subname)
     else:
         subname = None
-    r, adaptive_coverage = combine(name, groups=group, alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
-                                   subname=subname, min_cover=min_cover, adaptive_min_cover=adaptive_min_cover,
+    r, adaptive_coverage = combine(name, group_files=group, alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
+                                   subname=subname, min_cnt_sum=min_cover, adaptive_min_cover=adaptive_min_cover,
                                    adaptive_es=adaptive_es, adaptive_pval=adaptive_pval, n_jobs=n_jobs)
     r = r[subname]['snvs']
     if pretty:
