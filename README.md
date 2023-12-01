@@ -168,14 +168,15 @@ The name of the appropriate model is supplied to the `fit` command as an argumen
 For the time being, you can cite [our technical arXiv paper](https://doi.org/10.48550/arXiv.2306.08287) that explains MixALime's inner clockworks in a great detail:
 
 ```
-@misc{meshcheryakov2023mixalime,
-    doi={10.48550/arXiv.2306.08287},
-    title={MIXALIME: MIXture models for ALlelic IMbalance Estimation in high-throughput sequencing data},
-    author={Georgy Meshcheryakov and Sergey Abramov and Aleksandr Boytsov and Andrey I. Buyan and Vsevolod J. Makeev and Ivan V. Kulakovskiy},
-    year={2023},
-    eprint={2306.08287},
-    archivePrefix={arXiv},
-    primaryClass={stat.AP}
+@misc{mixalimeMath,
+      title={MIXALIME: MIXture models for ALlelic IMbalance Estimation in high-throughput sequencing data}, 
+      author={Georgy Meshcheryakov and Sergey Abramov and Aleksandr Boytsov and Andrey I. Buyan and Vsevolod J. Makeev and Ivan V. Kulakovskiy},
+      year={2023},
+      eprint={2306.08287},
+      archivePrefix={arXiv},
+      primaryClass={stat.AP},
+      doi          = {10.48550/arXiv.2306.08287},
+      url          = {https://doi.org/10.48550/arXiv.2306.08287}
 }
 ```
 and [the practical bioRxiv paper](https://doi.org/10.1101/2023.11.07.565968):
@@ -195,4 +196,4 @@ and [the practical bioRxiv paper](https://doi.org/10.1101/2023.11.07.565968):
 ```
 
 ## License
-**MixALime is distributed under [WTFPL](https://en.wikipedia.org/wiki/WTFPL). If you prefer more standard licenses, feel free to treat WTFPL as CC-BY.
+**MixALime** is distributed under [WTFPL](https://en.wikipedia.org/wiki/WTFPL). If you prefer more standard licenses, feel free to treat WTFPL as CC-BY.
