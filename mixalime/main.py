@@ -362,7 +362,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
                                               ' number of samples.'),
          adjust_line: bool = Option(False, help='Line parameter beta and mu will be reestimated without a loss of likelihood so they differ'
                                                 ' as little as possible from the previous b and mu estimates.'),
-         k_left_bound: int = Option(1, help='Minimal allowed value for concentration parameter [italic]k[/italic].'),
+         k_left_bound: int = Option(0, help='Minimal allowed value for concentration parameter [italic]k[/italic].'),
          max_count: int = Option(None, help='Maximal number of counts for an allele (be it ref or alt).'),
          max_cover: int = Option(None, help='Maximal sum of ref + alt.'),
          regul: bool = Option(False, help='Apply regularization/encourage high kappa parameter estimates. Valid only for [cyan]dist[/cyan]='
