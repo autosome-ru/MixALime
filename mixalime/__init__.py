@@ -1,4 +1,4 @@
-__version__ = '2.16.8'
+__version__ = '2.16.9'
 import importlib
 import sys
 
@@ -14,7 +14,7 @@ __min_reqs__ = [
             'pandas>=1.4.1',
             'scipy>=1.11.3',
             'statsmodels>=0.13.2',
-            'betanegbinfit>=1.9.7',
+            'betanegbinfit>=1.9.9',
             'datatable>1.0.0' if ge_10 else 'datatable>=1.0.0' ,
             'dill>=0.3.7',
             'rich>=12.6.0',
