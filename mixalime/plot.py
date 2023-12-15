@@ -152,8 +152,8 @@ def plot_stat(stats_ref: dict, stats_alt: dict, max_count: int, stat: str, figsi
     plt.ylabel(r'$log_{10}$' + stat if log else stat)
 
 def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
-                figsize=(6, 6), dpi=200, inv=False, diag=False, name=None, spline=False,
-                std=True):
+                figsize=(6, 6), dpi=200, inv=False,  diag=False, name=None, spline=False,
+                hor_expected=None, std=True):
     x = np.arange(0, max_count)
     if std:
         try:
@@ -165,9 +165,26 @@ def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
             std = False
     params_ref = dictify_params(params_ref)
     params_alt = dictify_params(params_alt)
-    # min_cnt = min(int(k[2:]) for k in params_ref if k.startswith('mu') and k[2].isdigit())    
-    pref = np.array([get_params_at_slice(params_ref, i, clip_at_max_slice=False, nan_min=True).get(param, np.nan) for i in x])
-    palt = np.array([get_params_at_slice(params_alt, i, clip_at_max_slice=False, nan_min=True).get(param, np.nan) for i in x])
+    if type(param) is not str:
+        if len(param) == 2:
+            pref1 = np.array([get_params_at_slice(params_ref, i, clip_at_max_slice=False, nan_min=True).get(param[0], np.nan) for i in x])
+            palt1 = np.array([get_params_at_slice(params_alt, i, clip_at_max_slice=False, nan_min=True).get(param[0], np.nan) for i in x])
+            pref2 = np.array([get_params_at_slice(params_ref, i, clip_at_max_slice=False, nan_min=True).get(param[1], np.nan) for i in x])
+            palt2 = np.array([get_params_at_slice(params_alt, i, clip_at_max_slice=False, nan_min=True).get(param[1], np.nan) for i in x])
+            pref = pref1 + pref2 
+            palt = palt1 + palt2
+        else:
+            pref1 = np.array([get_params_at_slice(params_ref, i, clip_at_max_slice=False, nan_min=True).get(param[0], np.nan) for i in x])
+            palt1 = np.array([get_params_at_slice(params_alt, i, clip_at_max_slice=False, nan_min=True).get(param[0], np.nan) for i in x])
+            pref2 = np.array([get_params_at_slice(params_ref, i, clip_at_max_slice=False, nan_min=True).get(param[1], np.nan) for i in x])
+            palt2 = np.array([get_params_at_slice(params_alt, i, clip_at_max_slice=False, nan_min=True).get(param[1], np.nan) for i in x])
+            pref3 = np.array([get_params_at_slice(params_ref, i, clip_at_max_slice=False, nan_min=True).get(param[2], np.nan) for i in x])
+            palt3 = np.array([get_params_at_slice(params_alt, i, clip_at_max_slice=False, nan_min=True).get(param[2], np.nan) for i in x])
+            pref = pref3 / (pref1 + pref2)
+            palt = palt3 / (palt1 + palt2)
+    else:
+        pref = np.array([get_params_at_slice(params_ref, i, clip_at_max_slice=False, nan_min=True).get(param, np.nan) for i in x])
+        palt = np.array([get_params_at_slice(params_alt, i, clip_at_max_slice=False, nan_min=True).get(param, np.nan) for i in x])
     if inv:
         pref = 1 / pref
         palt = 1 / palt
@@ -192,6 +209,8 @@ def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
         plt.fill_between(x, palt - salt, palt + salt, alpha=0.2, color=_alt)
     if diag:
         plt.axline((1, 1), slope=1, linestyle='dashed', color='k')
+    if hor_expected is not None:
+        plt.axhline(hor_expected, linestyle='dashed', color='k')
     plt.grid(True)
     plt.legend(['ref', 'alt'])
     plt.xlabel('Read count for the fixed allele')
@@ -249,6 +268,48 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
                 filename = os.path.join(subfolder, f'w.{fmt}')
                 try:
                     plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'w', dpi=dpi)
+                    if show_bad:
+                        plt.title(f'BAD = {bad:.2f}')
+                    plt.tight_layout()
+                    plt.savefig(filename, bbox_inches='tight')
+                except KeyError:
+                    pass
+            filename = os.path.join(subfolder, f'p1.{fmt}')
+            try:
+                plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'p1', name='$p_1$', dpi=dpi,
+                            hor_expected=bad/(bad + 1)
+                            )
+                if show_bad:
+                    plt.title(f'BAD = {bad:.2f}')
+                plt.tight_layout()
+                plt.savefig(filename, bbox_inches='tight')
+            except KeyError:
+                pass
+            if bad > 1:
+                filename = os.path.join(subfolder, f'p2.{fmt}')
+                try:
+                    plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'p2', name='$p_2$', dpi=dpi,
+                                hor_expected=1/(bad + 1))
+                    if show_bad:
+                        plt.title(f'BAD = {bad:.2f}')
+                    plt.tight_layout()
+                    plt.savefig(filename, bbox_inches='tight')
+                except KeyError:
+                    pass
+                filename = os.path.join(subfolder, f'p0.{fmt}')
+                try:
+                    plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, ('p1', 'p2'), name='$p_0$', dpi=dpi,
+                                hor_expected=1.0, std=False)
+                    if show_bad:
+                        plt.title(f'BAD = {bad:.2f}')
+                    plt.tight_layout()
+                    plt.savefig(filename, bbox_inches='tight')
+                except KeyError:
+                    pass
+                filename = os.path.join(subfolder, f'p.{fmt}')
+                try:
+                    plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, ('p1', 'p2', 'p1'), name='$p$', dpi=dpi,
+                                hor_expected=bad/(bad + 1), std=False)
                     if show_bad:
                         plt.title(f'BAD = {bad:.2f}')
                     plt.tight_layout()

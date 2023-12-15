@@ -12,7 +12,7 @@ from .utils import openers, get_init_file, get_model_creator
 
 
 def _finalize_fit(model, fit):
-    params_to_save = ('mu', 'b', 'mu_k', 'w')
+    params_to_save = ('mu', 'b', 'mu_k', 'w', 'p1', 'p2')
     std = fit.get('std', None)
     for p in params_to_save:
         for s in model.slices:

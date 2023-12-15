@@ -20,6 +20,7 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
     alt, counts, rmsea, dataset_n = t
     res = list()
     params = get_params_at_slice(params, alt, clip_at_max_slice=False)
+    bad = inst_params['bad']
     if (gof_tr is not None and rmsea.get(alt, np.inf) > gof_tr) or (dataset_n.get(alt, 0) < dataset_n_thr):
         params['r'] = alt
         if 'k' in params:
@@ -27,6 +28,11 @@ def calc_stats(t: tuple, inst_params: dict, params: dict, swap: bool,
             inst_params['dist'] = 'NB'
         if 'w' in params:
             params['w'] = 1.0
+        if 'p1' in params:
+            params['p1'] = bad / (bad + 1)
+        if 'p2' in params:
+            params['p2'] = 1 / (bad + 1)
+            
     if not hasattr(calc_stats, '_cache'):
         calc_stats._cache = dict()
     cache = calc_stats._cache
