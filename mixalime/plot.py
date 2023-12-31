@@ -6,7 +6,7 @@ from betanegbinfit import ModelMixture
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FormatStrFormatter
-from .utils import openers, get_init_file, get_model_creator, dictify_params
+from .utils import openers, get_init_file, get_model_creator, dictify_params, scorefiles_qc
 from betanegbinfit.utils import get_params_at_slice
 from scipy.interpolate import UnivariateSpline
 import dill
@@ -151,6 +151,59 @@ def plot_stat(stats_ref: dict, stats_alt: dict, max_count: int, stat: str, figsi
     plt.xlabel('Read count for the fixed allele')
     plt.ylabel(r'$log_{10}$' + stat if log else stat)
 
+def plot_scorefiles_qc(covers: dict, biases: dict, scorefiles: list, bad=None, rule=3.0,
+                       figsize=(6, 6), dpi=200,):
+    common_prefix = 0
+    common_postfix = 0
+    for i in range(len(min(scorefiles, key=len))):
+        c = scorefiles[0][i]
+        common = True
+        for f in scorefiles[1:]:
+            if c != f[i]:
+                common = False
+                break
+        if not common:
+            break
+        common_prefix += 1
+    for i in range(1, len(min(scorefiles, key=len))):
+        c = scorefiles[0][-i]
+        common = True
+        for f in scorefiles[1:]:
+            if c != f[-i]:
+                common = False
+                break
+        if not common:
+            break
+        common_postfix -= 1
+    if not common_postfix:
+        common_postfix = None
+    scorefiles = [f[common_prefix:common_postfix] for f in scorefiles]
+    labels = list()
+    x = list()
+    y = list()
+    labels = list()
+    for ind in sorted(covers):
+        cover = covers[ind][bad]
+        if cover:
+            x.append(cover)
+            y.append(biases[ind][bad])
+            labels.append(scorefiles[ind])
+    x = np.log10(x)
+    y = np.array(y)
+    labels = np.array(labels)
+    inds = np.abs(y - np.mean(y)) > rule * np.std(y)
+    plt.figure(figsize=(6, 6), dpi=200)
+    plt.scatter(x, y, s=15, c=-np.array(y))
+    for xc, yc, label in zip(x[inds], y[inds], labels[inds]):
+        plt.annotate(label, (xc, yc), fontsize=8)
+    plt.xlabel(r'$log_{10}(\text{coverage})$')
+    plt.ylabel(r'Fraction of SNVs when $ref > alt$')
+    if bad is None:
+        plt.title('All BADs')
+    else:
+        plt.title(f'BAD = {bad:.2f}')
+    plt.grid(True)
+
 def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
                 figsize=(6, 6), dpi=200, inv=False,  diag=False, name=None, spline=False,
                 hor_expected=None, std=True):
@@ -223,11 +276,23 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
     compressor = filename.split('.')[-1]
     open = openers[compressor]
     with open(filename, 'rb') as f:
-        counts = dill.load(f)['counts']
+        counts = dill.load(f)
+        covers, biases = scorefiles_qc(counts)
+        scorefiles = counts['scorefiles']
+        counts = counts['counts']
     filename = f'{name}.fit.{compressor}'
     with open(filename, 'rb') as f:
         fits = dill.load(f)
-    bads = [fbad] if fbad else sorted(counts) 
+    bads = [fbad] if fbad else sorted(counts)
+    if what == 'all' and fbad is None:
+        os.makedirs(output, exist_ok=True)
+        filename = os.path.join(output, f'scorefiles_qc.{fmt}')
+        plot_scorefiles_qc(covers, biases, scorefiles)
+        if not show_bad:
+            plt.title(str())
+        plt.tight_layout()
+        plt.savefig(filename, bbox_inches='tight')
+        
     for bad in bads:
         if not fbad:
             subfolder = os.path.join(output, f'BAD{bad:.2f}')
@@ -239,6 +304,12 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
         m = get_model_creator(**inst_params)()
         if what == 'all':
             os.makedirs(subfolder, exist_ok=True)
+            filename = os.path.join(subfolder, f'scorefiles_qc.{fmt}')
+            plot_scorefiles_qc(covers, biases, scorefiles, bad=bad, dpi=dpi)
+            if not show_bad:
+                plt.title(str())
+            plt.tight_layout()
+            plt.savefig(filename, bbox_inches='tight')
             filename = os.path.join(subfolder, f'gof.{fmt}')
             plot_gof(fits['ref'][bad]['stats'], fits['alt'][bad]['stats'], max_count, dpi=dpi)
             if show_bad:

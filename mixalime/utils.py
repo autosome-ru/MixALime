@@ -4,6 +4,7 @@ from betanegbinfit import ModelMixture, ModelMixtures, ModelLine, ModelWindow, M
 from betanegbinfit.models import ModelLine_
 from collections import defaultdict
 from functools import partial
+from fnmatch import fnmatch
 from glob import glob
 from math import ceil
 import datatable as dt
@@ -67,11 +68,51 @@ def get_model_creator(**kwargs):
         raise Exception(f'Unknown model name {name}.')
     inst_params['fix_params'] = dictify_fix(inst_params['fix_params'])
     return partial(m, **inst_params)
-    
+
+def scorefiles_qc(init) -> tuple:
+    covers = defaultdict(lambda: defaultdict(int))
+    biases = defaultdict(lambda: defaultdict(list))
+    for _, its in init['snvs'].items():
+        its = its[1:]
+        for it in its:
+            ind, ref, alt = it[:3]
+            bad = it[-1]
+            covers[ind][bad] += ref + alt
+            covers[ind][None] += ref + alt
+            biases[ind][bad].append(ref > alt)
+            biases[ind][None].append(ref > alt)
+    for ind, bads in biases.items():
+        for bad in bads:
+            biases[ind][bad] = np.mean(biases[ind][bad])
+    return covers, biases
+
 def dictify_params(d: dict, field='ests') -> dict:
     return {n: v for n, v in zip(d['names'], d[field])}
 
-def parse_filenames(files: list, files_list=None) -> list:    
+def select_filenames(patterns: list, files) -> list:
+    res = list()
+    for pattern in patterns:
+        subres = list()
+        if pattern.startswith('m:'):
+            t = pattern[2:]
+            subres.extend(filter(lambda x: fnmatch(x, t), files))
+        elif pattern in files:
+            subres.append(pattern)
+        else:
+            if not pattern.endswith('/'):
+                t = pattern + '/'
+            else:
+                t = pattern
+            subres.extend(filter(lambda x: x.startswith(t), files))
+        if not subres:
+            subres.extend(filter(lambda x: x in files, parse_filenames(pattern, ignore_errors=True)))
+            if not subres:
+                logging.error(f'No files agree with the pattern {pattern}.')
+        res.extend(subres)
+    return res
+            
+
+def parse_filenames(files: list, files_list=None, ignore_errors=False) -> list:    
     if type(files) is str:
         files = [files]
     res = list()
@@ -84,7 +125,7 @@ def parse_filenames(files: list, files_list=None) -> list:
             res.extend(filter(lambda x: os.path.isfile(x) and not x.endswith('.tbi'), 
                               (os.path.join(file, f) for f in os.listdir(file))))
         elif os.path.isfile(file):
-            if not file.endswith(('.gz', '.vcf', '.bam')):
+            if not file.endswith(('.gz', '.vcf', '.bam', '.bcf')):
                 folder, _ = os.path.split(file)
                 header = True
                 df = dt.fread(file, max_nrows=1, header=header)
@@ -98,7 +139,7 @@ def parse_filenames(files: list, files_list=None) -> list:
                     for i in range(df.shape[0]):
                         r = str(df[i, 0])
                         file = os.path.join(folder, df[i, 0]) if folder and not os.path.isabs(r) else df[i, 0]
-                        if not os.path.isfile(file):
+                        if not os.path.isfile(file) and not ignore_errors:
                             logging.error(f'File {file} not found.')
                         else:
                             res.append(file)
@@ -106,7 +147,7 @@ def parse_filenames(files: list, files_list=None) -> list:
                     res.append(file)
             else:
                 res.append(file)
-        else:
+        elif not ignore_errors:
             logging.error(f'File {file} not found.')
     res = sorted(res)
     return res

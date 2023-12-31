@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .utils import get_init_file, openers
+from .utils import get_init_file, openers, scorefiles_qc
 from collections import defaultdict
 import pandas as pd
 import numpy as np
@@ -26,7 +26,25 @@ def export_counts(project, out: str, bad: float = None):
     else:
         df = pd.DataFrame(counts_d[bad], columns=['Ref', 'Alt', 'N'])
         df.to_csv(out, sep='\t', index=None)
-    
+
+def export_scorefiles_qc(project, out: str):
+    covers, biases = scorefiles_qc(project)
+    bads = sorted(project['counts']) + [None]
+    scorefiles = project['scorefiles']
+    for bad in bads:
+        subfolder = os.path.join(out, f'BAD{bad:.2f}') if bad else out
+        os.makedirs(subfolder, exist_ok=True)
+        label = list()
+        cover = list()
+        bias = list()
+        for f in covers:
+            c = covers[f][bad]
+            if c:
+                cover.append(c)
+                bias.append(biases[f][bad])
+                label.append(scorefiles[f])
+        df = pd.DataFrame([label, bias, cover], index=['name', 'bias', 'cover']).T
+        df.to_csv(os.path.join(subfolder, 'scorefiles_qc.tsv'), sep='\t', index=None)
 
 def _export_params(fit, out: str, allele: str, bad: float):
     df = pd.DataFrame(fit[allele][bad]['params'])
@@ -329,6 +347,7 @@ def export_all(name: str, out: str, sample_info: bool = None):
     with open(file, 'rb') as init:
         init = dill.load(init)
     export_counts(init, out)
+    export_scorefiles_qc(init, out)
     try:
         with open(f'{name}.fit.{compression}', 'rb') as f:
             fit = dill.load(f)

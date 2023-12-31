@@ -1,4 +1,4 @@
-__version__ = '2.16.9'
+__version__ = '2.17.0'
 import importlib
 import sys
 
@@ -7,7 +7,7 @@ ge_10 = sys.version_info[1] >= 10
 __min_reqs__ = [
             'pip>=23.0',
             'typer>=0.6.1',
-            'numpy>=1.24.0',
+            'numpy>=1.21.0',
             'jax>=0.4.20',
             'jaxlib>=0.4.20',
             'matplotlib>=3.5.1',

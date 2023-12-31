@@ -7,7 +7,7 @@
 
 **MixALime** is a tool for the identification of allele-specific events in high-throughput sequencing data. It works by modelling counts data as a mixture of two Negative Binomial or Beta Negative Binomial distributions (where the latter is more applicable in case of noisy data at a cost of loss of sensitivity).
 ## Homepage & Docs
-**MixALime** features and usage guidelines are best explained at the project's homepage: [mixalime.georgy.top](http://mixalime.georgy.top)
+**MixALime** features and usage guidelines are best explained at the project's homepage: [mixalime.georgy.top](https://mixalime.georgy.top)
 ## System requirements
 ### OS
 In our work, we mostly used *Ubuntu 20.04.6 LTS (GNU/Linux 5.15.0-82-generic x86_64)* and *Manjaro 6.1.62-1*. We never tested **MixALime** on Windows systems.
