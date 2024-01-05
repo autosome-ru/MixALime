@@ -198,10 +198,6 @@ def plot_scorefiles_qc(covers: dict, biases: dict, scorefiles: list, bad=None, r
         plt.annotate(label, (xc, yc), fontsize=8)
     plt.xlabel(r'$log_{10}(\text{coverage})$')
     plt.ylabel(r'Fraction of SNVs when $ref > alt$')
-    if bad is None:
-        plt.title('All BADs')
-    else:
-        plt.title(f'BAD = {bad:.2f}')
     plt.grid(True)
 
 def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
@@ -288,8 +284,8 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
         os.makedirs(output, exist_ok=True)
         filename = os.path.join(output, f'scorefiles_qc.{fmt}')
         plot_scorefiles_qc(covers, biases, scorefiles)
-        if not show_bad:
-            plt.title(str())
+        if show_bad:
+            plt.title('All BADs')
         plt.tight_layout()
         plt.savefig(filename, bbox_inches='tight')
         
@@ -306,9 +302,9 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
             os.makedirs(subfolder, exist_ok=True)
             filename = os.path.join(subfolder, f'scorefiles_qc.{fmt}')
             plot_scorefiles_qc(covers, biases, scorefiles, bad=bad, dpi=dpi)
-            if not show_bad:
-                plt.title(str())
             plt.tight_layout()
+            if show_bad:
+                plt.title(f'BAD = {bad:.2f}')
             plt.savefig(filename, bbox_inches='tight')
             filename = os.path.join(subfolder, f'gof.{fmt}')
             plot_gof(fits['ref'][bad]['stats'], fits['alt'][bad]['stats'], max_count, dpi=dpi)

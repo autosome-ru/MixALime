@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from .utils import get_init_file, dictify_params, parse_filenames, openers
+from .utils import get_init_file, dictify_params, select_filenames, openers
 from betanegbinfit import distributions as dists
 from betanegbinfit.models import ModelWindow
 from multiprocessing import Pool, cpu_count
@@ -199,16 +199,32 @@ def count_dict_to_numpy(counts: dict):
         res[bad] = np.array(r, dtype=int)
     return res
 
-def build_count_tables(snvs_a: dict, snvs_b: dict):
-    counts_a = build_count_table(snvs_a)
-    counts_b = build_count_table(snvs_b)
-    counts = deepcopy(counts_a)
-    for bad in counts:
-        c = counts[bad]
-        cb = counts_b[bad]
-        for t, n in cb.items():
-            c[t] += n
-    return map(count_dict_to_numpy, (counts_a, counts_b, counts))
+# def build_count_tables(snvs_a: dict, snvs_b: dict):
+#     counts_a = build_count_table(snvs_a)
+#     counts_b = build_count_table(snvs_b)
+#     counts = deepcopy(counts_a)
+#     for bad in counts:
+#         c = counts[bad]
+#         cb = counts_b[bad]
+#         for t, n in cb.items():
+#             c[t] += n
+#     return map(count_dict_to_numpy, (counts_a, counts_b, counts))
+
+def build_count_tables(*snvs):
+    counts = list(map(build_count_table, snvs))
+    bads = set()
+    for t in counts:
+        bads |= set(t)
+    base = dict()
+    for bad in bads:
+        c = defaultdict(int)
+        for count in counts:
+            cb = count[bad]
+            for t, n in cb.items():
+                c[t] += n
+        base[bad] = c
+    counts.append(base)
+    return list(map(count_dict_to_numpy, counts))
 
 def get_closest_param(params: dict, slc: float, model_name: str, compute_line=False):
     res = dict()
@@ -240,13 +256,13 @@ def get_closest_param(params: dict, slc: float, model_name: str, compute_line=Fa
             res['k'] = res['mu_k'] + res.get('b_k', 0.0) * slc
     return res
 
-
-def lrt_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
+def lrt_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray, ...],
         inst_params: dict, params: dict, skip_failures=False, max_sz=None, bad=1.0,
         param_mode='window', n_bootstrap=0):
     if not hasattr(lrt_test, '_cache'):
         lrt_test._cache = dict()
-    snv, counts_a, counts_b, counts = counts
+    snv = counts[0]
+    counts = counts[1:]
     cache = lrt_test._cache
     key = (inst_params['dist'], inst_params['left'], max_sz if max_sz else 0, inst_params['name'], param_mode,
            inst_params['r_transform'], inst_params['symmetrify'])
@@ -258,26 +274,27 @@ def lrt_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
     res = list()
     for allele in ('ref', 'alt'):
         if allele == 'alt':
-            counts_a = counts_a[:, (1, 0, 2)]; counts_b = counts_b[:, (1, 0, 2)]; counts = counts[:, (1, 0, 2)]
+            counts = [c[:, (1, 0, 2)] for c in counts]
         try:
-            ab_r, ab_logl = model.fit(counts, params[allele], False, n_bootstrap=n_bootstrap)
-            ab_p = ab_r.x
-            a_r, a_logl = model.fit(counts_a, params[allele], False, n_bootstrap=n_bootstrap)
-            a_p = a_r.x
-            b_r, b_logl = model.fit(counts_b, params[allele], False, n_bootstrap=n_bootstrap)
-            b_p = b_r.x
-            success = a_r.success & b_r.success & ab_r.success
-            if not success and skip_failures:
-                return None, snv
+            success = True
+            ps = list()
+            loglik = 0
+            for count in counts:
+                r, logl = model.fit(count, params[allele], False, n_bootstrap=n_bootstrap)
+                if not r.success and not skip_failures:
+                    return None, snv
+                ps.append(r.x)
+                loglik += logl
+            loglik -= 2 * logl
         except (KeyError, IndexError):
             if skip_failures:
                 return None, snv
             res.append((float('nan'), float('nan'), float('nan'), float('nan')))
-        lrt = 2 * (ab_logl - (a_logl + b_logl))
-        pval = chi2.sf(lrt, 1)
-        res.append((pval, ab_p, a_p, b_p))
-    n_a, n_b = counts_a[:, -1].sum(), counts_b[:, -1].sum()
-    return res, (snv, n_a, n_b)
+        lrt = -2 * loglik
+        pval = chi2.sf(lrt, len(counts) - 2)
+        res.append([pval] + ps)
+    n = [cnt[:, -1].sum() for cnt in counts][:-1]
+    return res, [snv] + n
 
 def calc_var(m, data: np.ndarray, renormalize=None):
     data, weights = data[:, :-1], data[:, -1]
@@ -373,8 +390,6 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
     if filter_id is not None:
         filter_id = re.compile(filter_id)
     n_jobs = cpu_count() if n_jobs == -1 else n_jobs
-    group_a = parse_filenames(group_a)
-    group_b = parse_filenames(group_b)
     init_filename = get_init_file(name)
     compressor = init_filename.split('.')[-1]
     open = openers[compressor]
@@ -382,6 +397,12 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
         snvs = dill.load(f)
         scorefiles = snvs['scorefiles']
         snvs = snvs['snvs']
+    if type(group_a) is str:
+        group_a = [group_a]
+    if type(group_b) is str:
+        group_b = [group_b]
+    group_a = select_filenames(group_a, scorefiles)
+    group_b = select_filenames(group_b, scorefiles)
     group_a = {scorefiles.index(f) for f in group_a}
     group_b = {scorefiles.index(f) for f in group_b}
     assert not (group_a & group_b), 'Groups should not intersect.'
@@ -456,6 +477,115 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
     if group_test:
         res[subname]['whole'] = df_whole
     filename = f'{name}.difftest.{compressor}'
+    if os.path.isfile(filename):
+        with open(filename, 'rb') as f:
+            d = dill.load(f)
+            if subname in d:
+                del d[subname]
+            res.update(d)
+    with open(filename, 'wb') as f:
+        dill.dump(res, f)
+    return res
+
+def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None, min_groups=2,
+               min_samples=4, min_cover=0, max_cover=np.inf, param_mode='window', skip_failures=True, n_jobs=1):
+    if max_cover is None:
+        max_cover = np.inf
+    if min_cover is None:
+        min_cover = np.inf
+    n_jobs = cpu_count() if n_jobs == -1 else n_jobs
+    init_filename = get_init_file(name)
+    compressor = init_filename.split('.')[-1]
+    open = openers[compressor]
+    with open(init_filename, 'rb') as f:
+        snvs = dill.load(f)
+        scorefiles = snvs['scorefiles']
+        snvs = snvs['snvs']
+    groups = [[scorefiles.index(f) for f in select_filenames([pattern], scorefiles)] for pattern in groups]
+    snvs_groups = [get_snvs_for_group(snvs, g, min_samples=min_samples) for g in groups]
+    snvs_groups_count = defaultdict(int)
+    for g in snvs_groups:
+        for snv in g:
+            snvs_groups_count[snv] += 1
+    snvs = {snv for snv, n in snvs_groups_count.items() if n >= min_groups}
+    snvs_groups = [{k: g.get(k, list()) for k in snvs} for g in snvs_groups]
+    if fit:
+        comp_fit = fit.split('.')[-1]
+        open2 = openers[comp_fit]
+    else:
+        fit = f'{name}.fit.{compressor}'
+        open2 = open
+    with open2(fit, 'rb') as f:
+        fits = dill.load(f)
+    res = list()
+    
+    for bad in fits['ref'].keys():
+        params = {'ref': dictify_params(fits['ref'][bad]['params']),
+                  'alt': dictify_params(fits['ref'][bad]['params'])}
+        inst_params = fits['ref'][1]['inst_params']
+        cols = ['ref_pval', 'ref_p', 'ref_p_control', 'ref_p_test', 
+                'alt_pval', 'alt_p', 'alt_p_control', 'alt_p_test']
+        test_fun = partial(lrt_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
+                           param_mode=param_mode)
+
+        counts = list()
+        group_inds = dict()
+        for snv in snvs:
+            inds = list()
+            it = list()
+            r = build_count_tables(*[{snv: g[snv]} for g in snvs_groups])
+            for i in range(len(snvs_groups)):
+                try:
+                    t = r[i][bad]
+                    if not t.shape[0]:
+                        continue
+                    it.append(t)
+                except KeyError:
+                    continue
+                inds.append(i)
+            if inds:
+                it.append(r[-1][bad])
+                counts.append((snv, *it))
+                group_inds[snv] = np.array(inds)
+
+        if not counts:
+            continue
+        max_sz = max(c[-1].shape[0] for c in counts)
+        f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz)
+        chunk_size = len(counts) // n_jobs
+        with Pool(n_jobs) as p:
+            if n_jobs > 1:
+                it = p.imap_unordered(f, counts, chunksize=chunk_size)
+            else:
+                it = map(f, counts)
+        z = np.repeat(np.nan, len(snvs_groups) + 2)
+        nz = np.repeat(0, len(snvs_groups))
+        for r, t in it:
+            if r is None:
+                continue
+            inds = group_inds[t[0]]
+            ref = z.copy()
+            ref[inds] = r[0][1:-1]
+            ref[-1] = r[0][0]
+            ref[-2] = r[0][-1]
+            alt = z.copy()
+            alt[inds] = r[1][1:-1]
+            alt[-1] = r[1][0]
+            alt[-2] = r[1][-1]
+            n = nz.copy()
+            n[inds] = t[1:]
+            res.append([t[0]] + list(n) + list(ref) + list(alt))
+    cols = [f'p_{i + 1}' for i in range(len(snvs_groups))] + ['p_all', 'pval']
+    cols = ['ind'] + [f'n_{i + 1}' for i in range(len(snvs_groups))] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
+    df = pd.DataFrame(res, columns=cols)
+    if df.empty:
+        df['ref_fdr_pval'] = None
+        df['alt_fdr_pval'] = None
+    else:
+        _, df['ref_fdr_pval'], _, _ = multitest.multipletests(df['ref_pval'], alpha=alpha, method='fdr_bh')
+        _, df['alt_fdr_pval'], _, _ = multitest.multipletests(df['alt_pval'], alpha=alpha, method='fdr_bh')
+    res = {subname: {'tests': df, 'snvs': snvs_groups}}
+    filename = f'{name}.anova.{compressor}'
     if os.path.isfile(filename):
         with open(filename, 'rb') as f:
             d = dill.load(f)

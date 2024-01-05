@@ -11,7 +11,7 @@ from jax import __version__ as jax_version
 from scipy import __version__ as scipy_version
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
-from .diff import differential_test
+from .diff import differential_test, anova_test
 from .create import create_project
 from .combine import combine
 from .tests import test, binom_test
@@ -606,7 +606,7 @@ def _difftest(name: str = Argument(..., help='Project name.'),
               n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
               pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
-    Differential expression tests via likelihood ratio.
+    Differential expression tests via Wald/LR tests.
     """
     t0 = time()
     group_a = str(group_control)
@@ -676,6 +676,76 @@ def _difftest(name: str = Argument(..., help='Project name.'),
         print(f'✔️ Done!\t time: {dt:.2f} s.')
     return expected_res
 
+@app.command('anova')
+def _anova(name: str = Argument(..., help='Project name.'),
+           fit: str = Option(None, help='Path to a fit file from a different project. If not provided, fit from the same project is used.'),
+           groups: Path = Argument(..., help='Files with lists of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
+                                                     'prefix, e.g. "m:vcfs/*_M_*.vcf.gz"), each for a group. Entries must be separated with a semicolon ";" character.'),
+              param_window: bool = Option(True, help='If disabled, parameters will be taken from a line with respect to the mean window for given'
+                                                     ' reps/samples.'),
+              alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
+              min_samples: int = Option(2, help='Minimal number of samples/reps per an SNV to be considered for the analysis.'),
+              min_groups: int = Option(2, help='Minimal number of groups present for an SNV to be considered for the analysis.'),
+              min_cover: int = Option(None, help='Minimal required cover (ref + alt) for an SNV to be considered.'),
+              max_cover: int = Option(None, help='Maximal allowed cover (ref + alt) for an SNV to be considered.'),
+              subname: str = Option(None, help='You may give a result a subname in case you plan to draw multiple comparisons.'),
+              n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
+              pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
+    """
+    ANOVA test via likelihood ratio.
+    """
+    t0 = time()
+    groups = str(groups)
+    if pretty:
+        p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
+        p.add_task(description='Performing ANOVA tests...', total=None)
+        p.start()
+    else:
+        print('Performing ANOVA tests...')
+    if subname:
+        subname = str(subname)
+    else:
+        subname = None
+    r = anova_test(name, groups=groups.split(';'), min_samples=min_samples, min_cover=min_cover,
+                   max_cover=max_cover, alpha=alpha, n_jobs=n_jobs, min_groups=min_groups,
+                   param_mode='window' if param_window else 'line', fit=fit)[subname]
+    if pretty:
+        p.stop()
+    
+    r = r['tests']
+    ref = r['ref_fdr_pval'] < alpha
+    alt = r['alt_fdr_pval'] < alpha
+    both = (ref & alt).sum()
+    total = (ref | alt).sum()
+    ref = ref.sum()
+    alt = alt.sum()
+    if pretty:
+        if not total:
+            rprint('No SNVs passed filters for ANOVA test.')
+        else:
+            rprint('Number of significantly differentially expressed SNVs after FDR correction:')
+            table = Table('Ref', 'Alt', 'Both', 'Total\nPercentage of total SNVs ')
+            table.add_row(str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')
+            rprint(table)
+            rprint('Total SNVs tested:', len(r))
+    else:
+        if not total:
+            print('No SNVs passed filters for differential test.')
+        else:
+            print('Number of significantly differentially expressed SNVs after FDR correction:')
+            print('\t'.join('Ref', 'Alt', 'Both', 'Total/Percentage of total SNVs'))
+            print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
+            print('Total SNVs tested:', len(r))
+    expected_res = [int(ref), int(alt), int(total)]
+    update_history(name, 'anova', groups=groups, min_samples=min_samples, min_cover=min_cover,
+                          max_cover=max_cover, alpha=alpha, n_jobs=n_jobs, min_groups=min_groups,
+                          param_window=param_window, fit=fit)
+    dt = time() - t0
+    if pretty:
+        rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
+    else:
+        print(f'✔️ Done!\t time: {dt:.2f} s.')
+    return expected_res
 
 
 @app_export.command('all', help='Export everything.')

@@ -256,6 +256,52 @@ def export_combined_pvalues(project, out: str, sample_info=False, subname=None):
         os.makedirs(folder, exist_ok=True)
     pd.DataFrame(d).to_csv(out, sep='\t', index=None)
 
+def export_anova(project, out: str, subname=None):
+    if type(project) is str:
+        file = get_init_file(project)
+        compression = file.split('.')[-1]
+        open = openers[compression]
+        with open(file, 'rb') as snvs,  open(f'{project}.anova.{compression}', 'rb') as diff:
+            diff = dill.load(diff)[subname]
+    else:
+        snvs, diff = project
+        diff = diff[subname]
+    tests = diff['tests']
+    snvs = diff['snvs']
+    chrom = list(); start = list(); end = list(); name = list(); bad = list(); ref = list(); alt = list()
+    a_ref_counts = list(); b_ref_counts = list()
+    a_alt_counts = list(); b_alt_counts = list()
+    es_count = list()
+    # ref_es_count = list(); alt_es_count = list()
+    for ind in tests['ind']:
+        for s in snvs:
+            try:
+                t = s[ind]
+                if t:
+                    break
+            except KeyError:
+                continue
+        n, r, a = t[0]
+        chrom.append(ind[0]); start.append(ind[1]); end.append(start[-1] + 1); name.append(n)
+        ref.append(r); alt.append(a)
+        bad.append(t[-1][-1])
+    diff = tests.drop('ind', axis=1)
+   
+    df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'mean_bad': bad, 'id': name, 'ref': ref, 'alt': alt })
+    diff = pd.concat([df, diff], axis=1)
+    t = diff['ref_pval'] < diff['alt_pval']
+    diff['scoring_model'] = ['ref|alt' if v else 'alt|ref' for v in t]
+    diff['pval'] = None
+    diff.loc[t, 'pval'] = diff.loc[t, 'ref_pval']
+    diff.loc[~t, 'pval'] = diff.loc[~t, 'alt_pval']
+    diff['fdr_pval'] = None
+    diff.loc[t, 'fdr_pval'] = diff.loc[t, 'ref_fdr_pval']
+    diff.loc[~t, 'fdr_pval'] = diff.loc[~t, 'alt_fdr_pval']
+    folder, _ = os.path.split(out)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    diff.to_csv(out, sep='\t', index=None)
+
 def export_difftests(project, out: str,  sample_info=False, subname=None):
     if type(project) is str:
         file = get_init_file(project)
@@ -365,6 +411,15 @@ def export_all(name: str, out: str, sample_info: bool = None):
                                  sample_info=sample_info)
     except FileNotFoundError:
         pass     
+    try:
+        with open(f'{name}.anova.{compression}', 'rb') as f:
+            anova = dill.load(f)
+            subfolder = os.path.join(out, 'anova')
+            t = (init, anova)
+            for subname in anova:
+                export_anova(t, os.path.join(subfolder, f'{subname}.tsv' if subname else 'anova.tsv'), subname=subname)
+    except FileNotFoundError:
+        pass   
             
     try:
         with open(f'{name}.test.{compression}', 'rb') as f:

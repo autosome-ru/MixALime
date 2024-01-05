@@ -4,7 +4,7 @@ import numpy as np
 import dill
 import os
 import re
-from .utils import get_init_file, openers, parse_filenames
+from .utils import get_init_file, openers, select_filenames
 from multiprocessing import cpu_count, Pool, Manager
 from collections import defaultdict
 from functools import partial
@@ -100,10 +100,6 @@ def batched(iterable, n):
 
 def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, adaptive_min_cover=False, adaptive_es=1.0, adaptive_pval=0.05,
             filter_id=None, filter_chr=None, subname=None, n_jobs=1, save_to_file=True):
-    if group_files is None:
-        group_files = list()
-    else:
-        group_files = parse_filenames(group_files)
     if filter_chr is not None:
         filter_chr = re.compile(filter_chr)
     if filter_id is not None:
@@ -117,6 +113,12 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, adaptive_mi
         snvs = init['snvs']
         scorefiles = init['scorefiles']
         del init
+    if group_files is None:
+        group_files = list()
+    else:
+        group_files = select_filenames(group_files, scorefiles)
+        if not group_files:
+            raise SyntaxError('No files found for given pattern(s).')
     filename = f'{name}.test.{compressor}'
     with open(filename, 'rb') as f:
         stats = dill.load(f)
