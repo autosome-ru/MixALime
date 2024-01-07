@@ -326,15 +326,15 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
             print('Warning: BAD=0 is present in the data. Please remove BAD=0 occurrences or substitute them with BAD=1.')
     rows = rows
     if pretty:
-        table = Table('BAD', 'SNVs', 'Samples/reps')
+        table = Table('BAD', 'SNVs', 'Obvservations')
         for row in rows:
             table.add_row(*row)
         rprint(table)
-        rprint(f'Total SNVs: {tot_snv}, total samples/reps: {tot_samples}')
+        rprint(f'Total unique SNVs: {tot_snv}, total observations: {tot_samples}')
     else:
-        print('BAD\tSNVs\tSamples/reps')
+        print('BAD\tSNVs\tObvservations')
         print('\n'.join(['\t'.join(row) for row in rows]))     
-        print(f'Total SNVs: {tot_snv}, total samples/reps: {tot_samples}')    
+        print(f'Total unique SNVs: {tot_snv}, total observations: {tot_samples}')    
     update_history(name, 'create', files=files, bad_maps=bad_maps, default_bad=default_bad, drop_bad=drop_bad, min_qual=min_qual,
                    min_cnt=min_cnt, max_cover=max_cover, filter_db=filter_db, filter_rs=filter_rs, symmetrify=symmetrify,
                    filter_name=filter_name, filter_chr=filter_chr, compression=compression, snp_bad_check=snp_bad_check,
@@ -541,7 +541,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
                 cov_alt = adaptive_coverage['alt'][bad]
                 table.add_row(*map(str, (bad, cov_ref, cov_alt, min(cov_ref, cov_alt))))
             rprint(table)
-        rprint('Number of significant SNVs after FDR correction:')
+        rprint('Number of significantly imbalanced SNVs after FDR correction:')
         table = Table('Ref', 'Alt', 'Both', 'Total significant\n(Percentage of total SNVs)')
         table.add_row(str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')
         rprint(table)
@@ -555,7 +555,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
                 cov_ref = adaptive_coverage['ref'][bad]
                 cov_alt = adaptive_coverage['alt'][bad]
                 print('\t'.join(map(str, (bad, cov_ref, cov_alt, min(cov_ref, cov_alt)))))
-        print('Number of significant SNVs after FDR correction:')
+        print('Number of significantly imbalanced SNVs after FDR correction:')
         print('\t'.join(('Ref', 'Alt', 'Both', 'Total significant (Percentage of total SNVs)')))
         print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
         print(f'Total SNVs tested: {len(r)}')
