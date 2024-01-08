@@ -11,6 +11,7 @@ from functools import partial
 from copy import deepcopy
 from typing import List, Tuple
 from scipy.optimize import minimize_scalar
+import jax.numpy as jnp
 import pandas as pd
 import numpy as np
 import jax
@@ -21,7 +22,7 @@ import os
 
 class Model():
     def __init__(self, dist: str, left=4, mask_size=0, model_name='window', param_mode='window', r_transform=None, 
-                 symmetrify=False, bad=1):
+                 symmetrify=False, bad=1, max_count=1e6):
         self.dist = dist
         self.left = left
         self.allowed_const = left + 1
@@ -33,6 +34,7 @@ class Model():
         self.fim = jax.jit(jax.jacfwd(jax.jacfwd(self.negloglik, argnums=0), argnums=0))
         self.bad = bad
         self.symmetrify = symmetrify
+        self.max_count = int(max_count)
     
     @partial(jax.jit, static_argnums=(0, ))
     def fun(self, p: float, r: jax.numpy.ndarray, k: jax.numpy.ndarray, data: jax.numpy.ndarray,  w:jax.numpy.ndarray,
@@ -41,7 +43,9 @@ class Model():
         if self.dist == 'NB':
             logl = dists.LeftTruncatedNB.logprob(data, r, p, left, r_transform=self.r_transform)
         elif self.dist == 'MCNB':
-            logl = dists.LeftTruncatedMCNB.logprob(data, r, p, left, r_transform=self.r_transform)
+            logl = dists.LeftTruncatedMCNB.logprob_recurrent(data, r, p, left,
+                                                             max_sz=self.max_count + 1, r_transform=self.r_transform)
+            logl = jnp.take_along_axis(logl, data.reshape(-1, 1), axis=1).flatten()
         else:
             logl = dists.LeftTruncatedBetaNB.logprob(data, p, k, r, left, r_transform=self.r_transform)
         logl *= w
@@ -258,19 +262,37 @@ def get_closest_param(params: dict, slc: float, model_name: str, compute_line=Fa
 
 def lrt_test(counts: tuple,
         inst_params: dict, params: dict, skip_failures=False, max_sz=None, bad=1.0,
-        param_mode='window', n_bootstrap=0):
+        param_mode='window', n_bootstrap=0, max_count=1e5):
     if not hasattr(lrt_test, '_cache'):
         lrt_test._cache = dict()
+    max_count = int(max_count)
     snv = counts[0]
     counts = counts[1:]
     cache = lrt_test._cache
-    key = (inst_params['dist'], inst_params['left'], max_sz if max_sz else 0, inst_params['name'], param_mode,
-           inst_params['r_transform'], inst_params['symmetrify'])
-    if key not in cache:
-        model = Model(*key, bad=bad)
-        cache[key] = model
+    if max_sz is None:
+        max_sz = 0
+    if type(max_sz) is not int:
+        key = (inst_params['dist'], inst_params['left'], max_sz[0], inst_params['name'], param_mode,
+               inst_params['r_transform'], inst_params['symmetrify'])
+        key_long = (inst_params['dist'], inst_params['left'], max_sz[1], inst_params['name'], param_mode,
+                    inst_params['r_transform'], inst_params['symmetrify'])
     else:
-        model = cache[key]
+        key = (inst_params['dist'], inst_params['left'], max_sz if max_sz else 0, inst_params['name'], param_mode,
+               inst_params['r_transform'], inst_params['symmetrify'])
+    if key not in cache:
+        model = Model(*key, bad=bad, max_count=max_count)
+        if type(max_sz) is not int:
+            model_long = Model(*key_long, bad=bad, max_count=max_count)
+            cache[key] = (model, model_long)
+        else:
+            cache[key] = model
+            model_long - model
+    else:
+        if type(max_sz) is not int:
+            model, model_long = cache[key]
+        else:
+            model = cache[key]
+            model_long = model
     res = list()
     for allele in ('ref', 'alt'):
         if allele == 'alt':
@@ -278,18 +300,20 @@ def lrt_test(counts: tuple,
         try:
             ps = list()
             loglik = 0
-            for count in counts:
+            for count in counts[:-1]:
                 r, logl = model.fit(count, params[allele], False, n_bootstrap=n_bootstrap)
                 if not r.success and not skip_failures:
                     return None, snv
                 ps.append(r.x)
-                loglik += logl
-            loglik -= 2 * logl
+                loglik -= logl
+            r, logl = model_long.fit(counts[-1], params[allele], False, n_bootstrap=n_bootstrap)
+            ps.append(r.x)
+            loglik += logl
         except (KeyError, IndexError):
             if skip_failures:
                 return None, snv
             res.append((float('nan'), float('nan'), float('nan'), float('nan')))
-        lrt = -2 * loglik
+        lrt = 2 * loglik
         pval = chi2.sf(lrt, len(counts) - 2)
         res.append([pval] + ps)
     n = [cnt[:, -1].sum() for cnt in counts][:-1]
@@ -507,6 +531,7 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
         for snv in g:
             snvs_groups_count[snv] += 1
     snvs = {snv for snv, n in snvs_groups_count.items() if n >= min_groups}
+    # snvs = {('chr12', 14803541)}
     snvs_groups = [{k: g.get(k, list()) for k in snvs} for g in snvs_groups]
     if fit:
         comp_fit = fit.split('.')[-1]
@@ -526,7 +551,6 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
                 'alt_pval', 'alt_p', 'alt_p_control', 'alt_p_test']
         test_fun = partial(lrt_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
                            param_mode=param_mode)
-
         counts = list()
         group_inds = dict()
         for snv in snvs:
@@ -546,11 +570,12 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
                 it.append(r[-1][bad])
                 counts.append((snv, *it))
                 group_inds[snv] = np.array(inds)
-
         if not counts:
             continue
-        max_sz = max(c[-1].shape[0] for c in counts)
-        f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz)
+        max_sz = max(c.shape[0] for tc in counts for c in tc[1:-1])
+        max_sz = (max_sz, max(c[-1].shape[0] for c in counts))
+        max_count = max(c[:, [0, 1]].max() for tc in counts for c in tc[1:-1])
+        f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz, max_count=max_count)
         chunk_size = len(counts) // n_jobs
         with Pool(n_jobs) as p:
             if n_jobs > 1:

@@ -176,7 +176,7 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
                 s += f' Number of samples is too small for a sensible fit, a {small_dataset_strategy} fit will be used.'
             logging.warning(s)
     if left == -1:
-        left = data[min(data)][:, [0, 1]].min() - 1
+        left = min(data[bad][:, [0, 1]].min() for bad in data) - 1
     aux = list(product(sorted(data), (False, True)))
     if n_jobs == -1:
         n_jobs = max(1, mp.cpu_count())

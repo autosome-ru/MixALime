@@ -349,7 +349,7 @@ def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] 
 @app.command('fit')
 def _fit(name: str = Argument(..., help='Project name.'),
          dist: Dist = Argument(..., help='Name of distribution that will be used in the mixture model.'),
-         left: int = Option(4, help='Left-truncation bound. If None, then it will be estimated from the counts data as the minimal present count minus 1.'),
+         left: int = Option(None, help='Left-truncation bound. If None, then it will be estimated from the counts data as the minimal present count minus 1.'),
          estimate_p: bool = Option(False, help='If True, then p will be estimated instead of assuming it to be fixed to bad / (bad + 1)'),
          window_size: int = Option(10000, help='Has effect only if [cyan]model[/cyan] = "[bold]window[/bold]", sets the required minimal window size.'),
          window_behavior: WindowBehavior = Option(WindowBehavior.both.value, help='If "[bold]both[/bold]", then window is expanded in 2 directions. '
