@@ -256,7 +256,7 @@ def get_closest_param(params: dict, slc: float, model_name: str, compute_line=Fa
             res['k'] = res['mu_k'] + res.get('b_k', 0.0) * slc
     return res
 
-def lrt_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray, ...],
+def lrt_test(counts: tuple,
         inst_params: dict, params: dict, skip_failures=False, max_sz=None, bad=1.0,
         param_mode='window', n_bootstrap=0):
     if not hasattr(lrt_test, '_cache'):
@@ -276,7 +276,6 @@ def lrt_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray, ...],
         if allele == 'alt':
             counts = [c[:, (1, 0, 2)] for c in counts]
         try:
-            success = True
             ps = list()
             loglik = 0
             for count in counts:
