@@ -579,7 +579,7 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
         chunk_size = len(counts) // n_jobs
         with Pool(n_jobs) as p:
             if n_jobs > 1:
-                it = p.imap_unordered(f, counts, chunksize=chunk_size)
+                it = p.map(f, counts, chunksize=chunk_size)
             else:
                 it = map(f, counts)
         z = np.repeat(np.nan, len(snvs_groups) + 2)
