@@ -3,8 +3,6 @@
 **[[MIXALIME webpage](http://mixalime.georgy.top)]**
 # MixALime: Mixture models for Allelic Imbalance Estimation
 
-**If you use Python 3.10+, please install datatable 1.1+ from git prior to installing MixALime. It might fail in some conda environments due to the outdated versions of libstdcxx-ng: make sure you have the latest version by running "conda install -c conda-forge libstdcxx-ng" beforehand.**
-
 **MixALime** is a tool for the identification of allele-specific events in high-throughput sequencing data. It works by modelling counts data as a mixture of two Negative Binomial or Beta Negative Binomial distributions (where the latter is more applicable in case of noisy data at a cost of loss of sensitivity).
 ## Homepage & Docs
 **MixALime** features and usage guidelines are best explained at the project's homepage: [mixalime.georgy.top](https://mixalime.georgy.top)
@@ -12,7 +10,7 @@
 ### OS
 In our work, we mostly used *Ubuntu 20.04.6 LTS (GNU/Linux 5.15.0-82-generic x86_64)* and *Manjaro 6.1.62-1*. We never tested **MixALime** on Windows systems.
 ### Software dependencies
-**MixALime** is best used with *Python 3.9*. If one is to use later versions of *Python* (e.g. 3.10, 3.11), install **datatable 1.1+** manually beforehand as it is not yet at the **pypi** repository.
+**MixALime** is best used with *Python 3.9*. 
 Package dependencies that could affect **MixALime** results are the **JAX  0.4.20**, **scipy 1.11.3** and **numpy 1.26.2**.
 ### Hardware requirements
 It is best to use **MixALime** with plenty of RAM available if one wishes to use the parallelization to the full extent. In that case, make sure that your system has at least 16GB of RAM. However, the RAM requirement is depends on a dataset.
