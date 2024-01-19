@@ -1,5 +1,8 @@
-__version__ = '2.18.5'
+__version__ = '2.18.6'
 import importlib
+import sys
+
+ge_10 = sys.version_info[1] >= 10
 
 __min_reqs__ = [
             'pip>=23.0',
@@ -12,7 +15,7 @@ __min_reqs__ = [
             'scipy>=1.11.3',
             'statsmodels>=0.13.2',
             'betanegbinfit>=1.9.9',
-            'datatable>=1.0.0',
+            'datatable>1.0.0' if ge_10 else 'datatable>=1.0.0' ,
             'dill>=0.3.7',
             'rich>=12.6.0',
             'portion>=2.3.0',

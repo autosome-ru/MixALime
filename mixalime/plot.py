@@ -196,7 +196,7 @@ def plot_scorefiles_qc(covers: dict, biases: dict, scorefiles: list, bad=None, r
     plt.scatter(x, y, s=15, c=-np.array(y))
     for xc, yc, label in zip(x[inds], y[inds], labels[inds]):
         plt.annotate(label, (xc, yc), fontsize=8)
-    plt.xlabel(r'$log_{10}(\text{coverage})$')
+    plt.xlabel(r'$log_{10}(\mathrm{coverage})$')
     plt.ylabel(r'Fraction of SNVs when $ref > alt$')
     plt.grid(True)
 

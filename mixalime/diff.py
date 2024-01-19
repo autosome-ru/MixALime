@@ -3,7 +3,7 @@
 from .utils import get_init_file, dictify_params, select_filenames, openers
 from betanegbinfit import distributions as dists
 from betanegbinfit.models import ModelWindow
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool, cpu_count, get_context
 from statsmodels.stats import multitest
 from collections import defaultdict
 from scipy.stats import chi2, norm
@@ -479,6 +479,7 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
         max_sz = max(c[-1].shape[0] for c in counts)
         f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz)
         chunk_size = len(counts) // n_jobs
+        
         with Pool(n_jobs) as p:
             if n_jobs > 1:
                 it = p.imap_unordered(f, counts, chunksize=chunk_size)
@@ -531,7 +532,7 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
         for snv in g:
             snvs_groups_count[snv] += 1
     snvs = {snv for snv, n in snvs_groups_count.items() if n >= min_groups}
-    # snvs = {('chr12', 14803541)}
+    snvs = {snv for i, snv in enumerate(snvs) if i < 100}
     snvs_groups = [{k: g.get(k, list()) for k in snvs} for g in snvs_groups]
     if fit:
         comp_fit = fit.split('.')[-1]
@@ -574,19 +575,26 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
             continue
         max_sz = max(c.shape[0] for tc in counts for c in tc[1:-1])
         max_sz = (max_sz, max(c[-1].shape[0] for c in counts))
+        print(max_sz)
         max_count = max(c[:, [0, 1]].max() for tc in counts for c in tc[1:-1])
+        max_count = 100000
         f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz, max_count=max_count)
         chunk_size = len(counts) // n_jobs
         with Pool(n_jobs) as p:
             if n_jobs > 1:
-                it = p.map(f, counts, chunksize=chunk_size)
+                it = p.map_async(f, counts, chunksize=chunk_size)
+                it.wait()
+                it = it.get()
             else:
                 it = map(f, counts)
         z = np.repeat(np.nan, len(snvs_groups) + 2)
         nz = np.repeat(0, len(snvs_groups))
+        N = len(counts)
+        K = 0
         for r, t in it:
             if r is None:
                 continue
+            K += 1
             inds = group_inds[t[0]]
             ref = z.copy()
             ref[inds] = r[0][1:-1]
@@ -599,6 +607,7 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
             n = nz.copy()
             n[inds] = t[1:]
             res.append([t[0]] + list(n) + list(ref) + list(alt))
+            # print(K / N, K, N, max_sz, max_count)
     cols = [f'p_{i + 1}' for i in range(len(snvs_groups))] + ['p_all', 'pval']
     cols = ['ind'] + [f'n_{i + 1}' for i in range(len(snvs_groups))] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
     df = pd.DataFrame(res, columns=cols)

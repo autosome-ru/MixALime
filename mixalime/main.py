@@ -518,7 +518,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
         subname = str(subname)
     else:
         subname = None
-    r, adaptive_coverage = combine(name, group_files=group, alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
+    r, adaptive_coverage = combine(name, group_files=group if group else [r'm:*'], alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
                                    subname=subname, min_cnt_sum=min_cover, adaptive_min_cover=adaptive_min_cover,
                                    adaptive_es=adaptive_es, adaptive_pval=adaptive_pval, n_jobs=n_jobs)
     r = r[subname]['snvs']
