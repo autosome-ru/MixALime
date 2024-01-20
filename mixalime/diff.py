@@ -36,25 +36,53 @@ class Model():
         self.symmetrify = symmetrify
         self.max_count = int(max_count)
     
+    
+    def logprob(self, p, r, k, data):
+        left = self.left
+        if self.dist == 'NB':
+            lp = dists.LeftTruncatedNB.logprob(data, r, p, left, r_transform=self.r_transform)
+        elif self.dist == 'MCNB':
+            lp = dists.LeftTruncatedMCNB.logprob_recurrent(data, r, p, left,
+                                                             max_sz=self.max_count + 1, r_transform=self.r_transform)
+            lp = jnp.take_along_axis(lp, data.reshape(-1, 1), axis=1).flatten()
+        else:
+            lp = dists.LeftTruncatedBetaNB.logprob(data, p, k, r, left, r_transform=self.r_transform)
+        return lp
+    
+    def mean(self, p, r, k):
+        left = self.left
+        if self.dist == 'NB':
+            return dists.LeftTruncatedNB.mean(r, p, left, r_transform=self.r_transform)
+        elif self.dist == 'MCNB':
+            return dists.LeftTruncatedMCNB.mean(r, p, left, r_transform=self.r_transform)
+        else:
+            return dists.LeftTruncatedBetaNB.mean(p, k, r, left, r_transform=self.r_transform)
+    
     @partial(jax.jit, static_argnums=(0, ))
     def fun(self, p: float, r: jax.numpy.ndarray, k: jax.numpy.ndarray, data: jax.numpy.ndarray,  w:jax.numpy.ndarray,
             mask: jax.numpy.ndarray):
-        left = self.left
-        if self.dist == 'NB':
-            logl = dists.LeftTruncatedNB.logprob(data, r, p, left, r_transform=self.r_transform)
-        elif self.dist == 'MCNB':
-            logl = dists.LeftTruncatedMCNB.logprob_recurrent(data, r, p, left,
-                                                             max_sz=self.max_count + 1, r_transform=self.r_transform)
-            logl = jnp.take_along_axis(logl, data.reshape(-1, 1), axis=1).flatten()
-        else:
-            logl = dists.LeftTruncatedBetaNB.logprob(data, p, k, r, left, r_transform=self.r_transform)
-        logl *= w
+        logl = self.logprob(p, r, k, data) * w
         return jax.numpy.where(mask, 0.0, logl)
     
     @partial(jax.jit, static_argnums=(0, ))
     def negloglik(self, p: float, r: jax.numpy.ndarray, k: jax.numpy.ndarray, data: jax.numpy.ndarray,  w:jax.numpy.ndarray,
             mask: jax.numpy.ndarray):
         return -self.fun(p, r, k, data, w, mask).sum()
+    
+    @partial(jax.jit, static_argnums=(0, 4))
+    def calc_entropy(self, p, r, k, eps=1e-6):
+        def cond_iter(carry):
+            s, s_prev, i = carry
+            return (i < r + 5) + (jnp.abs(s - s_prev) / s_prev > eps)
+
+        def body_iter(carry):
+            s, s_prev, i = carry
+            s_prev = s
+            s = s + jnp.exp(self.logprob(p, r, k, i)) * jnp.log2(i)
+            return s, s_prev, i + 1
+        
+        return jax.lax.while_loop(cond_iter, body_iter, (0.0, 0.0, self.left + 1))[0]
+    
     
     def update_mask(self, data, r, k, w):
         mask = self.mask
@@ -115,9 +143,10 @@ class Model():
         m2 = mean(p2)
         correction = m1 / (w * m1 + (1.0 - w) * m2)
         return r * correction
-        
 
-    def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True, n_bootstrap=0):
+
+    def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True, n_bootstrap=0, return_aux_es=False,
+            es_mode='entropy'):
         name = self.model_name
         if self.symmetrify:
             data = ModelWindow.symmetrify_counts(data)
@@ -141,6 +170,8 @@ class Model():
             else:
                 k = np.zeros(len(r))
             r = self.adjust_r(r, k, ps.get('w', None))
+        if return_aux_es:
+            r_orig, k_orig = np.repeat(r, w), np.repeat(k, w)
         data, r, k, w = self.update_mask(data, r, k, w)
         mask = self.mask
         f = partial(self.negloglik, r=r, k=k, data=data, w=w, mask=mask)
@@ -163,16 +194,25 @@ class Model():
         correction = res.x - np.mean(bs) if n_bootstrap else 0.0
         res.x = np.clip(res.x + correction, 1e-12, 1.0 - 1e-12)
         lf = float(f(res.x))
+        if return_aux_es:
+            if es_mode == 'entropy':
+                aux = np.mean([self.calc_entropy(res.x, r, k) for r, k in zip(r_orig, k_orig)])
+            elif es_mode == 'mean':
+                aux = np.log2(self.mean(res.x, r_orig, k_orig)).mean()
+            else:
+                aux = np.nan
+        else:
+            aux = None
         if compute_var:
             if sandwich:
                 g = grad_w(res.x)
                 v = (g ** 2 / w).sum()
                 fim = fim(res.x)
                 s = -1 if fim < -1e-9 else 1
-                return res, s * float(1 / fim ** 2 * v)
+                return res, s * float(1 / fim ** 2 * v), aux
             else:
-                return res, float(1 / fim(res.x))
-        return res, lf
+                return res, float(1 / fim(res.x)), aux
+        return res, lf, aux
         
     
 
@@ -262,7 +302,7 @@ def get_closest_param(params: dict, slc: float, model_name: str, compute_line=Fa
 
 def lrt_test(counts: tuple,
         inst_params: dict, params: dict, skip_failures=False, max_sz=None, bad=1.0,
-        param_mode='window', n_bootstrap=0, max_count=1e5):
+        param_mode='window', n_bootstrap=0, max_count=1e5, calc_es=False, es_mode='entropy'):
     if not hasattr(lrt_test, '_cache'):
         lrt_test._cache = dict()
     max_count = int(max_count)
@@ -299,23 +339,31 @@ def lrt_test(counts: tuple,
             counts = [c[:, (1, 0, 2)] for c in counts]
         try:
             ps = list()
+            ents = list()
             loglik = 0
             for count in counts[:-1]:
-                r, logl = model.fit(count, params[allele], False, n_bootstrap=n_bootstrap)
+                r, logl, ent = model.fit(count, params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=calc_es, es_mode=es_mode)
                 if not r.success and not skip_failures:
                     return None, snv
+                if calc_es:
+                    ents.append(ent)
                 ps.append(r.x)
                 loglik -= logl
-            r, logl = model_long.fit(counts[-1], params[allele], False, n_bootstrap=n_bootstrap)
+            r, logl, ent = model_long.fit(counts[-1], params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=calc_es,
+                                          es_mode=es_mode)
             ps.append(r.x)
             loglik += logl
+            es = [e - ent for e in ents]
         except (KeyError, IndexError):
             if skip_failures:
                 return None, snv
             res.append((float('nan'), float('nan'), float('nan'), float('nan')))
         lrt = 2 * loglik
         pval = chi2.sf(lrt, len(counts) - 2)
-        res.append([pval] + ps)
+        if calc_es:
+            res.append([pval] + ps + es)
+        else:
+            res.append([pval] + ps)
     n = [cnt[:, -1].sum() for cnt in counts][:-1]
     return res, [snv] + n
 
@@ -356,12 +404,12 @@ def wald_test(counts: Tuple[tuple, np.ndarray, np.ndarray, np.ndarray],
         if allele == 'alt':
             counts_a = counts_a[:, (1, 0, 2)]; counts_b = counts_b[:, (1, 0, 2)]; counts = counts[:, (1, 0, 2)]
         try:
-            a_r, a_var = model.fit(counts_a, params[allele], sandwich=robust_se, n_bootstrap=n_bootstrap)
+            a_r, a_var, _ = model.fit(counts_a, params[allele], sandwich=robust_se, n_bootstrap=n_bootstrap)
             a_var = np.clip(a_var, 0.0, np.inf)
             if (1.0 - a_r.x) ** 2 < a_var:
                 a_var = (1.0 - a_r.x) ** 2
             a_p = a_r.x
-            b_r, b_var = model.fit(counts_b, params[allele], sandwich=robust_se, n_bootstrap=n_bootstrap)
+            b_r, b_var, _ = model.fit(counts_b, params[allele], sandwich=robust_se, n_bootstrap=n_bootstrap)
             b_var = np.clip(b_var, 0.0, np.inf)
             if (1.0 - b_r.x) < b_var ** 0.5:
                 b_var = (1.0 - b_r.x) ** 2
@@ -512,7 +560,8 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
     return res
 
 def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None, min_groups=2,
-               min_samples=4, min_cover=0, max_cover=np.inf, param_mode='window', skip_failures=True, n_jobs=1):
+               min_samples=4, min_cover=0, max_cover=np.inf, param_mode='window', skip_failures=True, 
+               es_mode='entropy', n_jobs=1):
     if max_cover is None:
         max_cover = np.inf
     if min_cover is None:
@@ -525,14 +574,28 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
         snvs = dill.load(f)
         scorefiles = snvs['scorefiles']
         snvs = snvs['snvs']
-    groups = [[scorefiles.index(f) for f in select_filenames([pattern], scorefiles)] for pattern in groups]
+    if groups:
+        groups = [[scorefiles.index(f) for f in select_filenames([pattern], scorefiles)] for pattern in groups]
+        combine = None
+    else:
+        combine_filename = '.'.join(init_filename.split('.')[:-2]) + f'.comb.{compressor}'
+        with open(combine_filename, 'rb') as f:
+            combine = dill.load(f)
+            groups = list()
+            names = list()
+            for key, its in combine.items():
+                if key:
+                    groups.append(list(its['groups']))
+                    names.append(key)
+        combine = names
     snvs_groups = [get_snvs_for_group(snvs, g, min_samples=min_samples) for g in groups]
     snvs_groups_count = defaultdict(int)
     for g in snvs_groups:
         for snv in g:
             snvs_groups_count[snv] += 1
     snvs = {snv for snv, n in snvs_groups_count.items() if n >= min_groups}
-    snvs = {snv for i, snv in enumerate(snvs) if i < 100}
+    snvs = {snv for i, snv in enumerate(sorted(snvs)) if i < 100}
+    snvs.add(('chr20', 33490109))
     snvs_groups = [{k: g.get(k, list()) for k in snvs} for g in snvs_groups]
     if fit:
         comp_fit = fit.split('.')[-1]
@@ -551,7 +614,7 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
         cols = ['ref_pval', 'ref_p', 'ref_p_control', 'ref_p_test', 
                 'alt_pval', 'alt_p', 'alt_p_control', 'alt_p_test']
         test_fun = partial(lrt_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
-                           param_mode=param_mode)
+                           param_mode=param_mode, calc_es=True, es_mode=es_mode)
         counts = list()
         group_inds = dict()
         for snv in snvs:
@@ -575,9 +638,7 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
             continue
         max_sz = max(c.shape[0] for tc in counts for c in tc[1:-1])
         max_sz = (max_sz, max(c[-1].shape[0] for c in counts))
-        print(max_sz)
         max_count = max(c[:, [0, 1]].max() for tc in counts for c in tc[1:-1])
-        max_count = 100000
         f = partial(test_fun, skip_failures=skip_failures, max_sz=max_sz, max_count=max_count)
         chunk_size = len(counts) // n_jobs
         with Pool(n_jobs) as p:
@@ -587,29 +648,36 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
                 it = it.get()
             else:
                 it = map(f, counts)
-        z = np.repeat(np.nan, len(snvs_groups) + 2)
-        nz = np.repeat(0, len(snvs_groups))
-        N = len(counts)
+        n_groups = len(snvs_groups)
+        z = np.repeat(np.nan, 2 * n_groups + 2)
+        nz = np.repeat(0, n_groups)
         K = 0
         for r, t in it:
             if r is None:
                 continue
             K += 1
             inds = group_inds[t[0]]
+            cur_n_groups = len(inds)
             ref = z.copy()
-            ref[inds] = r[0][1:-1]
-            ref[-1] = r[0][0]
-            ref[-2] = r[0][-1]
+            ref[inds] = r[0][1:1 + cur_n_groups] # set p estimates
+            ref[n_groups] = r[0][cur_n_groups + 1] # set joint p estimate
+            ref[inds + n_groups + 1] = r[0][1 + cur_n_groups:-1] # set ES estimates
+            ref[-1] = r[0][0] # set p-value
             alt = z.copy()
-            alt[inds] = r[1][1:-1]
-            alt[-1] = r[1][0]
-            alt[-2] = r[1][-1]
+            alt[inds] = r[1][1:1 + cur_n_groups] # set p estimates
+            alt[n_groups] = r[1][cur_n_groups + 1] # set joint p estimate
+            alt[inds + n_groups + 1] = r[1][1 + cur_n_groups:-1] # set ES estimates
+            alt[-1] = r[1][0] # set p-value
             n = nz.copy()
             n[inds] = t[1:]
             res.append([t[0]] + list(n) + list(ref) + list(alt))
             # print(K / N, K, N, max_sz, max_count)
-    cols = [f'p_{i + 1}' for i in range(len(snvs_groups))] + ['p_all', 'pval']
-    cols = ['ind'] + [f'n_{i + 1}' for i in range(len(snvs_groups))] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
+    if combine:
+        cols = [f'p_{i}' for i in combine] + ['p_all'] + [f'es_{i}' for i in combine] + ['pval']
+        cols = ['ind'] + [f'n_{i}' for i in combine] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
+    else:
+        cols = [f'p_{i + 1}' for i in range(len(snvs_groups))] + ['p_all'] + [f'es_{i + 1}' for i in range(len(snvs_groups))] + ['pval']
+        cols = ['ind'] + [f'n_{i + 1}' for i in range(len(snvs_groups))] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
     df = pd.DataFrame(res, columns=cols)
     if df.empty:
         df['ref_fdr_pval'] = None
@@ -619,6 +687,7 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
         _, df['alt_fdr_pval'], _, _ = multitest.multipletests(df['alt_pval'], alpha=alpha, method='fdr_bh')
     res = {subname: {'tests': df, 'snvs': snvs_groups}}
     filename = f'{name}.anova.{compressor}'
+    df.to_csv('bl.tsv', sep='\t')
     if os.path.isfile(filename):
         with open(filename, 'rb') as f:
             d = dill.load(f)

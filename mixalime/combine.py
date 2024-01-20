@@ -31,7 +31,7 @@ def combine_p_values_logit(pvalues):
         pval = st.distributions.chi2.sf(statistic, 2 * k)
     return pval
 
-def combine_es(es, pvalues):
+def combine_es(es, pvalues, uniform_weights=False):
     pvalues = np.array(list(map(float, pvalues)))
     es = np.array(es)
     weights = -np.log10(pvalues)
@@ -39,6 +39,8 @@ def combine_es(es, pvalues):
     if not inds.sum():
         return np.mean(es)
     weights = weights[inds]
+    if uniform_weights:
+        weights[:] = 1.0
     es = es[inds]
     s = weights.sum()
     if s == 0:
@@ -68,7 +70,7 @@ def estimate_min_coverage(test, es_cutoff: float = 1, pval_cutoff: float = 0.5):
             res[allele][bad] = cov if stop else float('inf')
     return res
 
-def combine_stats(inds, snvs, stats, groups, min_cnt_sum=20):
+def combine_stats(inds, snvs, stats, groups, min_cnt_sum=20, uniform_weights=False):
     pvalues = list()
     es = list()
     ks = list()
@@ -86,8 +88,8 @@ def combine_stats(inds, snvs, stats, groups, min_cnt_sum=20):
             alt_pvals, alt_es = zip(*[stats['alt'][t[-1]][t[:-1]] for t in lt])
             ref = combine_p_values_logit(ref_pvals)
             alt = combine_p_values_logit(alt_pvals)
-            ref_es = combine_es(ref_es, ref_pvals)
-            alt_es = combine_es(alt_es, alt_pvals)
+            ref_es = combine_es(ref_es, ref_pvals, uniform_weights=uniform_weights)
+            alt_es = combine_es(alt_es, alt_pvals, uniform_weights=uniform_weights)
         pvalues.append((ref, alt))
         es.append((ref_es, alt_es))
         ks.append(k)
@@ -99,7 +101,7 @@ def batched(iterable, n):
         yield batch
 
 def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, adaptive_min_cover=False, adaptive_es=1.0, adaptive_pval=0.05,
-            filter_id=None, filter_chr=None, subname=None, n_jobs=1, save_to_file=True):
+            uniform_weights=False, filter_id=None, filter_chr=None, subname=None, n_jobs=1, save_to_file=True):
     if filter_chr is not None:
         filter_chr = re.compile(filter_chr)
     if filter_id is not None:
@@ -153,7 +155,8 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, adaptive_mi
         if n_jobs > 1:
             its = manager.list(its)
         with Pool(n_jobs) as p:
-            f = partial(combine_stats, snvs=its, stats=stats, groups=groups, min_cnt_sum=min_coverage)
+            f = partial(combine_stats, snvs=its, stats=stats, groups=groups, min_cnt_sum=min_coverage,
+                        uniform_weights=uniform_weights)
             if n_jobs > 1:
                 sz = int(np.ceil(len(its) / n_jobs))
                 inds = batched(range(len(its)), sz)

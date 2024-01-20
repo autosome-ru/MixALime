@@ -79,7 +79,9 @@ class SmallDatasetStrategy(str, Enum):
     conservative = 'conservative'
     fixed_r = 'fixed_r'
    
-
+class ESMode(str, Enum):
+    entropy = 'entropy'
+    mean = 'mean'
 
 
 class OrderCommands(TyperGroup):
@@ -497,6 +499,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
                                                'at least [cyan]adative_es[/cyan] is achievable for a p-value of [cyan]adaptive_pval[/cyan].'),
              adaptive_es: float = Option(1.0, help='Minimal required effect-size for the adaptive coverage algorithm.'),
              adaptive_pval: float = Option(0.05, help='Minimal required p-value for the adaptive coverage algorithm.'),
+             uniform_weights: bool = Option(False, help='Uniform weighing for effect-sizes.'),
              filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
              filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
              subname: str = Option(None, help='You may give a result a subname in case you plan to use multiple groups.'),
@@ -520,7 +523,8 @@ def _combine(name: str = Argument(..., help='Project name.'),
         subname = None
     r, adaptive_coverage = combine(name, group_files=group if group else [r'm:*'], alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
                                    subname=subname, min_cnt_sum=min_cover, adaptive_min_cover=adaptive_min_cover,
-                                   adaptive_es=adaptive_es, adaptive_pval=adaptive_pval, n_jobs=n_jobs)
+                                   adaptive_es=adaptive_es, adaptive_pval=adaptive_pval,
+                                   uniform_weights=uniform_weights, n_jobs=n_jobs)
     r = r[subname]['snvs']
     if pretty:
         p.stop()
@@ -561,7 +565,7 @@ def _combine(name: str = Argument(..., help='Project name.'),
         print(f'Total SNVs tested: {len(r)}')
     update_history(name, 'combine', group=group, alpha=alpha, min_cover=min_cover, adaptive_min_cover=adaptive_min_cover,
                    adaptive_es=adaptive_es, adaptive_pval=adaptive_pval, filter_id=filter_id, subname=subname, filter_chr=filter_chr,
-                   n_jobs=n_jobs, expected_result=expected_res)
+                   uniform_weights=uniform_weights, n_jobs=n_jobs, expected_result=expected_res)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
@@ -678,24 +682,27 @@ def _difftest(name: str = Argument(..., help='Project name.'),
 
 @app.command('anova')
 def _anova(name: str = Argument(..., help='Project name.'),
+           groups: str = Option(str(), help='Files with lists of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
+                                             'prefix, e.g. "m:vcfs/*_M_*.vcf.gz"), each for a group. Entries must be separated with a semicolon ";" character.'),
            fit: str = Option(None, help='Path to a fit file from a different project. If not provided, fit from the same project is used.'),
-           groups: Path = Argument(..., help='Files with lists of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
-                                                     'prefix, e.g. "m:vcfs/*_M_*.vcf.gz"), each for a group. Entries must be separated with a semicolon ";" character.'),
-              param_window: bool = Option(True, help='If disabled, parameters will be taken from a line with respect to the mean window for given'
+           param_window: bool = Option(True, help='If disabled, parameters will be taken from a line with respect to the mean window for given'
                                                      ' reps/samples.'),
-              alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
-              min_samples: int = Option(2, help='Minimal number of samples/reps per an SNV to be considered for the analysis.'),
-              min_groups: int = Option(2, help='Minimal number of groups present for an SNV to be considered for the analysis.'),
-              min_cover: int = Option(None, help='Minimal required cover (ref + alt) for an SNV to be considered.'),
-              max_cover: int = Option(None, help='Maximal allowed cover (ref + alt) for an SNV to be considered.'),
-              subname: str = Option(None, help='You may give a result a subname in case you plan to draw multiple comparisons.'),
-              n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
-              pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
+           es_mode: ESMode = Option(ESMode.entropy.value, help='Effect-size calculation method.'),
+           alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
+           min_samples: int = Option(2, help='Minimal number of samples/reps per an SNV to be considered for the analysis.'),
+           min_groups: int = Option(2, help='Minimal number of groups present for an SNV to be considered for the analysis.'),
+           min_cover: int = Option(None, help='Minimal required cover (ref + alt) for an SNV to be considered.'),
+           max_cover: int = Option(None, help='Maximal allowed cover (ref + alt) for an SNV to be considered.'),
+           subname: str = Option(None, help='You may give a result a subname in case you plan to draw multiple comparisons.'),
+           n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
+           pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
     ANOVA test via likelihood ratio.
     """
     t0 = time()
     groups = str(groups)
+    if type(es_mode) is ESMode:
+        es_mode = es_mode.value
     if pretty:
         p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
         p.add_task(description='Performing ANOVA tests...', total=None)
@@ -706,8 +713,8 @@ def _anova(name: str = Argument(..., help='Project name.'),
         subname = str(subname)
     else:
         subname = None
-    r = anova_test(name, groups=groups.split(';'), min_samples=min_samples, min_cover=min_cover,
-                   max_cover=max_cover, alpha=alpha, n_jobs=n_jobs, min_groups=min_groups,
+    r = anova_test(name, groups=groups.split(';') if groups else None, min_samples=min_samples, min_cover=min_cover,
+                   max_cover=max_cover, alpha=alpha, n_jobs=n_jobs, min_groups=min_groups, es_mode=es_mode,
                    param_mode='window' if param_window else 'line', fit=fit)[subname]
     if pretty:
         p.stop()
@@ -739,7 +746,7 @@ def _anova(name: str = Argument(..., help='Project name.'),
     expected_res = [int(ref), int(alt), int(total)]
     update_history(name, 'anova', groups=groups, min_samples=min_samples, min_cover=min_cover,
                           max_cover=max_cover, alpha=alpha, n_jobs=n_jobs, min_groups=min_groups,
-                          param_window=param_window, fit=fit)
+                          param_window=param_window, es_mode=es_mode, fit=fit)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
