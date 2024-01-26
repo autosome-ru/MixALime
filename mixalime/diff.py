@@ -648,34 +648,37 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
                 it = map(f, counts)
         n_groups = len(snvs_groups)
         z = np.repeat(np.nan, 2 * n_groups + 2)
-        nz = np.repeat(0, n_groups)
+        # Layout:
+        # 
+        nz = np.repeat(0, n_groups + 1)
         K = 0
         for r, t in it:
             if r is None:
                 continue
             K += 1
+
             inds = group_inds[t[0]]
             cur_n_groups = len(inds)
             ref = z.copy()
             ref[inds] = r[0][1:1 + cur_n_groups] # set p estimates
             ref[n_groups] = r[0][cur_n_groups + 1] # set joint p estimate
-            ref[inds + n_groups + 1] = r[0][1 + cur_n_groups:-1] # set ES estimates
+            ref[inds + n_groups + 1] = r[0][2 + cur_n_groups:] # set ES estimates
             ref[-1] = r[0][0] # set p-value
             alt = z.copy()
             alt[inds] = r[1][1:1 + cur_n_groups] # set p estimates
             alt[n_groups] = r[1][cur_n_groups + 1] # set joint p estimate
-            alt[inds + n_groups + 1] = r[1][1 + cur_n_groups:-1] # set ES estimates
+            alt[inds + n_groups + 1] = r[1][2 + cur_n_groups:] # set ES estimates
             alt[-1] = r[1][0] # set p-value
             n = nz.copy()
             n[inds] = t[1:]
+            n[-1] = sum(t[1:])
             res.append([t[0]] + list(n) + list(ref) + list(alt))
-            # print(K / N, K, N, max_sz, max_count)
     if combine:
         cols = [f'p_{i}' for i in combine] + ['p_all'] + [f'es_{i}' for i in combine] + ['pval']
-        cols = ['ind'] + [f'n_{i}' for i in combine] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
+        cols = ['ind'] + [f'n_{i}' for i in combine]  + ['n_all'] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
     else:
         cols = [f'p_{i + 1}' for i in range(len(snvs_groups))] + ['p_all'] + [f'es_{i + 1}' for i in range(len(snvs_groups))] + ['pval']
-        cols = ['ind'] + [f'n_{i + 1}' for i in range(len(snvs_groups))] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
+        cols = ['ind'] + [f'n_{i + 1}' for i in range(len(snvs_groups))] + ['n_all'] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
     df = pd.DataFrame(res, columns=cols)
     if df.empty:
         df['ref_fdr_pval'] = None
