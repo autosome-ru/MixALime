@@ -594,8 +594,6 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
         for snv in g:
             snvs_groups_count[snv] += 1
     snvs = {snv for snv, n in snvs_groups_count.items() if n >= min_groups}
-    snvs = {snv for i, snv in enumerate(sorted(snvs)) if i < 100}
-    snvs.add(('chr20', 33490109))
     snvs_groups = [{k: g.get(k, list()) for k in snvs} for g in snvs_groups]
     if fit:
         comp_fit = fit.split('.')[-1]
