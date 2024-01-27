@@ -72,16 +72,19 @@ class Model():
     @partial(jax.jit, static_argnums=(0, 4))
     def calc_entropy(self, p, r, k, eps=1e-6):
         def cond_iter(carry):
-            s, s_prev, i = carry
-            return (i < r + 5) + (jnp.abs(s - s_prev) / s_prev > eps)
+            s, s_prev, var, var_prev, i = carry
+            return (i < r + 5) + (jnp.abs(s - s_prev) / s_prev > eps) + (jnp.abs(var - var_prev) / var_prev > eps)
 
         def body_iter(carry):
-            s, s_prev, i = carry
+            s, s_prev, var, var_prev, i = carry
             s_prev = s
-            s = s + jnp.exp(self.logprob(p, r, k, i)) * jnp.log2(i)
-            return s, s_prev, i + 1
-        
-        return jax.lax.while_loop(cond_iter, body_iter, (0.0, 0.0, self.left + 1))[0]
+            term = jnp.exp(self.logprob(p, r, k, i)) * jnp.log2(i)
+            s = s + term
+            var_prev = var
+            var = var + term * jnp.log2(i)
+            return s, s_prev, var, var_prev, i + 1
+        res = jax.lax.while_loop(cond_iter, body_iter, (0.0, 0.0, 0.0, 0.0, self.left + 1))
+        return res[0], res[2]
     
     
     def update_mask(self, data, r, k, w):
@@ -146,7 +149,7 @@ class Model():
 
 
     def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True, n_bootstrap=0, return_aux_es=False,
-            es_mode='entropy'):
+            es_mode='entropy', p_fix=None):
         name = self.model_name
         if self.symmetrify:
             data = ModelWindow.symmetrify_counts(data)
@@ -177,30 +180,40 @@ class Model():
         f = partial(self.negloglik, r=r, k=k, data=data, w=w, mask=mask)
         grad_w = partial(self.grad, r=r, k=k, data=data, w=w, mask=mask)
         fim = partial(self.fim, r=r, k=k, data=data, w=w, mask=mask)
-        res = self.minimize_scalar(f)
-        x = res.x
-        bs = list()
-        for i in range(n_bootstrap):
-            r_, k_, w_ =  r[:n], k[:n], w[:n]
-            data, _, w_ = self.sample(w_, fixed[:n], x, r_, k_).T
-            data, r_, k_, w_ = self.update_mask(data, r_, k_, w_)
-            mask = self.mask
-            f = partial(self.negloglik, r=r_, k=k_, data=data, w=w_, mask=mask)
-            res_ = self.minimize_scalar(f)
-            if res_.success:
-                bs.append(res_.x) 
-
-        res.x = float(res.x)
-        correction = res.x - np.mean(bs) if n_bootstrap else 0.0
-        res.x = np.clip(res.x + correction, 1e-12, 1.0 - 1e-12)
-        lf = float(f(res.x))
+        if p_fix is None:
+            res = self.minimize_scalar(f)
+            x = res.x
+            bs = list()
+            for i in range(n_bootstrap):
+                r_, k_, w_ =  r[:n], k[:n], w[:n]
+                data, _, w_ = self.sample(w_, fixed[:n], x, r_, k_).T
+                data, r_, k_, w_ = self.update_mask(data, r_, k_, w_)
+                mask = self.mask
+                f = partial(self.negloglik, r=r_, k=k_, data=data, w=w_, mask=mask)
+                res_ = self.minimize_scalar(f)
+                if res_.success:
+                    bs.append(res_.x) 
+    
+            res.x = float(res.x)
+            correction = res.x - np.mean(bs) if n_bootstrap else 0.0
+            res.x = np.clip(res.x + correction, 1e-12, 1.0 - 1e-12)
+            lf = float(f(res.x))
+        else:
+            lf = None
+            res = None
         if return_aux_es:
             if es_mode == 'entropy':
-                aux = np.mean([self.calc_entropy(res.x, r, k) for r, k in zip(r_orig, k_orig)])
+                entropies, moments = list(), list()
+                for r, k in zip(r_orig, k_orig):
+                    entropy, second_moment = self.calc_entropy(p_fix if p_fix else res.x, r, k)
+                    entropies.append(entropy)
+                    moments.append(second_moment)
+                aux = np.array(entropies), np.array(moments)
+                # aux = np.mean(entropies), np.mean(moments) #np.var(entropies)
             elif es_mode == 'mean':
-                aux = np.log2(self.mean(res.x, r_orig, k_orig)).mean()
+                aux = np.log2(self.mean(p_fix if p_fix else res.x, r_orig, k_orig)), np.nan 
             else:
-                aux = np.nan
+                aux = np.nan, np.nan
         else:
             aux = None
         if compute_var:
@@ -339,27 +352,31 @@ def lrt_test(counts: tuple,
             counts = [c[:, (1, 0, 2)] for c in counts]
         try:
             ps = list()
-            ents = list()
+            variances = list()
             loglik = 0
+            r_all, loglik, ent_all = model_long.fit(counts[-1], params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=calc_es,
+                                                    es_mode=es_mode)
+            es = list()
             for count in counts[:-1]:
                 r, logl, ent = model.fit(count, params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=calc_es, es_mode=es_mode)
                 if not r.success and not skip_failures:
                     return None, snv
                 if calc_es:
-                    ents.append(ent)
+                    _, _, ent_all = model_long.fit(count, params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=calc_es,
+                                                   es_mode=es_mode, p_fix=r_all.x)
+                    es.append(np.mean(ent[0] - ent_all[0]))
+                    variances.append(np.mean(ent[1] - ent[0] ** 2 + ent_all[1] - ent_all[0] ** 2) / ent[1].shape[0])
                 ps.append(r.x)
                 loglik -= logl
-            r, logl, ent = model_long.fit(counts[-1], params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=calc_es,
-                                          es_mode=es_mode)
-            ps.append(r.x)
-            loglik += logl
-            es = [e - ent for e in ents]
+            ps.append(r_all.x)
         except (KeyError, IndexError):
             if skip_failures:
                 return None, snv
             res.append((float('nan'), float('nan'), float('nan'), float('nan')))
         lrt = 2 * loglik
         pval = chi2.sf(lrt, len(counts) - 2)
+        if es_mode != 'mean':
+            es = [f'{es},{var}' for es, var in zip(es, variances)]
         if calc_es:
             res.append([pval] + ps + es)
         else:
@@ -648,8 +665,7 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
                 it = map(f, counts)
         n_groups = len(snvs_groups)
         z = np.repeat(np.nan, 2 * n_groups + 2)
-        # Layout:
-        # 
+        z = np.empty(2 * n_groups + 2, dtype=object)
         nz = np.repeat(0, n_groups + 1)
         K = 0
         for r, t in it:
