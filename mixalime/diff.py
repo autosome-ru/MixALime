@@ -149,7 +149,7 @@ class Model():
 
 
     def fit(self, data: np.ndarray, params: dict, compute_var=True, sandwich=True, n_bootstrap=0, return_aux_es=False,
-            es_mode='entropy', p_fix=None):
+            es_mode='entropy', p_fix=None, calc_logl=True):
         name = self.model_name
         if self.symmetrify:
             data = ModelWindow.symmetrify_counts(data)
@@ -197,9 +197,9 @@ class Model():
             res.x = float(res.x)
             correction = res.x - np.mean(bs) if n_bootstrap else 0.0
             res.x = np.clip(res.x + correction, 1e-12, 1.0 - 1e-12)
-            lf = float(f(res.x))
+            lf = float(f(res.x)) if calc_logl else None
         else:
-            lf = None
+            lf = float(f(p_fix)) if calc_logl else None
             res = None
         if return_aux_es:
             if es_mode == 'entropy':
@@ -315,7 +315,8 @@ def get_closest_param(params: dict, slc: float, model_name: str, compute_line=Fa
 
 def lrt_test(counts: tuple,
         inst_params: dict, params: dict, skip_failures=False, max_sz=None, bad=1.0,
-        param_mode='window', n_bootstrap=0, max_count=1e5, calc_es=False, es_mode='entropy'):
+        param_mode='window', n_bootstrap=0, max_count=1e5, calc_es=False, es_mode='entropy',
+        calc_pairs=False):
     if not hasattr(lrt_test, '_cache'):
         lrt_test._cache = dict()
     max_count = int(max_count)
@@ -353,6 +354,7 @@ def lrt_test(counts: tuple,
         try:
             ps = list()
             variances = list()
+            pvals = list()
             loglik = 0
             r_all, loglik, ent_all = model_long.fit(counts[-1], params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=calc_es,
                                                     es_mode=es_mode)
@@ -362,10 +364,17 @@ def lrt_test(counts: tuple,
                 if not r.success and not skip_failures:
                     return None, snv
                 if calc_es:
-                    _, _, ent_all = model_long.fit(count, params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=calc_es,
-                                                   es_mode=es_mode, p_fix=r_all.x)
+                    _, logl_all, ent_all = model_long.fit(count, params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=calc_es,
+                                                   es_mode=es_mode, p_fix=r_all.x, calc_logl=calc_pairs)
                     es.append(np.mean(ent[0] - ent_all[0]))
                     variances.append(np.mean(ent[1] - ent[0] ** 2 + ent_all[1] - ent_all[0] ** 2) / ent[1].shape[0])
+                if calc_pairs:
+                    if not calc_es:
+                        _, logl_all = model_long.fit(count, params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=False, p_fix=r_all.x,
+                                                     calc_logl=True)
+                    pvals.append(chi2.sf(2 * (logl_all - logl), 1))
+                        
+                    
                 ps.append(r.x)
                 loglik -= logl
             ps.append(r_all.x)
@@ -375,12 +384,11 @@ def lrt_test(counts: tuple,
             res.append((float('nan'), float('nan'), float('nan'), float('nan')))
         lrt = 2 * loglik
         pval = chi2.sf(lrt, len(counts) - 2)
-        if es_mode != 'mean':
-            es = [f'{es},{var}' for es, var in zip(es, variances)]
+        pvals = [pval] if not calc_pairs else [pval] + pvals
         if calc_es:
-            res.append([pval] + ps + es)
+            res.append(pvals + ps + es + variances)
         else:
-            res.append([pval] + ps)
+            res.append(pvals + ps)
     n = [cnt[:, -1].sum() for cnt in counts][:-1]
     return res, [snv] + n
 
@@ -629,7 +637,7 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
         cols = ['ref_pval', 'ref_p', 'ref_p_control', 'ref_p_test', 
                 'alt_pval', 'alt_p', 'alt_p_control', 'alt_p_test']
         test_fun = partial(lrt_test, inst_params=inst_params, params=params, skip_failures=False, bad=bad,
-                           param_mode=param_mode, calc_es=True, es_mode=es_mode)
+                           param_mode=param_mode, calc_es=True, es_mode=es_mode, calc_pairs=True)
         counts = list()
         group_inds = dict()
         for snv in snvs:
@@ -664,8 +672,7 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
             else:
                 it = map(f, counts)
         n_groups = len(snvs_groups)
-        z = np.repeat(np.nan, 2 * n_groups + 2)
-        z = np.empty(2 * n_groups + 2, dtype=object)
+        z = np.empty(4 * n_groups + 2, dtype=object)
         nz = np.repeat(0, n_groups + 1)
         K = 0
         for r, t in it:
@@ -675,36 +682,38 @@ def anova_test(name: str, groups: List[str], alpha=0.05, subname=None, fit=None,
 
             inds = group_inds[t[0]]
             cur_n_groups = len(inds)
-            ref = z.copy()
-            ref[inds] = r[0][1:1 + cur_n_groups] # set p estimates
-            ref[n_groups] = r[0][cur_n_groups + 1] # set joint p estimate
-            ref[inds + n_groups + 1] = r[0][2 + cur_n_groups:] # set ES estimates
-            ref[-1] = r[0][0] # set p-value
-            alt = z.copy()
-            alt[inds] = r[1][1:1 + cur_n_groups] # set p estimates
-            alt[n_groups] = r[1][cur_n_groups + 1] # set joint p estimate
-            alt[inds + n_groups + 1] = r[1][2 + cur_n_groups:] # set ES estimates
-            alt[-1] = r[1][0] # set p-value
+            subres = list()
+            # pvals + ps + es + variances
+            for rt in r:
+                st = z.copy()
+                st[-1] = rt[0] # set ANOVA p-value
+                st[inds] = rt[1: 1 + cur_n_groups] # set pairwsie LRT p-values
+                st[inds + n_groups] = rt[1 + cur_n_groups: 1 + 2 * cur_n_groups] # set p estimates
+                st[2 * n_groups] = rt[1 + 2 * cur_n_groups] # set joint p estimate
+                st[2 * n_groups + 1 + inds] = rt[2 + 2 * cur_n_groups: 2 + 3 * cur_n_groups] # set ES estimates
+                st[3 * n_groups + 1 + inds] = rt[2 + 3 * cur_n_groups: 2 + 4 * cur_n_groups] # set ES variances
+                subres += list(st)
             n = nz.copy()
             n[inds] = t[1:]
             n[-1] = sum(t[1:])
-            res.append([t[0]] + list(n) + list(ref) + list(alt))
-    if combine:
-        cols = [f'p_{i}' for i in combine] + ['p_all'] + [f'es_{i}' for i in combine] + ['pval']
-        cols = ['ind'] + [f'n_{i}' for i in combine]  + ['n_all'] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
-    else:
-        cols = [f'p_{i + 1}' for i in range(len(snvs_groups))] + ['p_all'] + [f'es_{i + 1}' for i in range(len(snvs_groups))] + ['pval']
-        cols = ['ind'] + [f'n_{i + 1}' for i in range(len(snvs_groups))] + ['n_all'] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
+            res.append([t[0]] + list(n) + subres)
+    names = list(range(1, len(snvs_groups) + 1)) if not combine else combine
+    cols = [f'pval_{i}' for i in names] + [f'p_{i}' for i in names] + ['p_all'] + [f'es_{i}' for i in names] + [f'es_var_{i}' for i in names] + ['pval']
+    cols = ['ind'] + [f'n_{i}' for i in names]  + ['n_all'] + [f'ref_{c}' for c in cols] + [f'alt_{c}' for c in cols]
     df = pd.DataFrame(res, columns=cols)
-    if df.empty:
-        df['ref_fdr_pval'] = None
-        df['alt_fdr_pval'] = None
-    else:
+    tdf = pd.DataFrame(columns=[f'ref_fdr_pval_{name}' for name in names] + [f'alt_fdr_pval_{name}' for name in names] +\
+                       ['ref_fdr_pval', 'alt_fdr_pval'])
+    df = pd.concat((df, tdf))
+    if not df.empty:
+        for n in names:
+            inds = ~df[f'ref_pval_{n}'].isna()
+            if inds.sum():
+                _, df.loc[inds, f'ref_fdr_pval_{n}'], _, _ = multitest.multipletests(df.loc[inds, f'ref_pval_{n}'], alpha=alpha, method='fdr_bh')
+                _, df.loc[inds, f'alt_fdr_pval_{n}'], _, _ = multitest.multipletests(df.loc[inds, f'alt_pval_{n}'], alpha=alpha, method='fdr_bh')
         _, df['ref_fdr_pval'], _, _ = multitest.multipletests(df['ref_pval'], alpha=alpha, method='fdr_bh')
         _, df['alt_fdr_pval'], _, _ = multitest.multipletests(df['alt_pval'], alpha=alpha, method='fdr_bh')
     res = {subname: {'tests': df, 'snvs': snvs_groups}}
     filename = f'{name}.anova.{compressor}'
-    df.to_csv('bl.tsv', sep='\t')
     if os.path.isfile(filename):
         with open(filename, 'rb') as f:
             d = dill.load(f)

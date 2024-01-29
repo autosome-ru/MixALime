@@ -268,6 +268,9 @@ app_export = Typer(rich_markup_mode='rich', cls=OrderCommands, add_completion=Fa
 app.add_typer(app_export, name='export', help='Export tabulars obtained at previous steps (parameter estimates, fit indices, '
                                               ' count data, p-values).')
 
+app_plot = Typer(rich_markup_mode='rich', cls=OrderCommands, add_completion=False)
+app.add_typer(app_plot, name='plot', help='Commands to draw various diagnostic plots.')
+
 help_str = 'Initialize [bold]MixALime[/bold] projects initial files: do parsing and filtering of VCFs/BEDs.'
 
 @app.command('create', help=help_str)
@@ -683,7 +686,9 @@ def _difftest(name: str = Argument(..., help='Project name.'),
 @app.command('anova')
 def _anova(name: str = Argument(..., help='Project name.'),
            groups: str = Option(str(), help='Files with lists of filenames, folder or a mask (masks should start with "[yellow]m:[/yellow]"'
-                                             'prefix, e.g. "m:vcfs/*_M_*.vcf.gz"), each for a group. Entries must be separated with a semicolon ";" character.'),
+                                             'prefix, e.g. "m:vcfs/*_M_*.vcf.gz"), each for a group. Entries must be separated with a semicolon ";" character.'
+                                             'If not provided, then it is assumed that [b]combine[/b] was called previously with '
+                                             '[yellow]subname[/yellow]s corresponding to group names (recommended).'),
            fit: str = Option(None, help='Path to a fit file from a different project. If not provided, fit from the same project is used.'),
            param_window: bool = Option(True, help='If disabled, parameters will be taken from a line with respect to the mean window for given'
                                                      ' reps/samples.'),
@@ -754,6 +759,45 @@ def _anova(name: str = Argument(..., help='Project name.'),
         print(f'✔️ Done!\t time: {dt:.2f} s.')
     return expected_res
 
+@app_plot.command('anova', help='Visualize effect-sizes for some SNVs given ANOVA results.')
+def _plot_anova(name: str = Argument(..., help='Project name.'),
+                folder: Path = Argument(..., help='Output folder where figures will be stored'),
+                ids: str = Option(None, help='IDs of SNVs to draw separated by ";" character.'),
+                snvs: str = Option(None, help='Chromosome+pos of SNVs to draw separated by "," character. Multiple SNVs can be'
+                                              ' provided by separating them with ";" character, e.g.: "chr_1,10;chr_3,5".'),
+                subname: str = Option(None, help='Subname to use.'),
+                plot_raw_es: bool = Option(True, help='Draw effect-sizes estimated as a mean of ESes from the raw data.'),
+                plot_test_es: bool = Option(False, help='Draw effect-sizes estimated as a mean of ESes from the test run.'),
+                plot_p_diff: bool = Option(True, help='Draw difference between estimated p between nested models and the joint model.'),
+                color_significant: bool = Option(True, help='Bars corresponding to groups that have passed the 0.05 threshold for the'
+                                                             ' pairwise LRT test will be colored in green.'),
+                dpi: int = Option(200, help='DPI.'),
+                fmt: str = Option('png', help='Image format.'),
+                pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
+    """
+    Plots effect-sizes for give SNVs given previously ran ANOVA call.
+    """
+    t0 = time()
+    if pretty:
+        p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
+        p.add_task(description='Plotting SNVs ESes...', total=None)
+        p.start()
+    else:
+        print('Plotting SNVs ESes..')
+    if ids is None and snvs is None:
+        raise SyntaxError("At least ids or snvs should be provided.")
+    if ids:
+        ids = ids.split(';')
+    if snvs:
+        snvs = snvs.split(';')
+    plot.plot_anova_snvs(name, snv_names=ids, snvs=snvs, subname=subname, plot_raw_es=plot_raw_es, plot_test_es=plot_test_es,
+                         plot_p_diff=plot_p_diff, color_significant=color_significant, folder=folder, ext=fmt, 
+                         dpi=dpi)
+    dt = time() - t0
+    if pretty:
+        rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
+    else:
+        print(f'✔️ Done!\t time: {dt:.2f} s.')
 
 @app_export.command('all', help='Export everything.')
 def _export_all(name: str = Argument(..., help='Project name.'), out: Path = Argument(..., help='Output filename/path.'),
@@ -900,7 +944,7 @@ def _demo(export_path: Path = Option(str(), help='Path where the demo data will 
         print('✔️ Done!')
     
 
-@app.command('plot', help='Visualize model fits and plot model fit indices for diagnostic purposes.')
+@app_plot.command('all', help='Visualize model fits and plot model fit indices for diagnostic purposes.')
 def _plot_all(name: str = Argument(..., help='Project name.'), out: Path = Argument(..., help='Output filename/path.'),
               max_count: int = Option(60, help='Maximal read counts at an allele.'),
               slices: List[int] = Option([5, 10, 20, 30, 40], '--slices', '-s', help='List of slices for plotting sliceplots.'),

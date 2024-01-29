@@ -264,7 +264,146 @@ def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
     plt.legend(['ref', 'alt'])
     plt.xlabel('Read count for the fixed allele')
     plt.ylabel(name if name else param)
+
+def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw_es=True, plot_test_es=True,
+                    plot_p_diff=True, color_significant=True, folder=str(), ext='png', 
+                    figsize=(10, 4), dpi=200):
     
+    def plot_barplot(groups, values, n_rows, i, variance=None):
+        plt.subplot(n_rows, 1, i)
+        plt.bar(groups, values, color='grey', width=0.9)
+        if color_significant:
+            for name, pval, v in zip(groups, pvals, values):
+                if pval < 0.05:
+                    plt.bar(name, v, width=0.9, color='green')
+        if variance is not None:
+            plt.errorbar(groups, values, np.array(variance) ** 0.5,  fmt='.', color='Black', elinewidth=2, capthick=10,errorevery=1, alpha=0.5, ms=4, capsize = 2)
+        plt.margins(x=0)
+        plt.xticks([])
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    if snvs is None:
+        snvs = set()
+    else:
+        snvs = set(snvs)
+    filename = get_init_file(name)
+    compressor = filename.split('.')[-1]
+    open = openers[compressor]
+    filename = f'{name}.anova.{compressor}'
+    with open(filename, 'rb') as f:
+        anova = dill.load(f)[subname]
+        snvs_db = anova['snvs']
+        anova = anova['tests']
+    
+    if plot_test_es:
+        filename = f'{name}.test.{compressor}'
+        with open(filename, 'rb') as f:
+            test = dill.load(f)
+    names_dict = dict()
+    for pos in snvs:
+        for g in snvs_db:
+            if g[pos]:
+                names_dict[pos] = g[pos][0][0]
+                break
+    for snv_name in snv_names:
+        stop = False
+        for g in snvs_db:
+            for pos, lt in g.items():
+                if lt and lt[0][0] == snv_name:
+                    snvs.add(pos)
+                    names_dict[pos] = snv_name
+                    stop = True
+                    break
+            if stop:
+                break
+    
+    for ind in snvs:
+        snv_name = names_dict.get(ind, None)
+        for  allele in ('ref', 'alt'):
+            snv = anova[anova.ind == ind].iloc[0]
+            
+            groups = ['_'.join(c.split('_')[1:]) for c in anova.columns if (c != 'n_all') and c.startswith('n_')]
+            
+            
+            title = ', '.join(map(str, snv.ind))
+            if snv_name:
+                title += f', id: {snv_name}'
+            title += f'. Allele: {allele}'
+            es_cols = [f'{allele}_es_{name}' for name in groups]
+            es = snv[es_cols]
+            es = es.dropna()
+            inds = list()
+            for i, name in enumerate(groups):
+                if f'{allele}_es_{name}' in es.index:
+                    inds.append(i)
+            es = es.values
+            inds_s = np.argsort(es)
+            inds = [inds[i] for i in inds_s]
+            groups = [groups[i] for i in inds]
+            es = es[inds_s]
+            es_var_cols = [f'{allele}_es_var_{name}' for name in groups]
+            es_var = snv[es_var_cols]
+            p_cols = [f'{allele}_p_{name}' for name in groups]
+            ps = snv[p_cols].values
+            p_all = snv[f'{allele}_p_all']
+            ps = ps - p_all
+            
+            pvals_cols = [f'{allele}_fdr_pval_{name}' for name in groups]
+            pvals = snv[pvals_cols]
+            
+            if plot_test_es:
+                test_res = test[allele][1]
+            es_raw = list()
+            es_raw_var = list()
+            es_comb = list()
+            es_comb_var = list()
+            
+            for i in inds:
+                lt = snvs_db[i][snv.ind][1:]
+                raws = list()
+                raws_es = list()
+                for t in lt:
+                    ref, alt = t[1:3]
+                    t = np.log2(ref) - np.log2(alt)
+                    raws.append(t if allele == 'ref' else -t)
+                    if plot_test_es:
+                        raws_es.append(test_res[(ref, alt)][1])
+                es_raw.append(np.mean(raws))
+                es_raw_var.append(np.var(raws))
+                if plot_test_es:
+                    es_comb.append(np.mean(raws_es))
+                    es_comb_var.append(np.var(raws_es))
+                
+            
+            n_rows = 1 + plot_p_diff + plot_test_es + plot_raw_es
+            
+            plt.figure(dpi=dpi, figsize=(figsize[0], figsize[1] * n_rows + 2))            
+            
+            i = 1
+            plot_barplot(groups, es, n_rows, i, es_var)
+            plt.ylabel(f'{allele}_ES')
+            i += 1
+            if plot_p_diff:
+                plot_barplot(groups, ps, n_rows, i)
+                plt.ylabel(f'p_group - p_all ({p_all:.3f})')
+                plt.xticks([])
+                i += 1
+            
+            if plot_test_es:
+                plot_barplot(groups, es_comb, n_rows, i, es_comb_var)
+                plt.ylabel('ES_comb')
+                i += 1
+            
+            if plot_raw_es:
+                plot_barplot(groups, es_raw, n_rows, i, es_raw_var)
+                plt.ylabel('ES_raw')
+                i += 1
+            
+            plt.xticks(groups, rotation=90)
+            plt.suptitle(title, horizontalalignment='left', verticalalignment='top', x=0, fontsize=18)
+            plt.tight_layout()
+            name = snv_name if snv_name else '_'.join(map(str, snv.ind))
+            plt.savefig(os.path.join(folder, f'{name}_{allele}.{ext}'))
 
 def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 20, 30, 40, 50),
               max_count=100, slice_ref=True, fbad=None, show_bad=True, dpi=200):

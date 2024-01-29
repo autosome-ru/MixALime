@@ -269,10 +269,6 @@ def export_anova(project, out: str, subname=None):
     tests = diff['tests']
     snvs = diff['snvs']
     chrom = list(); start = list(); end = list(); name = list(); bad = list(); ref = list(); alt = list()
-    a_ref_counts = list(); b_ref_counts = list()
-    a_alt_counts = list(); b_alt_counts = list()
-    es_count = list()
-    # ref_es_count = list(); alt_es_count = list()
     for ind in tests['ind']:
         for s in snvs:
             try:
