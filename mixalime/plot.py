@@ -269,15 +269,32 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
                     plot_p_diff=True, color_significant=True, folder=str(), ext='png', 
                     figsize=(10, 4), dpi=200):
     
-    def plot_barplot(groups, values, n_rows, i, variance=None):
+    def plot_barplot(groups, values, n_rows, i, variance=None, legend_colors=False):
         plt.subplot(n_rows, 1, i)
         plt.bar(groups, values, color='grey', width=0.9)
+        fdr_bar = None
+        pval_bar = None
         if color_significant:
-            for name, pval, v in zip(groups, pvals, values):
+            for name, pval, pval_fdr, v in zip(groups, pvals, pvals_fdr, values):
                 if pval < 0.05:
-                    plt.bar(name, v, width=0.9, color='green')
+                    pval_bar_ = plt.bar(name, v, width=0.9, color='orange')
+                    if pval_fdr < 0.05:
+                        fdr_bar = plt.bar(name, v, width=0.9, color='green')
+                    else:
+                        pval_bar = pval_bar_
         if variance is not None:
             plt.errorbar(groups, values, np.array(variance) ** 0.5,  fmt='.', color='Black', elinewidth=2, capthick=10,errorevery=1, alpha=0.5, ms=4, capsize = 2)
+        if legend_colors:
+            handles = list()
+            labels = list()
+            if fdr_bar is not None:
+                labels.append('Passed FDR correction')
+                handles.append(fdr_bar)
+            if pval_bar is not None:
+                labels.append('P-value < 0.05')
+                handles.append(pval_bar)
+            if handles:
+                plt.legend(handles, labels)
         plt.margins(x=0)
         plt.xticks([])
     if folder:
@@ -348,7 +365,10 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
             p_all = snv[f'{allele}_p_all']
             ps = ps - p_all
             
-            pvals_cols = [f'{allele}_fdr_pval_{name}' for name in groups]
+            pvals_fdr_cols = [f'{allele}_fdr_pval_{name}' for name in groups]
+            pvals_fdr = snv[pvals_fdr_cols]
+            
+            pvals_cols = [f'{allele}_pval_{name}' for name in groups]
             pvals = snv[pvals_cols]
             
             if plot_test_es:
@@ -380,7 +400,7 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
             plt.figure(dpi=dpi, figsize=(figsize[0], figsize[1] * n_rows + 2))            
             
             i = 1
-            plot_barplot(groups, es, n_rows, i, es_var)
+            plot_barplot(groups, es, n_rows, i, es_var, legend_colors=True)
             plt.ylabel(f'{allele}_ES')
             i += 1
             if plot_p_diff:
@@ -400,7 +420,7 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
                 i += 1
             
             plt.xticks(groups, rotation=90)
-            plt.suptitle(title, horizontalalignment='left', verticalalignment='top', x=0, fontsize=18)
+            plt.suptitle((title + '\tWhiskers S.D.: 1').expandtabs(), horizontalalignment='left', verticalalignment='top', x=0, fontsize=18)
             plt.tight_layout()
             name = snv_name if snv_name else '_'.join(map(str, snv.ind))
             plt.savefig(os.path.join(folder, f'{name}_{allele}.{ext}'))
