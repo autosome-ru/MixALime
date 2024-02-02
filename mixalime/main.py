@@ -762,9 +762,9 @@ def _anova(name: str = Argument(..., help='Project name.'),
 @app_plot.command('anova', help='Visualize effect-sizes for some SNVs given ANOVA results.')
 def _plot_anova(name: str = Argument(..., help='Project name.'),
                 folder: Path = Argument(..., help='Output folder where figures will be stored'),
-                ids: str = Option(None, help='IDs of SNVs to draw separated by ";" character.'),
-                snvs: str = Option(None, help='Chromosome+pos of SNVs to draw separated by "," character. Multiple SNVs can be'
-                                              ' provided by separating them with ";" character, e.g.: "chr_1,10;chr_3,5".'),
+                ids: str = Option(None, help='IDs+alt alleles of SNVs to draw separated by ";" character, e.g. "rs123,C;rs124,A".'),
+                snvs: str = Option(None, help='Chromosome+pos+alt allele of SNVs to draw separated by "," character. Multiple SNVs can be'
+                                              ' provided by separating them with ";" character, e.g.: "chr_1,10,A;chr_3,5,G".'),
                 subname: str = Option(None, help='Subname to use.'),
                 plot_raw_es: bool = Option(True, help='Draw effect-sizes estimated as a mean of ESes from the raw data.'),
                 plot_test_es: bool = Option(False, help='Draw effect-sizes estimated as a mean of ESes from the test run.'),
@@ -787,9 +787,13 @@ def _plot_anova(name: str = Argument(..., help='Project name.'),
     if ids is None and snvs is None:
         raise SyntaxError("At least ids or snvs should be provided.")
     if ids:
-        ids = ids.split(';')
+        ids = [tuple(t.split(',')) for t in ids.split(';')]
     if snvs:
-        snvs = snvs.split(';')
+        snvs_t = list()
+        for t in snvs.split(';'):
+            t = t.split(',')
+            snvs_t.append((t[0], int(t[1], t[1])))
+        snvs = snvs_t
     plot.plot_anova_snvs(name, snv_names=ids, snvs=snvs, subname=subname, plot_raw_es=plot_raw_es, plot_test_es=plot_test_es,
                          plot_p_diff=plot_p_diff, color_significant=color_significant, folder=folder, ext=fmt, 
                          dpi=dpi)

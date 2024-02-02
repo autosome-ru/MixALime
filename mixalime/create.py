@@ -158,7 +158,7 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
         except StopIteration:
             raise ValueError
     for row in file:
-        if row.qual < min_qual or len(row.alts) != 1 or len(row.ref) != 1:
+        if row.qual < min_qual or len(row.ref) != 1:
             continue
         if filter_db:
             try:
@@ -170,8 +170,6 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
                         continue
             except KeyError:
                 pass
-        if len(row.alts[0]) != 1:
-            continue
         chrom = row.chrom
         if filter_chr and not filter_chr.match(str(chrom)):
             continue
@@ -181,6 +179,11 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
         if filter_name and not filter_name.match(name):
             continue
         start = row.start
+        if (len(row.alts) != 1) or (len(row.alts[0]) != 1):
+            alts = ', '.join(map(str, row.alts))
+            print(f'SNV entry at {chrom}, pos: {start} has multiple alternative alleles ({alts}) and will be ignored.'
+                  ' Please, split it into separate objects.')
+            continue
         # end = start + 1
         try:
             bad = row.bad if row.bad else default_bad
@@ -213,9 +216,10 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
                 if sample_counter is not None:
                     sample_counter[bad] += 1
                 if snps_pos is not None:
-                    lt = snps_pos[(chrom, start)]
+                    alts = ','.join(row.alts)
+                    lt = snps_pos[(chrom, start, alts)]
                     if not lt:
-                        lt.append((name, row.ref, ','.join(row.alts)))
+                        lt.append((name, row.ref, alts))
                     else:
                         if snp_bad_check and lt[1][-1] != bad:
                             raise Exception(f'SNV at {chrom}:{start} comes from at least two different BADs: {bad} and {lt[1][-1]}.'

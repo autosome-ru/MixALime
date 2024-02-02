@@ -144,7 +144,7 @@ def export_pvalues(project, out: str):
     snvs = snvs['snvs']  
     res = defaultdict(lambda: defaultdict(list))
     
-    for (chr, pos), its in snvs.items():
+    for (chr, pos, alt), its in snvs.items():
         name, ref, alt = its[0]
         end = pos + 1
         for filename_id, ref_count, alt_count, bad in its[1:]:
@@ -199,9 +199,9 @@ def export_combined_pvalues(project, out: str, sample_info=False, subname=None):
     snvs = snvs['snvs']  
     d = defaultdict(list)
     
-    for (chr, pos), its in snvs.items():
+    for (chr, pos, alt), its in snvs.items():
         try:
-            (pval_ref, pval_alt), (es_ref, es_alt), (fdr_ref, fdr_alt) = comb[(chr, pos)]
+            (pval_ref, pval_alt), (es_ref, es_alt), (fdr_ref, fdr_alt) = comb[(chr, pos, alt)]
         except KeyError:
             continue
         name, ref, alt = its[0]

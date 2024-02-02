@@ -12,6 +12,12 @@ from scipy.interpolate import UnivariateSpline
 import dill
 import os
 
+_fontsize = 16
+_ref = '#DC267F'
+_alt = '#FFB000'
+_count = '#648FFF'
+_cmap = LinearSegmentedColormap.from_list("", ['white', _count])
+_markersize = 8
 
 def update_style():
     file_path = os.path.split(os.path.realpath(__file__))[0]
@@ -23,14 +29,10 @@ def update_style():
     plt.rcParams['figure.titleweight'] = 'medium'
     plt.rcParams['axes.titleweight'] = 'medium'
     plt.rcParams['font.family'] = 'Lato'
-    plt.rcParams['font.size'] = 16
+    plt.rcParams['font.size'] = _fontsize
 
 update_style()
-_ref = '#DC267F'
-_alt = '#FFB000'
-_count = '#648FFF'
-_cmap = LinearSegmentedColormap.from_list("", ['white', _count])
-_markersize = 8
+
 
 
 def plot_heatmap(counts: np.ndarray, max_count: int, slices=None, shift=10, cmap=_cmap):
@@ -288,15 +290,17 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
             handles = list()
             labels = list()
             if fdr_bar is not None:
-                labels.append('Passed FDR correction')
+                labels.append('FDR < 0.05')
                 handles.append(fdr_bar)
             if pval_bar is not None:
                 labels.append('P-value < 0.05')
                 handles.append(pval_bar)
             if handles:
                 plt.legend(handles, labels)
+        plt.grid(True, which='both')
         plt.margins(x=0)
-        plt.xticks([])
+        plt.gca().set_xticklabels([])
+        
     if folder:
         os.makedirs(folder, exist_ok=True)
     if snvs is None:
@@ -324,9 +328,10 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
                 break
     for snv_name in snv_names:
         stop = False
+        snv_name, allele = snv_name
         for g in snvs_db:
             for pos, lt in g.items():
-                if lt and lt[0][0] == snv_name:
+                if lt and (lt[0][0] == snv_name) and (pos[-1] == allele):
                     snvs.add(pos)
                     names_dict[pos] = snv_name
                     stop = True
@@ -342,7 +347,7 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
             groups = ['_'.join(c.split('_')[1:]) for c in anova.columns if (c != 'n_all') and c.startswith('n_')]
             
             
-            title = ', '.join(map(str, snv.ind))
+            title = ', '.join(map(str, snv.ind)) + ', ' + snv.alt
             if snv_name:
                 title += f', id: {snv_name}'
             title += f'. Allele: {allele}'
@@ -363,7 +368,7 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
             p_cols = [f'{allele}_p_{name}' for name in groups]
             ps = snv[p_cols].values
             p_all = snv[f'{allele}_p_all']
-            ps = ps - p_all
+            ps = np.log2(ps.astype(float)) - np.log2(p_all)
             
             pvals_fdr_cols = [f'{allele}_fdr_pval_{name}' for name in groups]
             pvals_fdr = snv[pvals_fdr_cols]
@@ -401,26 +406,25 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
             
             i = 1
             plot_barplot(groups, es, n_rows, i, es_var, legend_colors=True)
-            plt.ylabel(f'{allele}_ES')
+            plt.ylabel(f'$E\\left[log_2\\left( \\frac{{group_{{{allele}}}}}{{all_{{{allele}}}}}\\right)\\right]$')
             i += 1
             if plot_p_diff:
                 plot_barplot(groups, ps, n_rows, i)
-                plt.ylabel(f'p_group - p_all ({p_all:.3f})')
-                plt.xticks([])
+                plt.ylabel(r'$log_2\left(\frac{p_{group}}{p_{all}}\right)$')
                 i += 1
             
             if plot_test_es:
                 plot_barplot(groups, es_comb, n_rows, i, es_comb_var)
-                plt.ylabel('ES_comb')
+                plt.ylabel('Average of effect-sizes from test')
                 i += 1
             
             if plot_raw_es:
                 plot_barplot(groups, es_raw, n_rows, i, es_raw_var)
-                plt.ylabel('ES_raw')
+                plt.ylabel('Average of ' + r'$log_2\left(\frac{ref}{alt}\right)$' if allele == 'ref' else r'$log_2\left(\frac{alt}{ref}\right)$')
                 i += 1
-            
-            plt.xticks(groups, rotation=90)
-            plt.suptitle((title + '\tWhiskers S.D.: 1').expandtabs(), horizontalalignment='left', verticalalignment='top', x=0, fontsize=18)
+            plt.xticks(groups, rotation=90, fontsize=_fontsize - 2)
+            plt.gca().set_xticklabels(groups, rotation=90, fontsize=_fontsize - 2)
+            plt.suptitle((title + '\tWhiskers S.D.').expandtabs(), horizontalalignment='left', verticalalignment='top', x=0, fontsize=18)
             plt.tight_layout()
             name = snv_name if snv_name else '_'.join(map(str, snv.ind))
             plt.savefig(os.path.join(folder, f'{name}_{allele}.{ext}'))
