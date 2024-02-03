@@ -1,6 +1,6 @@
 <img src="http://data.georgy.top/media/mixalime.png" alt="drawing" width="800"/>
 
-**[[MIXALIME webpage](http://mixalime.georgy.top)]**
+**[[MIXALIME webpage](https://mixalime.georgy.top)]**
 # MixALime: Mixture models for Allelic Imbalance Estimation
 
 **MixALime** is a tool for the identification of allele-specific events in high-throughput sequencing data. It works by modelling counts data as a mixture of two Negative Binomial or Beta Negative Binomial distributions (where the latter is more applicable in case of noisy data at a cost of loss of sensitivity).
