@@ -15,6 +15,9 @@ Package dependencies that could affect **MixALime** results are the **JAX  0.4.2
 ### Hardware requirements
 It is best to use **MixALime** with plenty of RAM available if one wishes to use the parallelization to the full extent. In that case, make sure that your system has at least 16GB of RAM. However, the RAM requirement is depends on a dataset.
 
+### Input requirements
+Mixalime expects input VCF/BED files to contain biallelic SNPs with Ref alleles corresponding to the reference genome. Multiallelic SNPs can be split into biallelic records with `bcftools norm --multiallelics`, Ref alleles can be checked with `—check-ref` bcftools option.
+
 ## Installation guide
 **MixALime** can be easily installed with the **pip** package manager.
 ```
@@ -56,20 +59,20 @@ First, we'd like to parse those files into a **MixALime**-friendly and efficient
 ```
 Expected output:
 ```
-┏━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━┓
-┃ BAD  ┃ SNVs  ┃ Samples/reps ┃
-┡━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━┩
-│ 1.00 │ 10319 │ 24893        │
-│ 1.33 │ 7408  │ 13359        │
-│ 1.50 │ 12409 │ 37584        │
-│ 2.00 │ 41762 │ 199208       │
-│ 2.50 │ 2195  │ 3585         │
-│ 3.00 │ 6897  │ 26558        │
-│ 4.00 │ 1677  │ 2420         │
-│ 5.00 │ 712   │ 926          │
-│ 6.00 │ 731   │ 1143         │
-└──────┴───────┴──────────────┘
-Total SNVs: 84110, total samples/reps: 309676
+┏━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ BAD  ┃ SNVs  ┃ Obvservations ┃
+┡━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ 1.00 │ 10320 │ 24893         │
+│ 1.33 │ 7408  │ 13359         │
+│ 1.50 │ 12409 │ 37584         │
+│ 2.00 │ 41763 │ 199208        │
+│ 2.50 │ 2195  │ 3585          │
+│ 3.00 │ 6897  │ 26558         │
+│ 4.00 │ 1677  │ 2420          │
+│ 5.00 │ 712   │ 926           │
+│ 6.00 │ 731   │ 1143          │
+└──────┴───────┴───────────────┘
+Total unique SNVs: 84112, total observations: 309676
 ✔️ Done!  time: 9.72 s.
 ```
 By default, MixALime throws an error if the same SNV belongs regions of different background allelic dosage ([BAD](https://adastra.autosome.org/bill-cipher/help)) in data, as it is not possible in a single cell type. However, for datasets of multiple samples, this is fully OK, hence we turn this check off with the `--no-snp-bad-check`. The output:
@@ -80,18 +83,10 @@ Then we fit model parameters to the data with Negative Binomial distribution:
 ```
 Expected output:
 ```
-WARNING:root:Total number of samples at BAD 6.0 is less than a window 
-size (1143 < 10000). Number of samples is too small for a sensible 
-fit, a conservative fit will be used.
-WARNING:root:Total number of samples at BAD 2.5 is less than a window 
-size (3585 < 10000). Number of samples is too small for a sensible 
-fit, a conservative fit will be used.
-WARNING:root:Total number of samples at BAD 5.0 is less than a window 
-size (926 < 10000). Number of samples is too small for a sensible fit,
-a conservative fit will be used.
-WARNING:root:Total number of samples at BAD 4.0 is less than a window 
-size (2420 < 10000). Number of samples is too small for a sensible 
-fit, a conservative fit will be used.
+WARNING:root:Total number of samples at BAD 6.0 is less than a window size (1143 < 10000). Number of samples is too small for a sensible fit, a conservative fit will be used.
+WARNING:root:Total number of samples at BAD 2.5 is less than a window size (3585 < 10000). Number of samples is too small for a sensible fit, a conservative fit will be used.
+WARNING:root:Total number of samples at BAD 5.0 is less than a window size (926 < 10000). Number of samples is too small for a sensible fit, a conservative fit will be used.
+WARNING:root:Total number of samples at BAD 4.0 is less than a window size (2420 < 10000). Number of samples is too small for a sensible fit, a conservative fit will be used.
 ✔️ Done!  time: 38.21 s.
 ```
 Warnings are fine. More on them in the [tutorial](http://mixalime.georgy.top/tutorial/quickstart.html#Example).
@@ -109,14 +104,13 @@ Usually we'd want to combine p-values across samples and apply a FDR correction:
 ```
 Expected output:
 ```
-Number of significant SNVs after FDR correction:
 ┏━━━━━━┳━━━━━━┳━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃      ┃      ┃      ┃ Total significant          ┃
 ┃ Ref  ┃ Alt  ┃ Both ┃ (Percentage of total SNVs) ┃
 ┡━━━━━━╇━━━━━━╇━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
 │ 1325 │ 1127 │ 1    │ 2451 (7.28%)               │
 └──────┴──────┴──────┴────────────────────────────┘
-Total SNVs tested: 33688
+Total SNVs tested: 33689
 ✔️ Done!  time: 10.99 s.
 ```
 Finally, we obtain fancy plots fir diagnostic purposes and easy-to-work-with tabular data:

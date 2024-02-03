@@ -203,6 +203,7 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
         except AttributeError:
             it = [{'GT': (0, 1), 'AD': (row.ref_count, row.alt_count)}]
         flag = False
+        alts = ','.join(row.alts)
         for sample in it:
             a, b = sample['GT']
             if a == None or (a == b):
@@ -216,7 +217,6 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
                 if sample_counter is not None:
                     sample_counter[bad] += 1
                 if snps_pos is not None:
-                    alts = ','.join(row.alts)
                     lt = snps_pos[(chrom, start, alts)]
                     if not lt:
                         lt.append((name, row.ref, alts))
@@ -226,7 +226,7 @@ def file_to_table(filename: str, counts=None, min_qual=10, min_cnt=5,
                                             ' If that is expected, consider setting --no-snp-bad-check flag.')
                     lt.append((filename_id, ref, alt, bad))
         if flag and snps_set is not None:
-            snps_set[bad].add((chrom, start))
+            snps_set[bad].add((chrom, start, alts))
     pysam.set_verbosity(save)
     return counts
 
