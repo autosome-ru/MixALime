@@ -269,7 +269,7 @@ def plot_params(params_ref: dict, params_alt: dict, max_count: int, param: str,
 
 def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw_es=True, plot_test_es=True,
                     plot_p_diff=True, color_significant=True, folder=str(), ext='png', 
-                    figsize=(10, 4), dpi=200):
+                    figsize=(12, 4), dpi=200):
     
     def plot_barplot(groups, values, n_rows, i, variance=None, legend_colors=False):
         plt.subplot(n_rows, 1, i)
@@ -307,6 +307,8 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
         snvs = set()
     else:
         snvs = set(snvs)
+    if snv_names is None:
+        snv_names = set()
     filename = get_init_file(name)
     compressor = filename.split('.')[-1]
     open = openers[compressor]
@@ -323,7 +325,7 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
     names_dict = dict()
     for pos in snvs:
         for g in snvs_db:
-            if g[pos]:
+            if pos in g:
                 names_dict[pos] = g[pos][0][0]
                 break
     for snv_name in snv_names:
@@ -342,12 +344,15 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
     for ind in snvs:
         snv_name = names_dict.get(ind, None)
         for  allele in ('ref', 'alt'):
-            snv = anova[anova.ind == ind].iloc[0]
+            try:
+                snv = anova[anova.ind == ind].iloc[0]
+            except IndexError:
+                raise IndexError(f'No SNV at {ind[0]}, {ind[1]} (allele {ind[2]}) found.')
             
             groups = ['_'.join(c.split('_')[1:]) for c in anova.columns if (c != 'n_all') and c.startswith('n_')]
             
             
-            title = ', '.join(map(str, snv.ind)) + ', ' + snv.alt
+            title = ', '.join(map(str, snv.ind))
             if snv_name:
                 title += f', id: {snv_name}'
             title += f'. Allele: {allele}'
@@ -422,8 +427,8 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
                 plot_barplot(groups, es_raw, n_rows, i, es_raw_var)
                 plt.ylabel('Average of ' + r'$log_2\left(\frac{ref}{alt}\right)$' if allele == 'ref' else r'$log_2\left(\frac{alt}{ref}\right)$')
                 i += 1
-            plt.xticks(groups, rotation=90, fontsize=_fontsize - 2)
-            plt.gca().set_xticklabels(groups, rotation=90, fontsize=_fontsize - 2)
+            plt.xticks(groups, rotation=90, fontsize=_fontsize - 3)
+            plt.gca().set_xticklabels(groups, rotation=90, fontsize=_fontsize - 3)
             plt.suptitle((title + '\tWhiskers S.D.').expandtabs(), horizontalalignment='left', verticalalignment='top', x=0, fontsize=18)
             plt.tight_layout()
             name = snv_name if snv_name else '_'.join(map(str, snv.ind))

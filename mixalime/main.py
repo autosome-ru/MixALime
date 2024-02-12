@@ -792,7 +792,7 @@ def _plot_anova(name: str = Argument(..., help='Project name.'),
         snvs_t = list()
         for t in snvs.split(';'):
             t = t.split(',')
-            snvs_t.append((t[0], int(t[1], t[1])))
+            snvs_t.append((t[0], int(t[1]), t[2]))
         snvs = snvs_t
     plot.plot_anova_snvs(name, snv_names=ids, snvs=snvs, subname=subname, plot_raw_es=plot_raw_es, plot_test_es=plot_test_es,
                          plot_p_diff=plot_p_diff, color_significant=color_significant, folder=folder, ext=fmt, 
