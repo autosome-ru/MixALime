@@ -432,7 +432,7 @@ def plot_anova_snvs(name: str, snv_names=None, snvs=None, subname=None, plot_raw
             plt.suptitle((title + '\tWhiskers S.D.').expandtabs(), horizontalalignment='left', verticalalignment='top', x=0, fontsize=18)
             plt.tight_layout()
             name = snv_name if snv_name else '_'.join(map(str, snv.ind))
-            plt.savefig(os.path.join(folder, f'{name}_{allele}.{ext}'))
+            plt.savefig(os.path.join(folder, f'{name}_{ind[-1]}_{allele}.{ext}'))
 
 def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 20, 30, 40, 50),
               max_count=100, slice_ref=True, fbad=None, show_bad=True, dpi=200):
