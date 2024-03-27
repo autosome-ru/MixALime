@@ -165,7 +165,7 @@ def calc_stats_betabinom(t: tuple, w: str, bad: float, left: int, swap: bool, pa
     return res
 
 
-def est_binom_params(counts_d: dict, left: int, w: float, dist: str, est_p=False, n_jobs:int=1):
+def est_binom_params(counts_d: dict, left: int, w: float, dist: str, est_p=False, max_count:int=float('inf'), n_jobs:int=1):
     if dist == 'binom':
         logprob = lambda x, r, p, k: LeftTruncatedBinom.logprob(x, r=r, p=p, left=left)
     else:
@@ -177,6 +177,9 @@ def est_binom_params(counts_d: dict, left: int, w: float, dist: str, est_p=False
         if swap:
             counts = counts[:, [1, 0, 2]]
         r = counts[:, 0] + counts[:, 1]
+        ind = r <= max_count
+        r[ind] = r
+        counts = counts[ind, :]
 
         def fun(x, k=500, p=p):
             if est_k:
@@ -323,7 +326,7 @@ def test(name: str, correction: str = None, gof_tr: float = None, dataset_n_thr 
     return res
 
 
-def binom_test(name: str, w: float, beta=False, estimate_p=False, n_jobs=-1):
+def binom_test(name: str, w: float, beta=False, estimate_p=False, max_count=float('inf'), n_jobs=-1):
     n_jobs = cpu_count() - 1 if n_jobs == -1 else n_jobs
     filename = get_init_file(name)
     compressor = filename.split('.')[-1]
@@ -338,10 +341,10 @@ def binom_test(name: str, w: float, beta=False, estimate_p=False, n_jobs=-1):
     left -= 1
     if beta:
         stat_fun = calc_stats_betabinom
-        params = est_binom_params(counts_d, left, n_jobs=n_jobs, w=w, est_p=estimate_p, dist='betabinom')
+        params = est_binom_params(counts_d, left, n_jobs=n_jobs, w=w, est_p=estimate_p, dist='betabinom', max_count=max_count)
     else:
         stat_fun = calc_stats_binom
-        params = est_binom_params(counts_d, left, n_jobs=n_jobs, w=w, est_p=estimate_p, dist='binom')
+        params = est_binom_params(counts_d, left, n_jobs=n_jobs, w=w, est_p=estimate_p, dist='binom', max_count=max_count)
     for bad in counts_d:
         for allele in ('ref', 'alt'):
             sub_res = dict()

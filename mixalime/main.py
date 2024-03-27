@@ -980,7 +980,8 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
                 beta: bool = Option(False, help='Use beta-binomial model instead of binomial. In that case, concentration paremeter will be'
                                                 ' estimated from the data for each BAD.'),
                 w: str = Option(str(), help='Left mode weight. If None, then p=1/2, w=1 will be used everywhere.'),
-                p_estimation: bool = Option(False, help='Estimate p, useful for negating reference bias.'),
+                estimate_p: bool = Option(False, help='Estimate p, useful for negating reference bias.'),
+                max_cover: int = Option(float('inf'), 'Maximal cover to be used for parameter estimation.'),
                 n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
                 pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -993,11 +994,11 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Computing p-values and effect sizes...')
-    _, params = binom_test(name, w=None if not w else float(w), beta=beta, estimate_p=p_estimation, n_jobs=n_jobs)
-    if beta or p_estimation:
+    _, params = binom_test(name, w=None if not w else float(w), beta=beta, estimate_p=estimate_p, n_jobs=n_jobs)
+    if beta or estimate_p:
         if pretty:
             items = ['BAD']
-            if p_estimation:
+            if estimate_p:
                 items.extend(['p_ref', 'p_alt'])
             if beta:
                 items.extend(['k_ref', 'k_alt'])
@@ -1005,13 +1006,13 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
             for bad in sorted(params):
                 d = params[bad]
                 items = ['{:.2f}'.format(bad)]
-                if p_estimation:
+                if estimate_p:
                     for allele in ('ref', 'alt'):
                         pt = '{:.3f}'.format(d[allele][0] if beta else d[allele])
                         items.append(pt)
                 if beta:
                     for allele in ('ref', 'alt'):
-                        k = '{:.3f}'.format(d[allele][1] if p_estimation else d[allele])
+                        k = '{:.3f}'.format(d[allele][1] if estimate_p else d[allele])
                         items.append(k)
                 table.add_row(*items)
             p.stop()
@@ -1020,7 +1021,7 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
         else:
             print('Estimated parameters:')
             print(params)
-    update_history(name, 'binom_test', w=w, beta=beta, p_estimation=p_estimation, n_jobs=n_jobs)
+    update_history(name, 'binom_test', w=w, beta=beta, estimate_p=estimate_p, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
