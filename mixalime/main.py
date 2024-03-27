@@ -981,7 +981,7 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
                                                 ' estimated from the data for each BAD.'),
                 w: str = Option(str(), help='Left mode weight. If None, then p=1/2, w=1 will be used everywhere.'),
                 estimate_p: bool = Option(False, help='Estimate p, useful for negating reference bias.'),
-                max_cover: int = Option(float('inf'), 'Maximal cover to be used for parameter estimation.'),
+                max_cover: int = Option(None, help='Maximal cover to be used for parameter estimation.'),
                 n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
                 pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -994,7 +994,8 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
         p.start()
     else:
         print('Computing p-values and effect sizes...')
-    _, params = binom_test(name, w=None if not w else float(w), beta=beta, estimate_p=estimate_p, n_jobs=n_jobs)
+    _, params = binom_test(name, w=None if not w else float(w), beta=beta, estimate_p=estimate_p, max_cover=max_cover,
+                           n_jobs=n_jobs)
     if beta or estimate_p:
         if pretty:
             items = ['BAD']
@@ -1021,7 +1022,7 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
         else:
             print('Estimated parameters:')
             print(params)
-    update_history(name, 'binom_test', w=w, beta=beta, estimate_p=estimate_p, n_jobs=n_jobs)
+    update_history(name, 'binom_test', w=w, beta=beta, estimate_p=estimate_p, max_cover=max_cover, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
