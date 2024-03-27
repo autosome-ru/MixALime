@@ -1,4 +1,4 @@
-__version__ = '2.23.2'
+__version__ = '2.23.3'
 import importlib
 
 
@@ -12,7 +12,7 @@ __min_reqs__ = [
             'pandas>=1.4.1',
             'scipy>=1.11.3',
             'statsmodels>=0.13.2',
-            'betanegbinfit>=1.9.11',
+            'betanegbinfit>=1.9.12',
             'datatable>=1.0.0' ,
             'dill>=0.3.7',
             'rich>=12.6.0',
