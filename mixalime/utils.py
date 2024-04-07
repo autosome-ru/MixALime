@@ -47,14 +47,15 @@ def dictify_fix(s: str):
 
 def get_model_creator(**kwargs):
     name = kwargs['name']
-    inst_params = {v: kwargs[v] for v in ('bad',  'left', 'dist', 'estimate_p', 'fix_params', 'r_transform')}
+    inst_params = {v: kwargs[v] for v in ('bad',  'left', 'dist', 'estimate_p', 'fix_params', 'r_transform',
+                                          'kappa_right')}
     if name == 'line':
         inst_params.update({v: kwargs[v] for v in ('left_k', 'start_est', 'apply_weights')})
         m = ModelLine
     elif name == 'window':
         inst_params.update({v: kwargs[v] for v in ('window_size', 'left_k', 'window_behavior', 'min_slices',
                                                    'adjust_line', 'start_est', 'apply_weights', 'regul_alpha',
-                                                   'regul_n', 'regul_slice', 'regul_prior',
+                                                   'regul_n', 'regul_slice', 'regul_prior', 
                                                    'symmetrify')})
         m = ModelWindowRec if 'MCNB' in inst_params['dist'] else ModelWindow
     elif name == 'slices':
