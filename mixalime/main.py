@@ -356,7 +356,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
          dist: Dist = Argument(..., help='Name of distribution that will be used in the mixture model.'),
          left: int = Option(None, help='Left-truncation bound. If None, then it will be estimated from the counts data as the minimal present count minus 1.'),
          estimate_p: bool = Option(False, help='If True, then p will be estimated instead of assuming it to be fixed to bad / (bad + 1)'),
-         window_size: int = Option(10000, help='Has effect only if [cyan]model[/cyan] = "[bold]window[/bold]", sets the required minimal window size.'),
+         window_size: int = Option(10000, help='Sets the required minimal window size.'),
          window_behavior: WindowBehavior = Option(WindowBehavior.both.value, help='If "[bold]both[/bold]", then window is expanded in 2 directions. '
                                                                                   'If "[right]right[/right]", then the window is expanded only to'
                                                                                   ' the right (except for cases when such an expansion is not'
@@ -397,6 +397,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
                                                    ' will be applied.'),
          small_dataset_strategy: SmallDatasetStrategy = Option('conservative', help='[yellow]fixed_r[/yellow] constraints r as it is constrained in'
                                                                                     ' [yellow]conservative[/yellow] mode.'),
+         kappa_right_boundary: float = Option(10000, help='Right boundary for the kappa parameter. Applicable only for the BetaNB distribution.'),
          n_jobs: int = Option(-1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
          pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
@@ -1022,7 +1023,7 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
         else:
             print('Estimated parameters:')
             print(params)
-    update_history(name, 'binom_test', w=w, beta=beta, estimate_p=estimate_p, max_cover=max_cover, n_jobs=n_jobs)
+    update_history(name, 'test_binom', w=w, beta=beta, estimate_p=estimate_p, max_cover=max_cover, n_jobs=n_jobs)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
