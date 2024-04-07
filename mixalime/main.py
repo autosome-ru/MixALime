@@ -438,7 +438,7 @@ def _fit(name: str = Argument(..., help='Project name.'),
         apply_weights=apply_weights, regul_alpha=regul_alpha if regul else 0, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
         fix_params=fix_params, std=std, optimizer=optimizer, r_transform=None if r_transform == 'none' else r_transform,
         symmetrify=symmetrify, small_dataset_strategy=small_dataset_strategy, small_dataset_n=small_dataset_n,
-        stop_slice_n=stop_slice_n)
+        stop_slice_n=stop_slice_n, kappa_right=kappa_right_boundary)
     if pretty:
         p.stop()
     update_history(name, 'fit', dist=dist, left=left, estimate_p=estimate_p, window_size=window_size, 
@@ -446,7 +446,8 @@ def _fit(name: str = Argument(..., help='Project name.'),
                    max_count=max_count, max_cover=max_cover, adjusted_loglik=adjusted_loglik, n_jobs=n_jobs, 
                    regul=regul, regul_alpha=regul_alpha, regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior,
                    fix_params=fix_params, std=std, optimizer=optimizer, r_transform=r_transform, symmetrify=symmetrify,
-                   small_dataset_strategy=small_dataset_strategy, small_dataset_n=small_dataset_n, stop_slice_n=stop_slice_n)
+                   small_dataset_strategy=small_dataset_strategy, small_dataset_n=small_dataset_n, stop_slice_n=stop_slice_n,
+                   kappa_right_boundary=kappa_right_boundary)
     dt = time() - t0
     if pretty:
         rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
