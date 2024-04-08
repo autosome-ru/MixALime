@@ -984,7 +984,7 @@ def _test_binom(name: str = Argument(..., help='Project name.'),
                 w: str = Option(str(), help='Left mode weight. If None, then p=1/2, w=1 will be used everywhere.'),
                 estimate_p: bool = Option(False, help='Estimate p, useful for negating reference bias.'),
                 max_cover: int = Option(None, help='Maximal cover to be used for parameter estimation.'),
-                inv_kl: bool = Option(False, 'Experimental inverse KL-divergence estimator'),
+                inv_kl: bool = Option(False, help='Experimental inverse KL-divergence estimator'),
                 n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
                 pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
     """
