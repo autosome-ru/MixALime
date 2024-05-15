@@ -164,6 +164,17 @@ def calc_stats_betabinom(t: tuple, w: str, bad: float, left: int, swap: bool, pa
         res = {(c, alt): v for c, v in zip(counts, res)}
     return res
 
+def log_q(a, b, q=1):
+    if q == 1:
+        return a - b
+    # x = np.exp(a) / np.exp(b)
+    def q_fun(x):
+        return (x ** (1 - q) - 1) / (1 - q)
+    a = np.exp(a)
+    b = np.exp(b)
+    a, b =  q_fun(a), q_fun(1/b) 
+    return a + b + (1 - q) * a * b
+    # return  (x ** (1 - q) - 1) / (1 - q)
 
 def est_binom_params(counts_d: dict, left: int, w: float, dist: str, est_p=False, max_cover:int=float('inf'),
                      inv_kl=False, n_jobs:int=1):
@@ -183,15 +194,23 @@ def est_binom_params(counts_d: dict, left: int, w: float, dist: str, est_p=False
         counts = counts[ind, :]
         
         uniq, inv = np.unique(r, return_inverse=True)
+        uniq_x, inv_x = np.unique(counts[:, 0], return_inverse=True)
         pdf_emp = np.zeros_like(r, dtype=float)
         slice_mult = np.zeros_like(pdf_emp)
         n_total = counts[:, -1].sum()
+        # slice_indices = list()
+        counts[:, -1] = r
         for i, n in enumerate(uniq):
             ind = inv == i
             n = counts[ind, 2].sum()
-            slice_mult[ind] = n / n_total
-            pdf_emp[ind] = counts[ind, 2] / n
-        pdf_emp = np.log(pdf_emp)
+            slice_mult[ind] = np.log(n) - np.log(n_total)
+            pdf_emp[ind] = np.log(counts[ind, 2]) - np.log(n)
+            # int_inds = np.where(ind)[0]
+            # inds = int_inds[np.unique(counts[ind, 0], return_index=True)[1]]
+            # z = np.zeros_like(ind, dtype=bool)
+            # z[inds] = True
+            # slice_indices.append((ind, z))
+        # pdf_emp = np.log(pdf_emp)
         def fun(x, k=500, p=p):
             if est_k:
                 k = x
@@ -203,9 +222,16 @@ def est_binom_params(counts_d: dict, left: int, w: float, dist: str, est_p=False
                 t1 = logprob(counts[:, 0], r=r, p=p, k=k) 
                 t2 = logprob(counts[:, 0], r=r, p=1 - p, k=k)
                 lp = np.log((1 - w) * np.exp(t1) + w * np.exp(t2))
-            lp = lp + np.log(slice_mult)
             if inv_kl:
-                loglik = -np.exp(lp) * (lp - pdf_emp) 
+                q = 1
+                lp = np.array(lp)
+                # for ind, uq_x in slice_indices:
+                #     lp[ind] -= np.log(np.clip(np.exp(lp[uq_x]).sum(), 1e-300, 1))
+                lp = lp + slice_mult
+                a = 0.5
+                # loglik = lp * pdf_emp
+                loglik = -np.exp(lp) * (-lp - pdf_emp)
+                # loglik = - (1 - a)*np.exp(lp) * log_q(lp, pdf_emp, q=q) + a * lp * counts[:, -1] / counts[:, -1].sum()
             else:
                 loglik = lp * counts[:, -1]
             return -np.sum(loglik)

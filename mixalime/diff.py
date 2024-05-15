@@ -547,6 +547,7 @@ def differential_test(name: str, group_a: List[str], group_b: List[str], mode='w
         
         counts = [(snv, *[c[bad] for c in build_count_tables({snv: snvs_a[snv]}, {snv: snvs_b[snv]})])
                   for snv, it in snvs_a.items() if _bad_in(it, bad)]
+        counts = list(filter(lambda x: len(x[1]) and len(x[2]), counts))
         if not counts:
             continue
         max_sz = max(c[-1].shape[0] for c in counts)
