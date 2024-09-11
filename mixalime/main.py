@@ -25,6 +25,7 @@ from . import export
 from . import __version__ as mixalime_version
 import json
 from . import plot
+import typer
 
 logging.getLogger("jax._src.xla_bridge").addFilter(logging.Filter("No GPU/TPU found, falling back to CPU."))
 logging.getLogger("jax._src.xla_bridge").addFilter(logging.Filter("An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu."))
@@ -272,6 +273,14 @@ app_plot = Typer(rich_markup_mode='rich', cls=OrderCommands, add_completion=Fals
 app.add_typer(app_plot, name='plot', help='Commands to draw various diagnostic plots.')
 
 help_str = 'Initialize [bold]MixALime[/bold] projects initial files: do parsing and filtering of VCFs/BEDs.'
+
+def version_callback(v: bool):
+    if v:
+        print(mixalime_version)
+        raise typer.Exit()
+@app.callback()
+def main(version: bool = Option(None, "--version", callback=version_callback)):
+    pass
 
 @app.command('create', help=help_str)
 def _create(name: str = Argument(..., help='Project name. [bold]MixALime[/bold] will produce files for internal usage that start with [cyan]'

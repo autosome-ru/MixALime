@@ -106,7 +106,7 @@ def select_filenames(patterns: list, files) -> list:
                 t = pattern
             subres.extend(filter(lambda x: x.startswith(t), files))
         if not subres:
-            subres.extend(filter(lambda x: x in files, parse_filenames(pattern, ignore_errors=True)))
+            subres.extend(filter(lambda x: x in files, parse_filenames(pattern, files_list=files, ignore_errors=True)))
             if not subres:
                 logging.error(f'No files agree with the pattern {pattern}.')
         res.extend(subres)
@@ -144,6 +144,11 @@ def parse_filenames(files: list, files_list=None, ignore_errors=False) -> list:
                             logging.error(f'File {file} not found.')
                         else:
                             res.append(file)
+                elif files_list is not None and r in files_list:
+                    df = dt.fread(file, header=header)
+                    for i in range(df.shape[0]):
+                        r = str(df[i, 0])
+                        res.append(r)
                 else:
                     res.append(file)
             else:

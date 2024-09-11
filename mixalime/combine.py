@@ -150,7 +150,6 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, adaptive_mi
         its = list(filter(lambda x: x[1][0][1] and filter_id.match(x[1][0][1]), its))
     if filter_chr:
         its = list(filter(lambda x: filter_chr.match(x[0]), its))
-    
     with Manager() as manager:
         if n_jobs > 1:
             its = manager.list(its)
@@ -192,7 +191,9 @@ def combine(name: str, group_files=None, alpha=0.05, min_cnt_sum=20, adaptive_mi
     res = {subname: res}
     if os.path.isfile(f'{name}.comb.{compressor}'):
         with open(f'{name}.comb.{compressor}', 'rb') as f:
+            print('eba')
             r = dill.load(f)
+            print('gat')
             for t in r:
                 if t not in res:
                     res[t] = r[t]

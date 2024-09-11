@@ -256,19 +256,27 @@ def export_combined_pvalues(project, out: str, sample_info=False, subname=None):
         os.makedirs(folder, exist_ok=True)
     pd.DataFrame(d).to_csv(out, sep='\t', index=None)
 
-def export_anova(project, out: str, subname=None):
+def export_anova(project, out: str, subname=None, sample_info=False, init=None):
     if type(project) is str:
         file = get_init_file(project)
         compression = file.split('.')[-1]
         open = openers[compression]
         with open(file, 'rb') as snvs,  open(f'{project}.anova.{compression}', 'rb') as diff:
             diff = dill.load(diff)[subname]
+        if init is None and sample_info:
+            with open(file, 'rb') as snvs,  open(f'{project}.init.{compression}', 'rb') as init:
+                init = dill.load(init)
     else:
         snvs, diff = project
         diff = diff[subname]
+        if sample_info and init is None:
+            raise Exception("Init data should be passed to the export function!")
+    if sample_info:
+        scorefiles = shorten_filenames(init['scorefiles'])
     tests = diff['tests']
     snvs = diff['snvs']
     chrom = list(); start = list(); end = list(); name = list(); bad = list(); ref = list(); alt = list()
+    files = [list() for _ in snvs]
     for ind in tests['ind']:
         for s in snvs:
             try:
@@ -281,9 +289,21 @@ def export_anova(project, out: str, subname=None):
         chrom.append(ind[0]); start.append(ind[1]); end.append(start[-1] + 1); name.append(n)
         ref.append(r); alt.append(a)
         bad.append(t[-1][-1])
+        if sample_info:
+            for i, s in enumerate(snvs):
+                t = s[ind]
+                if t:
+                    f = ','.join([scorefiles[v[0]] for v in t[1:]])
+                else:
+                    f = str()
+                files[i].append(f)
     diff = tests.drop('ind', axis=1)
    
     df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'mean_bad': bad, 'id': name, 'ref': ref, 'alt': alt })
+    if sample_info:
+        cols = ['scorefiles_' + '_'.join(t.split('_')[1:]) for t in diff.columns if t.startswith('n_')]
+        df_t = pd.DataFrame({c: its for c, its in zip(cols, files)})
+        df = pd.concat([df, df_t], axis=1)
     diff = pd.concat([df, diff], axis=1)
     t = diff['ref_pval'] < diff['alt_pval']
     diff['scoring_model'] = ['ref|alt' if v else 'alt|ref' for v in t]
@@ -298,23 +318,31 @@ def export_anova(project, out: str, subname=None):
         os.makedirs(folder, exist_ok=True)
     diff.to_csv(out, sep='\t', index=None)
 
-def export_difftests(project, out: str,  sample_info=False, subname=None):
+def export_difftests(project, out: str,  sample_info=False, subname=None, init=None):
     if type(project) is str:
         file = get_init_file(project)
         compression = file.split('.')[-1]
         open = openers[compression]
         with open(file, 'rb') as snvs,  open(f'{project}.difftest.{compression}', 'rb') as diff:
             diff = dill.load(diff)[subname]
+        if init is None and sample_info:
+            with open(file, 'rb') as snvs,  open(f'{project}.init.{compression}', 'rb') as init:
+                init = dill.load(init)
     else:
         snvs, diff = project
         diff = diff[subname]
+        if sample_info and init is None:
+            raise Exception("Init data should be passed to the export function!")
+    if sample_info:
+        scorefiles = shorten_filenames(init['scorefiles'])
+        files_a = list()
+        files_b = list()
     tests = diff['tests']
     snvs_a, snvs_b = diff['snvs']
     chrom = list(); start = list(); end = list(); name = list(); bad = list(); ref = list(); alt = list()
     a_ref_counts = list(); b_ref_counts = list()
     a_alt_counts = list(); b_alt_counts = list()
     es_count = list()
-    # ref_es_count = list(); alt_es_count = list()
     for ind in tests['ind']:
         t = snvs_a[ind]
         n, r, a = t[0]
@@ -328,8 +356,6 @@ def export_difftests(project, out: str,  sample_info=False, subname=None):
             a_alt_count.append(str(a))
             bads.append(b)
         t1 = np.array(list(map(int, a_ref_count))); t2 = np.array(list(map(int, a_alt_count)))
-        # a_es_ref_alt = np.mean(t1 / t2)
-        # a_es_alt_ref = np.mean(t2 / t1)
         a_es_ref_alt = np.mean(np.log2(t2) - np.log2(t1))
         for _, r, a, b in snvs_b[ind][1:]:
             b_ref_count.append(str(r))
@@ -337,21 +363,26 @@ def export_difftests(project, out: str,  sample_info=False, subname=None):
             bads.append(b)
         t1 = np.array(list(map(int, b_ref_count))); t2 = np.array(list(map(int, b_alt_count)))
         b_es_ref_alt = np.mean(np.log2(t2) - np.log2(t1))
-        # b_es_ref_alt = np.mean(t1 / t2)
-        # b_es_alt_ref = np.mean(t2 / t1)
         es_count.append(b_es_ref_alt - a_es_ref_alt)
-        # ref_es_count.append(np.log2(b_es_ref_alt) - np.log2(a_es_ref_alt))
-        # alt_es_count.append(np.log2(b_es_alt_ref) - np.log2(a_es_alt_ref))
         bad.append(sum(bads) / len(bads))
         a_ref_counts.append(','.join(a_ref_count))
         b_ref_counts.append(','.join(b_ref_count))
         a_alt_counts.append(','.join(a_alt_count))
         b_alt_counts.append(','.join(b_alt_count))
+        
+        if sample_info:
+            for s, files in ((snvs_a, files_a), (snvs_b, files_b)):
+                r = list()
+                for t in s[ind][1:]:
+                    r.append(scorefiles[t[0]])
+                r = ','.join(r)
+                files.append(r)
+            
     diff = tests.drop('ind', axis=1)
     if sample_info:
         df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'mean_bad': bad, 'id': name, 'ref': ref, 'alt': alt,
                            'a_ref_counts': a_ref_counts, 'a_alt_counts': a_alt_counts, 
-                           'b_ref_counts': b_ref_counts, 'b_alt_counts': b_alt_counts})
+                           'b_ref_counts': b_ref_counts, 'b_alt_counts': b_alt_counts, 'scorefiles_a': files_a, 'scorefiles_b': files_b})
     else:
         df = pd.DataFrame({'#chr': chrom, 'start': start, 'end': end, 'mean_bad': bad, 'id': name, 'ref': ref, 'alt': alt })
     diff = pd.concat([df, diff], axis=1)
@@ -404,7 +435,7 @@ def export_all(name: str, out: str, sample_info: bool = None):
             t = (init, difftests)
             for subname in difftests:
                 export_difftests(t, os.path.join(subfolder, f'{subname}.tsv' if subname else 'difftests.tsv'), subname=subname,
-                                 sample_info=sample_info)
+                                 sample_info=sample_info, init=init)
     except FileNotFoundError:
         pass     
     try:
@@ -413,7 +444,8 @@ def export_all(name: str, out: str, sample_info: bool = None):
             subfolder = os.path.join(out, 'anova')
             t = (init, anova)
             for subname in anova:
-                export_anova(t, os.path.join(subfolder, f'{subname}.tsv' if subname else 'anova.tsv'), subname=subname)
+                export_anova(t, os.path.join(subfolder, f'{subname}.tsv' if subname else 'anova.tsv'), subname=subname,
+                             sample_info=sample_info, init=init)
     except FileNotFoundError:
         pass   
             
