@@ -447,6 +447,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
     filename = f'{name}.fit.{compressor}'
     with open(filename, 'rb') as f:
         fits = dill.load(f)
+    model_postfix = ', {}, alpha == {:.2f}'.format(*fits['model']) if fits['model'][1] is not None else ', {}'.format(fits['model'][0])
     bads = [fbad] if fbad else sorted(counts)
     if what == 'all' and fbad is None:
         os.makedirs(output, exist_ok=True)
@@ -477,14 +478,14 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
             filename = os.path.join(subfolder, f'gof.{fmt}')
             plot_gof(fits['ref'][bad]['stats'], fits['alt'][bad]['stats'], max_count, dpi=dpi)
             if show_bad:
-                plt.title(f'BAD = {bad:.2f}')
+                plt.title(f'BAD = {bad:.2f}' + model_postfix)
             plt.tight_layout()
             plt.savefig(filename, bbox_inches='tight')
             filename = os.path.join(subfolder, f'r.{fmt}')
             try:
                 plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'r', diag=True, dpi=dpi)
                 if show_bad:
-                    plt.title(f'BAD = {bad:.2f}')
+                    plt.title(f'BAD = {bad:.2f}' + model_postfix)
                 plt.tight_layout()
                 plt.savefig(filename, bbox_inches='tight')
             except KeyError:
@@ -494,7 +495,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
                 try:
                     plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'k', inv=True, name='$1/\kappa$', dpi=dpi)
                     if show_bad:
-                        plt.title(f'BAD = {bad:.2f}')
+                        plt.title(f'BAD = {bad:.2f}' + model_postfix)
                     plt.tight_layout()
                     plt.savefig(filename, bbox_inches='tight')
                 except KeyError:
@@ -504,7 +505,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
                 try:
                     plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'w', dpi=dpi)
                     if show_bad:
-                        plt.title(f'BAD = {bad:.2f}')
+                        plt.title(f'BAD = {bad:.2f}' + model_postfix)
                     plt.tight_layout()
                     plt.savefig(filename, bbox_inches='tight')
                 except KeyError:
@@ -515,7 +516,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
                             hor_expected=bad/(bad + 1)
                             )
                 if show_bad:
-                    plt.title(f'BAD = {bad:.2f}')
+                    plt.title(f'BAD = {bad:.2f}' + model_postfix)
                 plt.tight_layout()
                 plt.savefig(filename, bbox_inches='tight')
             except KeyError:
@@ -526,7 +527,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
                     plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, 'p2', name='$p_2$', dpi=dpi,
                                 hor_expected=1/(bad + 1))
                     if show_bad:
-                        plt.title(f'BAD = {bad:.2f}')
+                        plt.title(f'BAD = {bad:.2f}' + model_postfix)
                     plt.tight_layout()
                     plt.savefig(filename, bbox_inches='tight')
                 except KeyError:
@@ -536,7 +537,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
                     plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, ('p1', 'p2'), name='$p_0$', dpi=dpi,
                                 hor_expected=1.0, std=False)
                     if show_bad:
-                        plt.title(f'BAD = {bad:.2f}')
+                        plt.title(f'BAD = {bad:.2f}' + model_postfix)
                     plt.tight_layout()
                     plt.savefig(filename, bbox_inches='tight')
                 except KeyError:
@@ -546,7 +547,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
                     plot_params(fits['ref'][bad]['params'], fits['alt'][bad]['params'], max_count, ('p1', 'p2', 'p1'), name='$p$', dpi=dpi,
                                 hor_expected=bad/(bad + 1), std=False)
                     if show_bad:
-                        plt.title(f'BAD = {bad:.2f}')
+                        plt.title(f'BAD = {bad:.2f}' + model_postfix)
                     plt.tight_layout()
                     plt.savefig(filename, bbox_inches='tight')
                 except KeyError:
@@ -566,7 +567,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
                     filename = os.path.join(subfolder, f'slices_{ref}.{fmt}')
                 sliceplot(counts[bad], max_count, ref, alt, m, fits['ref'][bad]['params'], fits['alt'][bad]['params'], dpi=dpi)
                 if show_bad:
-                    plt.suptitle(f'BAD = {bad:.2f}')
+                    plt.suptitle(f'BAD = {bad:.2f}' + model_postfix)
                 plt.tight_layout()
                 plt.savefig(filename, bbox_inches='tight')
         else:

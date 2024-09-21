@@ -222,5 +222,6 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
         filename = f'{name}.{f}.{compression}'
         if os.path.isfile(filename):
             os.remove(filename)
+    result['model'] = (dist, None if dist != 'BetaNB' or regul_alpha == 0 else regul_alpha)
     with open(fit_filename, 'wb') as f:
         dill.dump(result, f)
