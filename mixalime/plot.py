@@ -448,7 +448,7 @@ def visualize(name: str, output: str, what: str, fmt='png', slices=(5, 10, 15, 2
     with open(filename, 'rb') as f:
         fits = dill.load(f)
     try:
-        model_postfix = ', {}, alpha == {:.2f}'.format(*fits['model']) if fits['model'][1] is not None else ', {}'.format(fits['model'][0])
+        model_postfix = ', {}, alpha = {:.2f}'.format(*fits['model']) if fits['model'][1] is not None else ', {}'.format(fits['model'][0])
     except KeyError:
         model_postfix = str()
     bads = [fbad] if fbad else sorted(counts)
