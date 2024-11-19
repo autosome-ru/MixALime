@@ -65,12 +65,15 @@ def export_params(project, out: str, bad: float = None, allele: str = None):
     else:
         fit = project
     if bad is None:
-        for allele in fit:
-            for bad in fit[allele]:
-                subfolder = os.path.join(out, f'BAD{bad:.2f}')
-                os.makedirs(subfolder, exist_ok=True)
-                _export_params(fit, os.path.join(subfolder, f'param_{allele}.tsv'), 
-                               allele, bad)
+        for allele in ('ref', 'alt'):
+            try:
+                for bad in fit[allele]:
+                    subfolder = os.path.join(out, f'BAD{bad:.2f}')
+                    os.makedirs(subfolder, exist_ok=True)
+                    _export_params(fit, os.path.join(subfolder, f'param_{allele}.tsv'), 
+                                   allele, bad)
+            except KeyError:
+                print(f'No allele: {allele}! Perhaps using an experimental model?')
     else:
         _export_params(fit, out, allele, bad)
                 
@@ -96,7 +99,7 @@ def export_stats(project, out: str, bad: float = None, allele: str = None):
         params = project
     if bad is None:
         os.makedirs(out, exist_ok=True)
-        for allele in params:
+        for allele in ('ref', 'alt'):
             for bad in params[allele]:
                 subfolder = os.path.join(out, f'BAD{bad:.2f}')
                 os.makedirs(subfolder, exist_ok=True)
