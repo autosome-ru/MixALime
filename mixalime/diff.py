@@ -372,7 +372,10 @@ def lrt_test(counts: tuple,
                     if not calc_es:
                         _, logl_all = model_long.fit(count, params[allele], False, n_bootstrap=n_bootstrap, return_aux_es=False, p_fix=r_all.x,
                                                      calc_logl=True)
-                    pvals.append(chi2.sf(2 * (logl_all - logl), 1))
+                    pval = chi2.sf(2 * (logl_all - logl), 1)
+                    if np.isnan(pval):
+                        pval = 1
+                    pvals.append(pval)
                         
                     
                 ps.append(r.x)
