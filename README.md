@@ -178,19 +178,20 @@ For the time being, you can cite [our technical arXiv paper](https://doi.org/10.
       url          = {https://doi.org/10.48550/arXiv.2306.08287}
 }
 ```
-and [the practical bioRxiv paper](https://doi.org/10.1101/2023.11.07.565968):
+and [the practical NatComm paper](https://doi.org/10.1038/s41467-024-55513-2):
 ```
 @article{mixalimeUsage,
-	author = {Andrey Buyan and Georgy Meshcheryakov and Viacheslav Safronov and Sergey Abramov and Alexandr Boytsov and Vladimir Nozdrin and Eugene F. Baulin and Semyon Kolmykov and Jeff Vierstra and Fedor Kolpakov and Vsevolod J. Makeev and Ivan V. Kulakovskiy},
-	title = {Statistical framework for calling allelic imbalance in high-throughput sequencing data},
-	elocation-id = {2023.11.07.565968},
-	year = {2023},
-	doi = {10.1101/2023.11.07.565968},
-	publisher = {Cold Spring Harbor Laboratory},
-	abstract = {High-throughput sequencing facilitates large-scale studies of gene regulation and allows tracing the associations of individual genomic variants with changes in gene expression. Compared to classic association studies, allelic imbalance at heterozygous variants captures the functional effects of the regulatory genome variation with smaller sample sizes and higher sensitivity. Yet, the identification of allele-specific events from allelic read counts remains non-trivial due to multiple sources of technical and biological variability, which induce data-dependent biases and overdispersion. Here we present MIXALIME, a novel computational framework for calling allele-specific events in diverse omics data with a repertoire of statistical models accounting for read mapping bias and copy-number variation. We benchmark MIXALIME against existing tools and demonstrate its practical usage by constructing an atlas of allele-specific chromatin accessibility, UDACHA, from thousands of available datasets obtained from diverse cell types.Availability https://github.com/autosome-ru/MixALime, https://udacha.autosome.orgCompeting Interest StatementThe authors have declared no competing interest.},
-	URL = {https://www.biorxiv.org/content/early/2023/11/09/2023.11.07.565968},
-	eprint = {https://www.biorxiv.org/content/early/2023/11/09/2023.11.07.565968.full.pdf},
-	journal = {bioRxiv}
+  title = {Statistical framework for calling allelic imbalance in high-throughput sequencing data},
+  volume = {16},
+  ISSN = {2041-1723},
+  url = {http://dx.doi.org/10.1038/s41467-024-55513-2},
+  DOI = {10.1038/s41467-024-55513-2},
+  number = {1},
+  journal = {Nature Communications},
+  publisher = {Springer Science and Business Media LLC},
+  author = {Buyan,  Andrey and Meshcheryakov,  Georgy and Safronov,  Viacheslav and Abramov,  Sergey and Boytsov,  Alexandr and Nozdrin,  Vladimir and Baulin,  Eugene F. and Kolmykov,  Semyon and Vierstra,  Jeff and Kolpakov,  Fedor and Makeev,  Vsevolod J. and Kulakovskiy,  Ivan V.},
+  year = {2025},
+  month = feb 
 }
 ```
 
