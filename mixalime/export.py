@@ -259,6 +259,178 @@ def export_combined_pvalues(project, out: str, sample_info=False, subname=None):
         os.makedirs(folder, exist_ok=True)
     pd.DataFrame(d).to_csv(out, sep='\t', index=None)
 
+def export_polycombined_pvalues(output_name: str, projects: list, out: str, sample_info=False, subname=None):
+    folder, name = os.path.split(output_name)
+    search_dir = folder if folder else '.'
+    comb_file = None
+    
+    for file in os.listdir(search_dir):
+        if file.startswith(f'{name}.comb.') and file.endswith(tuple(openers.keys())):
+            comb_file = os.path.join(search_dir, file)
+            break
+            
+    if not comb_file:
+        raise FileNotFoundError(f"Could not find .comb file for {output_name}")
+    
+    compression = comb_file.split('.')[-1]
+    opener = openers[compression]
+    
+    with opener(comb_file, 'rb') as f:
+        comb_full = dill.load(f)
+    
+    if not subname:
+        try:
+            comb = comb_full[subname]
+        except:
+            comb = comb_full['all']
+    else:
+        comb = comb_full[subname]
+    combined_groups = comb['groups'] 
+    comb_snvs = comb['snvs'] # Key: (chr, pos)
+
+
+    proj_snvs = []
+    proj_tests = []
+    proj_scorefiles = []
+    
+    for proj_name in projects:
+        # Load Init
+        init_file = get_init_file(proj_name)
+        if not init_file:
+            raise FileNotFoundError(f"Init file for project {proj_name} not found.")
+        
+
+        proj_comp = init_file.split('.')[-1]
+        proj_opener = openers[proj_comp]
+        
+        with proj_opener(init_file, 'rb') as f:
+            init_data = dill.load(f)
+            proj_snvs.append(init_data['snvs'])
+            
+            s_files = shorten_filenames(init_data['scorefiles'])
+            tagged_files = [f"[{os.path.basename(proj_name)}] {sf}" for sf in s_files]
+            proj_scorefiles.append(tagged_files)
+            del init_data
+
+        # Load Test
+        test_file = f'{proj_name}.test.{proj_comp}'
+        with proj_opener(test_file, 'rb') as f:
+            proj_tests.append(dill.load(f))
+
+
+    d = defaultdict(list)
+    
+    for (chrom, pos), stats in comb_snvs.items():
+        (pval_ref, pval_alt), (es_ref, es_alt), (fdr_ref, fdr_alt) = stats
+        
+
+        snv_ref_counts = []
+        snv_alt_counts = []
+        snv_scores_f = []
+        snv_ref_pvals = []
+        snv_alt_pvals = []
+        snv_ref_eses = []
+        snv_alt_eses = []
+        snv_bads = []
+        
+        snv_name = None
+        snv_ref_char = None
+        snv_alt_char = None
+        
+
+        for i, p_snvs in enumerate(proj_snvs):
+            if (chrom, pos) not in p_snvs:
+                continue
+            
+            its = p_snvs[(chrom, pos)]
+
+            if snv_name is None:
+                snv_name, snv_ref_char, snv_alt_char = its[0]
+            
+            p_groups = combined_groups[i]
+            p_scorefiles = proj_scorefiles[i]
+            p_test = proj_tests[i]
+            
+
+            for filename_id, ref_count, alt_count, bad in its[1:]:
+                if p_groups and filename_id not in p_groups:
+                    continue
+                
+                snv_scores_f.append(p_scorefiles[filename_id])
+                snv_ref_counts.append(str(ref_count))
+                snv_alt_counts.append(str(alt_count))
+                snv_bads.append(bad)
+                
+                try:
+                    (pval_r, es_r) = p_test['ref'][bad][(ref_count, alt_count)]
+                    (pval_a, es_a) = p_test['alt'][bad][(ref_count, alt_count)]
+                except KeyError:
+                    pval_r, es_r, pval_a, es_a = 1.0, 0.0, 1.0, 0.0
+
+                snv_ref_pvals.append(str(pval_r))
+                snv_alt_pvals.append(str(pval_a))
+                snv_ref_eses.append(str(es_r))
+                snv_alt_eses.append(str(es_a))
+
+        if not snv_bads:
+            continue
+
+        end = pos + 1
+        mean_bad = sum(snv_bads) / len(snv_bads)
+        bads_str = ','.join(map(str, snv_bads))
+        
+        max_cover = (np.array(list(map(int, snv_ref_counts))) + np.array(list(map(int, snv_alt_counts)))).max()
+        n_reps = len(snv_scores_f)
+        
+        if pval_ref < pval_alt:
+            min_allele = 'ref'
+            fdr = fdr_ref
+            es = es_ref
+            pval = pval_ref
+        else:
+            min_allele = 'alt'
+            fdr = fdr_alt
+            es = es_alt
+            pval = pval_alt
+
+        # Populate dictionary
+        d['#chr'].append(chrom)
+        d['start'].append(pos)
+        d['end'].append(end)
+        d['mean_bad'].append(mean_bad)
+        d['id'].append(snv_name)
+        d['max_cover'].append(max_cover)
+        d['ref'].append(snv_ref_char)
+        d['alt'].append(snv_alt_char)
+        d['n_reps'].append(n_reps)
+        
+        if sample_info:
+            d['bads'].append(bads_str)
+            d['scorefiles'].append(','.join(snv_scores_f))
+            d['ref_counts'].append(','.join(snv_ref_counts))
+            d['alt_counts'].append(','.join(snv_alt_counts))
+            d['ref_es'].append(','.join(snv_ref_eses))
+            d['alt_es'].append(','.join(snv_alt_eses))
+            d['ref_pval'].append(','.join(snv_ref_pvals))
+            d['alt_pval'].append(','.join(snv_alt_pvals))
+            
+        d['ref_comb_es'].append(es_ref)
+        d['alt_comb_es'].append(es_alt)
+        d['ref_comb_pval'].append(pval_ref)
+        d['alt_comb_pval'].append(pval_alt)
+        d['ref_fdr_comb_pval'].append(fdr_ref)
+        d['alt_fdr_comb_pval'].append(fdr_alt)
+        d['pref_allele'].append(min_allele)
+        d['comb_es'].append(es)
+        d['comb_pval'].append(pval)
+        d['fdr_comb_pval'].append(fdr)
+
+    folder_path, _ = os.path.split(out)
+    if folder_path:
+        os.makedirs(folder_path, exist_ok=True)
+    
+    pd.DataFrame(d).to_csv(out, sep='\t', index=None)
+
 def export_anova(project, out: str, subname=None, sample_info=False, init=None):
     if type(project) is str:
         file = get_init_file(project)

@@ -13,7 +13,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from .diff import differential_test, anova_test
 from .create import create_project
-from .combine import combine
+from .combine import combine, polymbine
 from .tests import test, binom_test
 from pathlib import Path
 from .fit import fit
@@ -109,17 +109,17 @@ def update_history(name: str, command: str, **kwargs):
         d['dill'] = dill_version
         d['name'] = name
     elif command == 'fit':
-        for k in ('test', 'test_binom', 'difftest', 'combine', 'export', 'plot'):
+        for k in ('test', 'test_binom', 'difftest', 'combine', 'multiple_combine', 'export', 'plot'):
             if k in d:
                 del d[k]
         for k in list(d):
             if k.startswith('export'):
                 del d[k]
     elif command.startswith('test'):
-        for k in ('test', 'test_binom', 'combine', 'export', 'export pvalues', 'export raw_pvalues'):
+        for k in ('test', 'test_binom', 'combine', 'multiple_combine', 'export', 'export pvalues', 'export raw_pvalues'):
             if k in d:
                 del d[k]
-    elif command == 'combine':
+    elif command in ('combine', 'multiple_combine'):
         if 'export' in d:
             del d['export']
         if 'export pvalues' in d:
@@ -588,6 +588,91 @@ def _combine(name: str = Argument(..., help='Project name.'),
         
     return expected_res
 
+@app.command('multiple_combine')
+def _multiple_combine(
+                      new_project_name: str = Argument(..., help='Output quasi-project name.'),
+                      names: List[str] = Argument(..., help='List of project names'),
+                      alpha: float = Option(0.05, help='FWER, family-wise error rate.'),
+                     min_cover: int = Option(20, help='If none of combined p-values is associated with a sample whose ref + alt exceeds'
+                                                     ' [cyan]min_cover[/cyan], the SNV is omitted.'),
+                     adaptive_min_cover: bool = Option(False, help='Use adaptive [cyan]min_cover[/cyan] for each BAD. The algorithm has two hyperparameters:'
+                                                      '[cyan]adaptive_es[/cyan] and [cyan]adaptive_pval[/cyan]. The minimal coverage where effect-size of'
+                                                      'at least [cyan]adative_es[/cyan] is achievable for a p-value of [cyan]adaptive_pval[/cyan].'),
+                     adaptive_es: float = Option(1.0, help='Minimal required effect-size for the adaptive coverage algorithm.'),
+                     adaptive_pval: float = Option(0.05, help='Minimal required p-value for the adaptive coverage algorithm.'),
+                     uniform_weights: bool = Option(True, help='Uniform weighing for effect-sizes.'),
+                     filter_id: str = Option(None, help='Only SNVs whose IDs agree with this regex pattern are tested (e.g. "rs\w+").'),
+                     filter_chr: str = Option(None, help='SNVs with chr that does not align with this regex pattern are filtered (e.g. "chr\d+").'),
+                     subname: str = Option(None, help='You may give a result a subname in case you plan to use multiple groups.'),
+                     n_jobs: int = Option(1, help='Number of jobs to be run at parallel, -1 will use all available threads.'),
+                     pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
+    """
+    Combine p-values obtained at [cyan bold]test[/cyan bold] stage with a Mudholkar-George method across different projects.
+    Treats p-values from different projects as extra replicates.
+    """
+    t0 = time()
+    if pretty:
+        p = Progress(SpinnerColumn(speed=0.5), TextColumn("[progress.description]{task.description}"), transient=True)
+        p.add_task(description="Combining p-values with respect to sample groups...", total=None)
+        p.start()
+    else:
+        print('Combining p-values with respect to sample groups...')
+    if subname:
+        subname = str(subname)
+    else:
+        subname = None
+    r, adaptive_coverage = polymbine(new_project_name, names, group_files=[r'm:*'], alpha=alpha, filter_id=filter_id, filter_chr=filter_chr,
+                                     subname=subname, min_cnt_sum=min_cover, adaptive_min_cover=adaptive_min_cover,
+                                     adaptive_es=adaptive_es, adaptive_pval=adaptive_pval,
+                                     uniform_weights=uniform_weights, n_jobs=n_jobs)
+    r = r[subname]['snvs']
+    if pretty:
+        p.stop()
+    ref = alt = both = total = 0
+    for t in r.values():
+        pv_ref, pv_alt = t[-1]
+        ref += pv_ref < alpha
+        alt += pv_alt < alpha
+        total += (pv_ref < alpha) | (pv_alt < alpha)
+        both += (pv_ref < alpha) & (pv_alt < alpha)
+    expected_res = [int(ref), int(alt), int(both)]
+    if pretty:
+        if adaptive_min_cover:
+            rprint('Minimal required coverages for each BAD:')
+            table = Table('BAD', 'Ref', 'Alt', 'Min')
+            for bad in sorted(adaptive_coverage['ref']):
+                cov_ref = adaptive_coverage['ref'][bad]
+                cov_alt = adaptive_coverage['alt'][bad]
+                table.add_row(*map(str, (bad, cov_ref, cov_alt, min(cov_ref, cov_alt))))
+            rprint(table)
+        rprint('Number of significantly imbalanced SNVs after FDR correction:')
+        table = Table('Ref', 'Alt', 'Both', 'Total significant\n(Percentage of total SNVs)')
+        table.add_row(str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')
+        rprint(table)
+        rprint(f'Total SNVs tested: {len(r)}')
+    else:
+        if adaptive_min_cover:
+            print('Minimal required coverages for each BAD:')
+            table = print('\t'.join(('BAD', 'Ref', 'Alt', 'Min')))
+            
+            for bad in sorted(adaptive_coverage['ref']):
+                cov_ref = adaptive_coverage['ref'][bad]
+                cov_alt = adaptive_coverage['alt'][bad]
+                print('\t'.join(map(str, (bad, cov_ref, cov_alt, min(cov_ref, cov_alt)))))
+        print('Number of significantly imbalanced SNVs after FDR correction:')
+        print('\t'.join(('Ref', 'Alt', 'Both', 'Total significant (Percentage of total SNVs)')))
+        print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
+        print(f'Total SNVs tested: {len(r)}')
+    update_history(names, 'multiple_combine', group=None, alpha=alpha, min_cover=min_cover, adaptive_min_cover=adaptive_min_cover,
+                   adaptive_es=adaptive_es, adaptive_pval=adaptive_pval, filter_id=filter_id, subname=subname, filter_chr=filter_chr,
+                   uniform_weights=uniform_weights, n_jobs=n_jobs, expected_result=expected_res)
+    dt = time() - t0
+    if pretty:
+        rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
+    else:
+        print(f'✔️ Done!\t time: {dt:.2f} s.')
+        
+    return expected_res
 
 @app.command('difftest')
 def _difftest(name: str = Argument(..., help='Project name.'),
@@ -849,6 +934,8 @@ def _counts(name: str = Argument(..., help='Project name.'), out: str = Argument
         rprint('[green][bold]✔️[/bold] Done![/green]')
     else:
         print('✔️ Done!')
+        
+        
 
 @app_export.command('params')
 def _params(name: str = Argument(..., help='Project name.'), out: str = Argument(..., help='Output filename/path.'),
@@ -910,7 +997,28 @@ def _combined_pvalues(name: str = Argument(..., help='Project name.'), out: Path
         rprint('[green][bold]✔️[/bold] Done![/green]')
     else:
         print('✔️ Done!')
+        
 
+
+@app_export.command('multiple_pvalues')
+def _combined_multiple_pvalues(
+                      project_name: str = Argument(..., help='Output project name.'),
+                      names: List[str] = Argument(..., help='Project name.'),
+                      out: Path = Argument(..., help='Output filename/path.'),
+                      sample_info: bool = Option(False, help='Include raw p-values and names of sample scorefiles to the tabular. '
+                                                          'Note that this may bloat output if number of samples is high.'),
+                      subname: str = Option(None, help='A subname that can be used to reference a set of combined p-values in case if you'
+                                                       ' provided one at [cyan bold]combine[/cyan bold] step.'),
+                      pretty: bool = Option(True, help='Use "rich" package to produce eye-candy output.')):
+    '''
+    Export combined across samples and FDR-corrected p-values, aggregated across multiple projects.
+    '''
+    out = str(out)
+    export.export_polycombined_pvalues(project_name, names, out, sample_info=sample_info, subname=subname)
+    if pretty:
+        rprint('[green][bold]✔️[/bold] Done![/green]')
+    else:
+        print('✔️ Done!')
 
 help_str = 'Export "raw" pvalues (i.e. prior to combining them across samples and FDR-corrections). '\
            'Note that for each vcf/BED-like file submitted at [cyan bold]create[/cyan bold] stage, this command will '\
