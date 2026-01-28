@@ -1,23 +1,26 @@
-__version__ = '2.28.1'
+# -*- coding: utf-8 -*-
+__version__ = '0.26.0'
 import importlib
 
 
 __min_reqs__ = [
-            'pip>=23.0',
-            'typer>=0.6.1',
-            'numpy>=1.21.0',
-            'jax<0.9',
-            'jaxlib<0.9',
-            'matplotlib>=3.5.1',
-            'pandas>=1.4.1',
-            'scipy<1.16',
-            'statsmodels>=0.13.2',
-            'betanegbinfit>=1.10.1',
+            'pip>=24.0',
+            'typer>=0.13',
+            'numpy>=2.1',
+            'jax>=0.8',
+            'jaxlib>=0.8',
+            'matplotlib>=3.5',
+            'pandas>=2.2',
+            'scipy>=1.14',
+            'statsmodels>=0.14',
             'datatable>=1.0.0' ,
-            'dill>=0.3.7',
+            'dill>=0.3.9',
             'rich>=12.6.0',
-            'portion>=2.3.0',
-            'pysam>=0.22.0'
+            'tqdm>=4.0',
+            'scikit-learn>=1.6',
+            'tables>=3.10',
+            'sympy>=1.12',
+            'seaborn>=0.12'
            ]
 
 def versiontuple(v):
