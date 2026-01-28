@@ -197,13 +197,6 @@ def _fit(name: str = Argument(..., help='Project name.'),
     dt = time() - t0
     rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
 
-__gof_doc = '''3-rd col:
-[cyan]pred = mu_p 1_s^T + 1_p mu_s^T + B mu_m 1_s^T + B U[/cyan]
-2-nd col:
-[cyan]pred = mu_p 1_s^T + 1_p mu_s^T + B mu_m 1_s^T[/cyan]
-1-st col:
-[cyan]pred = mu_p 1_s^T + 1_p mu_s^T[/cyan]'''
-
 @app.command('gof', help='Estimate GOFs given test/train data split. Provides test info only if [orange]test-chromosomes[/orange] is not None in [cyan]fit[/cyan].')
 def _gof(name: str = Argument(..., help='Project name.'),
          use_groups: bool = Option(False, help='Compute statistic for samples aggragated across groups.'), 
@@ -253,7 +246,6 @@ def _gof(name: str = Argument(..., help='Project name.'),
     p.stop()
     dt = time() - t0
     rprint(t)
-    rprint(__gof_doc)
     rprint(f'[green][bold]✔️[/bold] Done![/green]\t time: {dt:.2f} s.')
 
 @app.command('predict', help='Estimate deviations of motif activities from their means.')
