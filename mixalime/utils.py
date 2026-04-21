@@ -93,6 +93,7 @@ def dictify_params(d: dict, field='ests') -> dict:
 def select_filenames(patterns: list, files) -> list:
     res = list()
     for pattern in patterns:
+        pattern = str(pattern)
         subres = list()
         if pattern.startswith('m:'):
             t = pattern[2:]
@@ -114,10 +115,11 @@ def select_filenames(patterns: list, files) -> list:
             
 
 def parse_filenames(files: list, files_list=None, ignore_errors=False) -> list:    
-    if type(files) is str:
+    if isinstance(files, str) or not isinstance(files, (list, tuple, set)):
         files = [files]
     res = list()
     for file in files:
+        file = str(file)
         if file.startswith('m:'):
             file = file[len('m:'):]
             for file in glob(file):
