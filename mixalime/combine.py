@@ -316,10 +316,12 @@ def polymbine(output_name: str, names: list[str], group_files=None, alpha=0.05, 
         # Determine groups for this project
         current_groups = set()
         if group_files:
-            # Check which of the provided group_files belong to this project
-            # This logic assumes group_files contains absolute paths or matching patterns
-            # that resolve to files present in this project's scorefiles
-            selected_files = select_filenames(group_files, scorefiles)
+            if len(group_files) == len(names):
+                g_files = [group_files[p_idx]]
+            else:
+                g_files = group_files
+            
+            selected_files = select_filenames(g_files, scorefiles)
             for file in selected_files:
                 try:
                     i = scorefiles.index(file)
@@ -334,7 +336,7 @@ def polymbine(output_name: str, names: list[str], group_files=None, alpha=0.05, 
             pass
             
         all_groups.append(current_groups)
-
+        
         # Load stats
         filename_test = f'{name}.test.{compressor}'
         with opener(filename_test, 'rb') as f:
