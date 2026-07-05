@@ -293,7 +293,8 @@ def polymbine(output_name: str, names: list[str], group_files=None, alpha=0.05, 
     all_stats = []
     all_groups = []
     all_min_coverage = []
-    
+    adaptive_coverage = None
+
     # Unified dictionary to store merged SNVs
     # Key: (chr, pos, etc.) -> Value: [metadata, (data_p1...), (data_p2...), ...]
     combined_snvs = defaultdict(lambda: [None]) 
@@ -461,5 +462,5 @@ def polymbine(output_name: str, names: list[str], group_files=None, alpha=0.05, 
     if save_to_file:
         with openers[compressor](out_filename, 'wb') as f:
             dill.dump(res, f)
-            
-    return res
+
+    return res, adaptive_coverage

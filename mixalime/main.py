@@ -151,7 +151,7 @@ def update_history(name: str, command: str, **kwargs):
         del kwargs['subname']
     d[command] = kwargs
     with open(f'{name}.json', 'w') as f:
-        json.dump(d, f, indent=4)
+        json.dump(d, f, indent=4, default=str)
 
 def reproduce(filename: str, pretty: bool = True, check_results: bool = True):
     global _DO_NOT_UPDATE_HISTORY
@@ -666,7 +666,7 @@ def _multiple_combine(
         print('\t'.join(('Ref', 'Alt', 'Both', 'Total significant (Percentage of total SNVs)')))
         print('\t'.join((str(ref), str(alt), str(both), f'{total} ({total/len(r) * 100:.2f}%)')))
         print(f'Total SNVs tested: {len(r)}')
-    update_history(names, 'multiple_combine', group=group, alpha=alpha, min_cover=min_cover, adaptive_min_cover=adaptive_min_cover,
+    update_history(new_project_name, 'multiple_combine', group=group, alpha=alpha, min_cover=min_cover, adaptive_min_cover=adaptive_min_cover,
                    adaptive_es=adaptive_es, adaptive_pval=adaptive_pval, filter_id=filter_id, subname=subname, filter_chr=filter_chr,
                    uniform_weights=uniform_weights, n_jobs=n_jobs, expected_result=expected_res)
     dt = time() - t0
