@@ -279,12 +279,20 @@ def export_polycombined_pvalues(output_name: str, projects: list, out: str, samp
         comb_full = dill.load(f)
     
     if not subname:
+        if None in comb_full:
+            comb = comb_full[None]
+        elif len(comb_full) == 1:
+            # Only one set of combined p-values in the file; use it regardless of subname.
+            comb = next(iter(comb_full.values()))
+        else:
+            raise KeyError(f'No --subname was provided, but {comb_file} contains multiple '
+                           f'result sets: {sorted(map(repr, comb_full))}. Re-run with --subname <name>.')
+    else:
         try:
             comb = comb_full[subname]
-        except:
-            comb = comb_full['all']
-    else:
-        comb = comb_full[subname]
+        except KeyError:
+            raise KeyError(f'Subname {subname!r} not found in {comb_file}. '
+                           f'Available: {sorted(map(repr, comb_full))}.')
     combined_groups = comb['groups'] 
     comb_snvs = comb['snvs'] # Key: (chr, pos)
 
@@ -320,7 +328,7 @@ def export_polycombined_pvalues(output_name: str, projects: list, out: str, samp
 
     d = defaultdict(list)
     
-    for (chrom, pos), stats in comb_snvs.items():
+    for (chrom, pos, alt), stats in comb_snvs.items():
         (pval_ref, pval_alt), (es_ref, es_alt), (fdr_ref, fdr_alt) = stats
         
 
@@ -339,10 +347,10 @@ def export_polycombined_pvalues(output_name: str, projects: list, out: str, samp
         
 
         for i, p_snvs in enumerate(proj_snvs):
-            if (chrom, pos) not in p_snvs:
+            if (chrom, pos, alt) not in p_snvs:
                 continue
-            
-            its = p_snvs[(chrom, pos)]
+
+            its = p_snvs[(chrom, pos, alt)]
 
             if snv_name is None:
                 snv_name, snv_ref_char, snv_alt_char = its[0]
