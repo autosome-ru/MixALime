@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from betanegbinfit import ModelMixture, ModelMixtures, ModelLine, ModelWindow, ModelWindowRec
+from betanegbinfit import ModelMixture, ModelMixtures, ModelLine
 from betanegbinfit.models import ModelLine_
+from .models import ModelWindow, ModelWindowRec
 from collections import defaultdict
 from functools import partial
 from fnmatch import fnmatch
