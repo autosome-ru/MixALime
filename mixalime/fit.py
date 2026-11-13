@@ -2,43 +2,27 @@
 import multiprocessing as mp
 import numpy as np
 import logging
-import dill
 import os
-from betanegbinfit.utils import collect_stats
 from collections import defaultdict
 from itertools import product
 from functools import partial
-from .utils import openers, get_init_file, get_model_creator
+from .utils import get_init_file, dictify_fix, load_pickle, save_pickle, process_pool
+from .stats import fit_indices
+from .models import ModelWindow
 
 
-def _finalize_fit(model, fit):
-    params_to_save = ('mu', 'b', 'mu_k', 'w', 'p1', 'p2')
-    std = fit.get('std', None)
-    for p in params_to_save:
-        for s in model.slices:
-            pn = f'{p}{s}'
-            if pn not in fit:
-                try:
-                    fit[pn] = model.get_param(p, model.prev_res)
-                except KeyError:
-                    continue
-                if std is not None:
-                    std[pn] = 0.0
+def _run(aux: tuple, data: dict, left: int, dist: str, estimate_p: bool, window_size: int,
+         window_behavior: str, min_slices: int, k_left_bound=1, adjusted_loglik=False, adjust_line=False,
+         regul_alpha=0.0, regul_n=True, regul_slice=True, regul_prior='laplace', std=False,
+         fix_params=str(), optimizer='SLSQP', r_transform=None, symmetrify=False,
+         small_dataset_strategy='conservative', small_dataset_n=1000, stop_slice_n=10, kappa_right=None,
+         window_ratio=None):
+    """
+    Fits the model of one allele at one BAD. aux is (bad, switch); with switch the alt allele is modelled.
 
-
-def _run(aux: tuple, data: dict, left: int,
-         max_count: int, mod: str, dist: str, 
-         estimate_p: bool, window_size: int, 
-         apply_weights: bool, window_behavior: str, min_slices: int,
-         start_est=True, compute_pdf=False, k_left_bound=1,
-         adjusted_loglik=False, adjust_line=False, regul_alpha=0.0, 
-         regul_n=True, regul_slice=True, regul_prior='laplace', std=False, 
-         fix_params=str(), optimizer='SLSQP', r_transform=None,
-         symmetrify=False, small_dataset_strategy='conservative',
-         small_dataset_n=1000, stop_slice_n=10, kappa_right=None, use_cpu=False):
-    if use_cpu:
-        os.environ["JAX_PLATFORM_NAME"] = 'cpu'
-        os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = 'cpu'
+    The stats of a slice get window_lo and window_hi, the first and the last
+    slice of the window whose fit gives the estimates there.
+    """
     bad, switch = aux
     data = data[bad]
     if data[:, -1].sum() < small_dataset_n:
@@ -46,131 +30,130 @@ def _run(aux: tuple, data: dict, left: int,
             if dist == 'BetaNB':
                 dist = 'NB'
             fix_params = 'b=1;mu=0;w=1;' + fix_params
-        elif small_dataset_strategy == 'fix_r':
+        elif small_dataset_strategy in ('fixed_r', 'fix_r'):
             fix_params = 'b=1;mu=0;' + fix_params
-    prefix = 'alt_' if switch else 'ref_'
-    logging.info(f'[BAD={bad}, {prefix[:-1]}] Optimization...')
+    allele = 'alt' if switch else 'ref'
+    logging.info(f'[BAD={bad}, {allele}] Optimization...')
     if switch:
-        data = np.array(data, dtype=float)[:, [1, 0, 2]]
-    inst_params = {'name': mod, 'bad': bad, 'left': left, 'dist': dist, 'estimate_p': estimate_p,
-                   'left_k': k_left_bound, 'start_est': start_est, 'apply_weights': apply_weights,
-                   'window_size': window_size, 'left_k': k_left_bound,
-                   'window_behavior': window_behavior, 'min_slices': min_slices,
-                   'adjust_line': adjust_line, 'start_est': start_est,
-                   'apply_weights': apply_weights, 'regul_alpha': regul_alpha,
-                   'regul_n': regul_n, 'regul_slice': regul_slice,
-                   'regul_prior': regul_prior, 'fix_params': fix_params,
-                   'r_transform': r_transform, 'symmetrify': symmetrify,
-                   'kappa_right': kappa_right}
-    model = get_model_creator(**inst_params)()
+        data = data[:, [1, 0, 2]]
+    inst_params = {'name': 'window', 'bad': bad, 'left': int(left), 'dist': dist, 'estimate_p': estimate_p,
+                   'left_k': k_left_bound, 'window_size': window_size, 'window_behavior': window_behavior,
+                   'min_slices': min_slices, 'adjust_line': adjust_line, 'regul_alpha': regul_alpha,
+                   'regul_n': regul_n, 'regul_slice': regul_slice, 'regul_prior': regul_prior,
+                   'fix_params': fix_params, 'r_transform': r_transform, 'symmetrify': symmetrify,
+                   'kappa_right': kappa_right, 'window_ratio': window_ratio}
+    kwargs = {k: v for k, v in inst_params.items() if k != 'name'}
+    kwargs['fix_params'] = dictify_fix(fix_params)
+    model = ModelWindow(**kwargs)
     fit = model.fit(data, calc_std=std, optimizer=optimizer, stop_slice_n=stop_slice_n)
-    _finalize_fit(model, fit)
-    stds = list()
-    ests = list()
-    names = list()
-    if 'std' in fit:
-        for n, std in fit['std'].items():
-            fn = fit[n]
-            if np.isscalar(fn):
-                ests.append(fn)
-                stds.append(std)
-                names.append(n)
-            else:
-                for i, s in enumerate(model.slices):
-                    ests.append(fn[i])
-                    stds.append(std[i])
-                    names.append(f'{n}{s}')
-        params = {'names': names, 'ests': ests, 'stds': stds}
-    else:
-        for n, est in fit.items():
-            if np.isscalar(est):
-                ests.append(est)
-                names.append(n)
-            else:
-                for i, s in enumerate(model.slices):
-                    ests.append(est[i])
-                    names.append(f'{n}{s}')
-        params = {'names': names, 'ests': ests}
-    logging.info(f'[BAD={bad}, {prefix[:-1]}] Calculating fit indices...')
-    # data = data if not symmetrify else odata
-    stats = collect_stats(model, calc_pvals=False, calc_es=False, calc_adjusted_loglik=adjusted_loglik)
-    r =  {'params': params, 'stats': stats, 'inst_params': inst_params}
-    return r
-    
+    stds = fit.pop('std', None)
+    params = {'names': list(fit), 'ests': list(fit.values())}
+    if stds is not None:
+        params['stds'] = [stds[n] for n in fit]
+    logging.info(f'[BAD={bad}, {allele}] Calculating fit indices...')
+    stats = fit_indices(model.data, params, bad, int(left), dist, r_transform=r_transform, estimate_p=estimate_p,
+                        adjusted_loglik=adjusted_loglik)
+    for s, (a, b) in zip(model.slices, model.sources):
+        stats[int(s)]['window_lo'], stats[int(s)]['window_hi'] = int(model.slices[a]), int(model.slices[b])
+    return {'params': params, 'stats': stats, 'inst_params': inst_params}
 
-def fit(name: str, model='line', dist='BetaNB', left=None,
-        estimate_p=False, window_size=1000,
+
+def fit(name: str, dist='BetaNB', left=None, estimate_p=False, window_size=1000,
         window_behavior='both', min_slices=1, adjust_line=False, k_left_bound=1,
-        max_count=np.inf, max_cover=np.inf, apply_weights=False,  start_est=True,
-        adjusted_loglik=False, regul_alpha=0.0, regul_n=True, regul_slice=True, 
-        regul_prior='laplace', std=False, fix_params=str(), optimizer='SLSQP', 
+        max_count=np.inf, max_cover=np.inf, adjusted_loglik=False, regul_alpha=0.0, regul_n=True,
+        regul_slice=True, regul_prior='laplace', std=False, fix_params=str(), optimizer='SLSQP',
         r_transform=None, symmetrify=False, small_dataset_strategy='conservative',
-        small_dataset_n=1000, stop_slice_n=10, kappa_right=None, n_jobs=1):
+        small_dataset_n=1000, stop_slice_n=10, kappa_right=None, window_ratio=None, n_jobs=1):
     """
+    Fits the window model to the counts of a project, for each BAD and each allele.
 
     Parameters
     ----------
-    data : pd.DataFrame
-        Pandas DataFrame.
-    output_folder : str
-        Name of output folder where results will be stored.
-    bads : list, optional
-        List of BADs. If None, then bads will be guessed from the table. The
-        default is None.
-    model : str, optional
-        Model name. Currently, can be either 'line' (ModelLine) or 'window'
-        (ModelWindow). The default is 'line'.
+    name : str
+        Project name.
     dist : str, optional
-        Which mixture distribution to use. Can be either 'NB' or 'BetaNB'. The
-        default is 'BetaNB'.
+        Distribution of the mixture components: 'NB', 'BetaNB' or 'MCNB'.
+        The default is 'BetaNB'.
     left : int, optional
-        Left-truncation bound. If None, then it will be estimated from the counts data as the minimal present count - 1. The default is None.
+        Left-truncation bound. If None, it is the minimal count present in
+        the data minus 1. The default is None.
     estimate_p : bool, optional
-        If True, then p will be estimated instead of assuming it to be fixed to
-        bad / (bad + 1). The default is False.
+        If True, p is estimated, otherwise it is fixed to bad / (bad + 1).
+        The default is False.
     window_size : int, optional
-        Has effect only if model = 'window', sets the required window size. The
-        default is 1000.
+        Minimal number of observations in a window. The default is 1000.
+    window_behavior : str, optional
+        'both' grows a window in both directions, 'right' to the right first.
+        The default is 'both'.
+    min_slices : int, optional
+        Minimal number of slices in a window. The default is 1.
+    adjust_line : bool, optional
+        Pull b and mu of each window towards those of the previous window.
+        The default is False.
+    k_left_bound : float, optional
+        Lower bound of the concentration parameter kappa, raised to BAD + 1.001
+        for BetaNB with r_transform and a fixed p. The default is 1.
     max_count : int, optional
-        Maximal number of counts for an allele (be it ref or alt). The default is np.inf.
+        Counts of an allele are below this. The default is np.inf.
     max_cover : int, optional
-        Maximal sum of ref + alt. The default is np.inf
-    adjusted_loglik: bool, optional
-        If True, then adjusted loglikelihood is also calculated alongside other statistics. The default is False.
-    regul_alpha: float, optional
-        Alpha multiplier of regularization/prior part of the objective
-        function for the concentration parameter kappa. Vaid only for model='window'. The default is 0.0.
-    regul_n: bool, optional
-        If True, then alpha is multiplied by a number of observations captured
-        by a particular window. Vaid only for model='window'. The default is True.
-    regul_slice: bool, optional
-       If True, then alpha is multiplied by an average slice number captured
-       by a particular window. Vaid only for model='window'. The default is True.
-   regul_prior: bool, optional
-       A name of prior distribution used to penalize small kappa values. Can
-       be 'laplace' (l1) or 'normal' (l2). Vaid only for model='window'. The default is 'laplace'.
-   kappa_right: float, optional
-       Right boundary for the kappa parameter. The default is None.
+        Sums of ref and alt are below this. The default is np.inf.
+    adjusted_loglik : bool, optional
+        Also compute the adjusted log-likelihood. The default is False.
+    regul_alpha : float, optional
+        Strength of the prior that favours high kappa. The default is 0.0.
+    regul_n : bool, optional
+        Multiply alpha by the number of observations in a window. The default is True.
+    regul_slice : bool, optional
+        Multiply alpha by the slice at the centre of a window. The default is True.
+    regul_prior : str, optional
+        'laplace' or 'normal'. The default is 'laplace'.
+    std : bool, optional
+        Compute standard errors of the estimates. The default is False.
+    fix_params : str, optional
+        Parameters fixed to constants, as 'name1=value1;name2=value2'.
+    optimizer : str, optional
+        'SLSQP' or 'L-BFGS-B'. The default is 'SLSQP'.
+    r_transform : str, optional
+        'NB', 'mean' or None. The default is None.
+    symmetrify : bool, optional
+        Symmetrify the counts before the fit. The default is False.
+    small_dataset_strategy : str, optional
+        What to do with a BAD of fewer than small_dataset_n observations:
+        'conservative' fixes b=1, mu=0, w=1 and replaces BetaNB by NB,
+        'fixed_r' fixes b=1, mu=0, 'none' does nothing. The default is 'conservative'.
+    small_dataset_n : int, optional
+        The default is 1000.
+    stop_slice_n : int, optional
+        A slice with fewer observations takes the estimates of the last fitted
+        window. The default is 10.
+    kappa_right : float, optional
+        Upper bound of kappa. The default is None.
+    window_ratio : float, optional
+        The window of a slice s holds no slice below s / window_ratio or above
+        s * window_ratio, and so fewer than window_size observations where the
+        slices near s are sparse. The default is None, for no such bound.
     n_jobs : int, optional
-        Number of parallel jobs to run. If -1, then it is determined
-        automatically. The default is -1.
+        Number of parallel jobs, -1 for all cores. The default is 1.
 
     Returns
     -------
-    None
-
+    dict
+        The fit, also saved to the project.
     """
+    if n_jobs != -1 and not (isinstance(n_jobs, (int, np.integer)) and n_jobs >= 1):
+        raise ValueError(f'n_jobs should be -1 or a positive integer, got {n_jobs}.')
     init_filename = get_init_file(name)
     compression = init_filename.split('.')[-1]
-    open = openers[compression]
-    with open(init_filename, 'rb') as f:
-        data = dill.load(f)['counts']
-    if left is None:
-        left = -1
-    data = {bad : mx[(mx[:, 0] < max_count) & (mx[:, 1] < max_count) & \
-                      (mx[:, 0] > left) & (mx[:, 1] > left) & ((mx[:, 0] + mx[:, 1]) < max_cover), :] 
+    data = load_pickle(init_filename)['counts']
+    lower = -1 if left is None else left
+    data = {bad: mx[(mx[:, 0] < max_count) & (mx[:, 1] < max_count) & (mx[:, 0] > lower) & (mx[:, 1] > lower)
+                    & ((mx[:, 0] + mx[:, 1]) < max_cover), :]
             for bad, mx in data.items()}
-    
+    for bad in [bad for bad, mx in data.items() if not len(mx)]:
+        logging.warning(f'No observations at BAD {bad} pass the filters, the BAD is skipped.')
+        del data[bad]
+    if not data:
+        raise ValueError('No observations pass the filters.')
     for bad, mx in data.items():
         n = mx[:, -1].sum()
         if n < window_size:
@@ -178,50 +161,32 @@ def fit(name: str, model='line', dist='BetaNB', left=None,
             if n < small_dataset_n:
                 s += f' Number of samples is too small for a sensible fit, a {small_dataset_strategy} fit will be used.'
             logging.warning(s)
-    if left == -1:
-        left = min(data[bad][:, [0, 1]].min() for bad in data) - 1
+    if left is None:
+        left = min(mx[:, [0, 1]].min() for mx in data.values()) - 1
     aux = list(product(sorted(data), (False, True)))
     if n_jobs == -1:
         n_jobs = max(1, mp.cpu_count())
     n_jobs = min(len(aux), n_jobs)
-    fun = partial(_run, data=data, left=left, 
-                  mod=model, dist=dist, 
-                  window_behavior=window_behavior, min_slices=min_slices,
-                  apply_weights=apply_weights,
-                  start_est=start_est, max_count=max_count,
-                  k_left_bound=k_left_bound,
-                  window_size=window_size, estimate_p=estimate_p,
-                  adjusted_loglik=adjusted_loglik,
-                  adjust_line=adjust_line,
-                  regul_alpha=regul_alpha,
-                  regul_n=regul_n,
-                  regul_slice=regul_slice,
-                  regul_prior=regul_prior,
-                  std=std,
-                  fix_params=fix_params,
-                  optimizer=optimizer,
-                  r_transform=r_transform,
-                  symmetrify=symmetrify,
-                  small_dataset_strategy=small_dataset_strategy,
-                  small_dataset_n=small_dataset_n,
-                  stop_slice_n=stop_slice_n,
-                  kappa_right=kappa_right,
-                  use_cpu=(n_jobs != 1))
-    result = defaultdict(lambda: defaultdict())
-    ralt = {True: 'alt', False: 'ref'}
+    fun = partial(_run, data=data, left=left, dist=dist, window_behavior=window_behavior, min_slices=min_slices,
+                  k_left_bound=k_left_bound, window_size=window_size, estimate_p=estimate_p,
+                  adjusted_loglik=adjusted_loglik, adjust_line=adjust_line, regul_alpha=regul_alpha,
+                  regul_n=regul_n, regul_slice=regul_slice, regul_prior=regul_prior, std=std,
+                  fix_params=fix_params, optimizer=optimizer, r_transform=r_transform, symmetrify=symmetrify,
+                  small_dataset_strategy=small_dataset_strategy, small_dataset_n=small_dataset_n,
+                  stop_slice_n=stop_slice_n, kappa_right=kappa_right, window_ratio=window_ratio)
+    result = defaultdict(dict)
     if n_jobs == 1:
-        for (bad, alt), res in zip(aux, map(fun, aux)):
-            result[ralt[alt]][bad] = res
+        it = map(fun, aux)
     else:
-        ctx = mp.get_context("forkserver")
-        with ctx.Pool(n_jobs) as p:
-            for (bad, alt), res in zip(aux, p.map(fun, aux)):
-                result[ralt[alt]][bad] = res
-    fit_filename = f'{name}.fit.{compression}'
-    for f in ('test', 'comb', 'difftest'):
+        with process_pool(n_jobs) as p:
+            it = p.map(fun, aux)
+    for (bad, alt), res in zip(aux, it):
+        result['alt' if alt else 'ref'][bad] = res
+    result = dict(result)
+    result['model'] = (dist, None if dist != 'BetaNB' or regul_alpha == 0 else regul_alpha)
+    for f in ('test', 'comb', 'difftest', 'anova'):
         filename = f'{name}.{f}.{compression}'
         if os.path.isfile(filename):
             os.remove(filename)
-    result['model'] = (dist, None if dist != 'BetaNB' or regul_alpha == 0 else regul_alpha)
-    with open(fit_filename, 'wb') as f:
-        dill.dump(result, f)
+    save_pickle(result, f'{name}.fit.{compression}')
+    return result
